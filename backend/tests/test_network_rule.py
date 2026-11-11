@@ -17,7 +17,15 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import network_rules as nr
+import pending_agents
+from tests import _enrollment_harness as harness
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_status_cache():
+    pending_agents._status_cache.clear()
+    yield
 
 
 # -- pure parsing and comparison ------------------------------------------------------------------
@@ -111,3 +119,109 @@ async def test_allow_twice_stores_once_keeps_order_and_stops_at_100(mongo_db):
         {"cidr": f"10.{i // 250}.{i % 250}.0/24", "source": "approved"} for i in range(nr.MAX_NETWORKS)]}})
     assert await nr.allow(mongo_db, "t1", "203.0.113.99/32", source="approved", actor="root") is False
     assert len(await _networks(mongo_db)) == nr.MAX_NETWORKS
+
+
+# -- enrollment: the first machine teaches the network, a new machine elsewhere waits ------------------
+
+HOME, OTHER = "203.0.113.7", "198.51.100.9"
+
+
+async def _agent(db, hostname):
+    return await db.agents.find_one({"hostname": hostname}, {"_id": 0})
+
+
+async def test_the_first_machine_teaches_the_network_and_later_machines_from_it_enroll(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    code, _ = await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME)
+    assert code == 200
+    stored = await _networks(mongo_db)
+    assert [(e["cidr"], e["source"], e["hostname"]) for e in stored] == [(f"{HOME}/32", "learned", "M1")]
+    assert (await _agent(mongo_db, "M1"))["sourceIp"] == HOME
+    code, _ = await harness.register(mongo_db, "M3", hardware=harness.hw("S3"), client_ip=HOME)
+    assert code == 200
+
+
+async def test_a_new_machine_from_another_network_waits_and_the_tenant_is_told_why(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    assert (await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME))[0] == 200
+    code, body = await harness.register(mongo_db, "M2", hardware=harness.hw("S2"), client_ip=OTHER)
+    assert code == 202 and body["pendingReason"] == "new_network"
+    held = await _agent(mongo_db, "M2")
+    assert held["status"] == "Pending" and held["pendingReason"] == "new_network" and held["sourceIp"] == OTHER
+    notice = await mongo_db.notifications.find_one({"tenantId": "t1"})
+    assert f"new network {OTHER}, waiting for platform approval" in notice["message"]
+    assert len(await _networks(mongo_db)) == 1  # a held machine teaches nothing
+
+
+async def test_an_enrolled_agent_is_never_checked_against_the_networks(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    assert (await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME))[0] == 200
+    code, _ = await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=OTHER)
+    assert code == 200
+    assert (await _agent(mongo_db, "M1"))["status"] == "Online"
+
+
+async def test_an_old_agent_build_sees_the_new_network_text(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME)
+    code, detail = await harness.register(mongo_db, "M2", hardware=harness.hw("S2"), client_ip=OTHER,
+                                          supportsPending=False)
+    assert code == 403 and detail.startswith("new_network:")
+
+
+async def test_the_platform_organization_is_never_held_and_learns_nothing(mongo_db):
+    await harness.tenant(mongo_db, "platform-admin")
+    for i, ip in enumerate((HOME, OTHER, "192.0.2.1")):
+        code, _ = await harness.register(mongo_db, f"P{i}", hardware=harness.hw(f"SP{i}"), client_ip=ip)
+        assert code == 200
+    assert await _networks(mongo_db, "platform-admin") == []
+
+
+async def test_a_missing_observed_address_is_held_and_never_learned(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME)
+    code, body = await harness.register(mongo_db, "M2", hardware=harness.hw("S2"), client_ip=None)
+    assert code == 202 and body["pendingReason"] == "new_network"
+    await harness.tenant(mongo_db, "t3", key="reg_third0123456789abcdef0")
+    code, body = await harness.register(mongo_db, "M9", key="reg_third0123456789abcdef0",
+                                        hardware=harness.hw("S9"), client_ip=None)
+    assert code == 202 and body["pendingReason"] == "new_network"
+    assert await _networks(mongo_db, "t3") == []
+
+
+async def test_an_ipv4_mapped_observed_address_matches_its_ipv4_network(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=f"::ffff:{HOME}")
+    assert [e["cidr"] for e in await _networks(mongo_db)] == [f"{HOME}/32"]
+    assert (await harness.register(mongo_db, "M2", hardware=harness.hw("S2"), client_ip=HOME))[0] == 200
+
+
+async def test_two_concurrent_first_enrollments_from_different_networks_teach_one(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    first, second = await asyncio.gather(
+        harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
+        harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=OTHER))
+    assert sorted((first[0], second[0])) == [200, 202]
+    assert len(await _networks(mongo_db)) == 1
+    held = [first, second][0 if first[0] == 202 else 1][1]
+    assert held["pendingReason"] == "new_network"
+
+
+async def test_two_concurrent_first_enrollments_from_one_network_both_enroll(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    results = await asyncio.gather(
+        harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
+        harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=HOME))
+    assert [r[0] for r in results] == [200, 200]
+    assert len(await _networks(mongo_db)) == 1
+
+
+def test_the_reason_texts_live_in_one_module_and_name_the_address():
+    import hold_reasons
+    agent = {"sourceIp": OTHER}
+    assert hold_reasons.reason_text("new_network", agent) == (
+        f"it enrolled from a new network {OTHER}, waiting for platform approval")
+    assert "unknown address" in hold_reasons.reason_text("new_network", {})
+    assert hold_reasons.refusal_text("new_network", 5).startswith("new_network:")
+    assert hold_reasons.refusal_text("seat_limit", 5).startswith("Agent limit reached (5)")
+    assert pending_agents.reason_text("seat_limit") == hold_reasons.reason_text("seat_limit")
