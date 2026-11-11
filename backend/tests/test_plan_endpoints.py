@@ -8,20 +8,29 @@ a running trial, a repeated edit notifies or audits again, a float/bool/string n
 non-Super-Admin reads or edits the table; no_claim=the Plans screen (a later plan); audit_ledger.event and
 plan_notices.announce are mocked.
 """
+import json
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import plan_endpoints as pe
 import plan_service
 import plan_trial
 import screen_ceiling
+from auth_types import TokenData
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
 SUPER_EMAIL = "root@example.com"
+SUPER = TokenData(username=SUPER_EMAIL, role="Super Admin", tenant_id="platform-admin", mfa_verified=True)
+SUPPORT = TokenData(username="help@example.com", role="platform_support", tenant_id="platform-admin", mfa_verified=True)
+TENANT_ADMIN = TokenData(username="boss@acme.test", role="tenant_admin", tenant_id="acme", mfa_verified=True)
 
 
 @pytest.fixture
@@ -189,6 +198,65 @@ async def test_custom_unknown_and_empty_requests_are_refused(wired):
     await _expect("nothing_to_update", 422, plan_service.update_plan(wired, "Pro", {}, actor=SUPER_EMAIL))
     await _expect("nothing_to_update", 422, plan_service.update_plan(wired, "Pro", {"color": "red"}, actor=SUPER_EMAIL))
     assert await wired.plans.count_documents({}) == 0
+
+
+# -- the routes ---------------------------------------------------------------------------------
+
+@pytest.fixture
+def routed(wired):
+    with patch.object(pe, "mongodb", SimpleNamespace(db=wired)):
+        yield wired
+
+
+async def test_the_super_admin_lists_and_edits_through_the_route_functions(routed):
+    await _tenant(routed, "p-a")
+    listed = await pe.get_plans(current_user=SUPER)
+    assert [p["key"] for p in listed["plans"]] == ["Free", "Pro", "Enterprise", "Custom"]
+    out = await pe.put_plan("Pro", pe.PlanUpdate(seats=60), current_user=SUPER)
+    assert out["tenantsUpdated"] == 1 and out["plan"]["key"] == "Pro" and out["plan"]["seats"] == 60
+    assert await _seats(routed, "p-a") == 60
+
+
+async def test_a_plan_refusal_is_a_json_body_with_the_status(routed):
+    for plan, body, code in (("Custom", pe.PlanUpdate(seats=3), "custom_is_per_tenant"),
+                             ("Gold", pe.PlanUpdate(seats=3), "unknown_plan"),
+                             ("Pro", pe.PlanUpdate(), "nothing_to_update"),
+                             ("Pro", pe.PlanUpdate(trialDays=3), "trial_only_on_free")):
+        res = await pe.put_plan(plan, body, current_user=SUPER)
+        assert res.status_code == 422
+        assert json.loads(res.body) == {"error": json.loads(res.body)["error"], "code": code, "status_code": 422}
+    assert await routed.plans.count_documents({}) == 0
+
+
+async def test_only_the_super_admin_reads_or_edits(routed):
+    for caller in (SUPPORT, TENANT_ADMIN):
+        with pytest.raises(HTTPException) as err:
+            await pe.get_plans(current_user=caller)
+        assert err.value.status_code == 403
+        with pytest.raises(HTTPException) as err:
+            await pe.put_plan("Pro", pe.PlanUpdate(seats=60), current_user=caller)
+        assert err.value.status_code == 403
+    assert await routed.plans.count_documents({}) == 0
+
+
+def test_the_body_model_refuses_unknown_fields_and_non_whole_numbers():
+    bad = ({"seats": -1}, {"seats": 1_000_001}, {"seats": 2.5}, {"seats": True}, {"seats": "60"},
+           {"trialDays": 0}, {"trialDays": 366}, {"trialDays": 1.5}, {"trialDays": False}, {"trialDays": "14"},
+           {"screens": ["view:agents"] * 301}, {"color": "red"})
+    for body in bad:
+        with pytest.raises(ValidationError):
+            pe.PlanUpdate(**body)
+    for body in ({"seats": 0}, {"seats": 1_000_000}, {"trialDays": 1}, {"trialDays": 365}, {"screens": []}):
+        assert pe.PlanUpdate(**body).model_dump(exclude_unset=True) == body
+
+
+def test_the_real_app_mounts_the_plan_routes_under_the_tenant_management_catalogue():
+    from tests._route_walk import run_real_app_walk
+    found = {(m, r["path"]): r for r in run_real_app_walk()["routes"] if r["path"].startswith("/api/platform/plans")
+             for m in r["methods"]}
+    assert set(found) == {("GET", "/api/platform/plans"), ("PUT", "/api/platform/plans/{plan_key}")}
+    for record in found.values():
+        assert record["auth"] == "user" and [t["catalogue"] for t in record["tags"]] == ["tenantManagement"], record
 
 
 def plan_trial_now():
