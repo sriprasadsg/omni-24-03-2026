@@ -278,6 +278,22 @@ async def raise_direct_seats(db, tenant_id: str, by: int) -> int:
     return doc["license"]["maxAgents"]
 
 
+async def adopt_plan_seats(db, tenant_id: str, *, seats: int, override: Optional[int], previous: int) -> bool:
+    """The go-live seat overwrite (migration 034, D-18) for one direct tenant: remember ``previous`` as
+    ``license.maxAgentsBeforePlans`` and write ``override`` (kept as ``license.seatOverride``) or the plan's
+    ``seats`` in the same guarded update. It runs once per tenant: the guard is the missing record, so a
+    second call changes nothing. Partner customers and the platform organization never match (D-11, D-41).
+    True when the tenant changed."""
+    changes: Dict[str, Any] = {"license.maxAgentsBeforePlans": previous}
+    number = _check_seats(override if override is not None else seats)
+    changes.update({"license.maxAgents": number, "maxAgents": number})
+    if override is not None:
+        changes["license.seatOverride"] = number
+    res = await _raw(db).tenants.update_one(
+        {**_direct_filter(tenant_id), "license.maxAgentsBeforePlans": {"$exists": False}}, {"$set": changes})
+    return res.modified_count == 1
+
+
 async def license_summary(db, tenant_id: str) -> Dict[str, Any]:
     lic = await ensure_license(db, tenant_id)
     used = lic["seatsUsed"] or 0
