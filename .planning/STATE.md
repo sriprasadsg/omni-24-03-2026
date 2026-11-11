@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
 status: executing
-stopped_at: Completed 88-10-PLAN.md
-last_updated: "2026-11-11T02:57:44.226Z"
+stopped_at: Completed 88-12-PLAN.md
+last_updated: "2026-11-11T03:05:50.627Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 88 execution started
-state_head: d110f8f2db058ec33e0bd48b427f46b307d79d3c
+state_head: 33a1da60750bb947bfd24d8b47fd8213f84c7590
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 151
+  completed_plans: 152
   percent: 75
 ---
 
@@ -670,6 +670,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 88]: 88-08: plan.updated ledger write is best-effort (logged on failure); seats.changed notice carries the plan's old/new seat number; screens compared as ordered lists
 - [Phase 88]: 88-09: a heartbeat hold for a returning agent also posts the platform alert naming both organizations; report_live_pairs claims each machine key once a day by upsert on a unique key
 - [Phase 88]: 88-10: an empty stored partner planCeiling means no plan changes (change_plan falls back to Free only when the field is absent); partner customer rows show trialEndsAt for any unconsumed Free trial, including an ended one
+- [Phase 88]: 88-12: choosing a plan in Manage Tenant ticks nothing; a box is disabled when outside the plan and not currently ticked (kept screens stay untickable-off)
 
 ## Performance Metrics
 
@@ -976,6 +977,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P08 | 20 min | 2 tasks | 6 files |
 | Phase 88 P09 | 17 min | 3 tasks | 7 files |
 | Phase 88 P10 | 25 min | 3 tasks | 7 files |
+| Phase 88 P12 | 25 min | 2 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1010,8 +1012,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-11T02:57:43.899Z
-**Stopped at:** Completed 88-10-PLAN.md
+**Last session:** 2026-11-11T03:05:50.286Z
+**Stopped at:** Completed 88-12-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1040,7 +1042,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
-Plan: 11 of 16
+Plan: 12 of 16
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
