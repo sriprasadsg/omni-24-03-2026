@@ -22,9 +22,10 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 import licensing
+import network_rules
 import seat_identity
 from hold_reasons import (  # noqa: F401  (re-exported: callers and tests import these from here)
-    REASON_DUPLICATE_HARDWARE, REASON_SEAT_LIMIT, reason_text, refusal_text)
+    REASON_DUPLICATE_HARDWARE, REASON_NEW_NETWORK, REASON_SEAT_LIMIT, reason_text, refusal_text)
 
 logger = logging.getLogger(__name__)
 
@@ -367,13 +368,32 @@ async def _undecided(raw, agent_id: str) -> Dict[str, Any]:
     return agent
 
 
-async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0) -> Dict[str, Any]:
+def _network_to_allow(agent: Dict[str, Any], widen_to: Optional[str]) -> Optional[str]:
+    """The network approving this hold allows (D-07, D-31, D-42): only a new_network hold allows one, its
+    observed address or the validated ``widen_to`` range. Raises DecisionError 422 before anything is written."""
+    if agent.get("pendingReason") != REASON_NEW_NETWORK:
+        if widen_to:
+            raise DecisionError(422, "widen_only_for_new_network: a range can only be given for a new network")
+        return None
+    observed = agent.get("sourceIp")
+    if network_rules.normalize_ip(observed) is None:
+        raise DecisionError(422, "no_observed_address: this hold has no observed address, so no network can be allowed")
+    try:
+        return network_rules.validate_widen(observed, widen_to) if widen_to else network_rules.network_of(observed)
+    except network_rules.EntryError as err:
+        raise DecisionError(422, str(err))
+
+
+async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0,
+                  widen_to: Optional[str] = None) -> Dict[str, Any]:
     """Admit a Pending (or previously Rejected) agent: it claims a seat and goes Offline
     until its next check-in brings it Online. With ``raise_limit_by`` the tenant's seat
-    limit grows first. Raises DecisionError 409 ``no_free_seat`` when no seat is free."""
+    limit grows first. Raises DecisionError 409 ``no_free_seat`` when no seat is free.
+    Approving a new_network hold also allows its network (``widen_to`` widens it, within D-42)."""
     raw = _raw(db)
     agent = await _undecided(raw, agent_id)
     tenant_id = agent["tenantId"]
+    cidr = _network_to_allow(agent, widen_to)
     if raise_limit_by:
         await licensing.ensure_license(db, tenant_id)
         tenant = await raw.tenants.find_one({"id": tenant_id}, {"_id": 0, "partnerId": 1, "license": 1, "maxAgents": 1})
@@ -416,10 +436,20 @@ async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0) -> Dic
     if agent.get("enrollmentGroupId"):  # the install key's default group (spec C4)
         import license_rules
         await license_rules.join_group(db, tenant_id, agent["enrollmentGroupId"], agent_id, actor)
+    allowed = None
+    if cidr:
+        allowed = await network_rules.allow(db, tenant_id, cidr, source="approved", actor=actor,
+                                            hostname=agent.get("hostname"))
+        if not allowed:  # already listed or the list is full: the approval stands
+            logger.warning("Network %s was not added for tenant %s (already listed or list full)", cidr, tenant_id)
     await _audit("agent.approved", agent, actor,
                  f"Approved {agent.get('hostname')} (was {agent['status']}, reason {agent.get('pendingReason')})"
-                 + (f"; seat limit raised by {raise_limit_by}" if raise_limit_by else ""))
-    return {"agentId": agent_id, "status": "Offline", "license": await licensing.license_summary(db, tenant_id)}
+                 + (f"; seat limit raised by {raise_limit_by}" if raise_limit_by else "")
+                 + (f"; network {cidr} allowed" if allowed else ""))
+    result = {"agentId": agent_id, "status": "Offline", "license": await licensing.license_summary(db, tenant_id)}
+    if cidr:
+        result.update({"networkAllowed": bool(allowed), "network": cidr})
+    return result
 
 
 async def reject(db, agent_id: str, actor: str) -> Dict[str, Any]:

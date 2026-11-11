@@ -82,17 +82,20 @@ async def list_pending_agents(
 
 class ApproveBody(BaseModel):
     raiseLimitBy: int = Field(0, ge=0, le=MAX_RAISE)
+    widenTo: Optional[str] = Field(None, max_length=64)  # new_network holds only: a range of at most /24 (IPv6 /48)
 
 
 @router.post("/{agent_id}/approve", dependencies=[Depends(_require_pending_access)])
 async def approve_pending_agent(agent_id: str, body: Optional[ApproveBody] = None,
                                 current_user=Depends(get_current_user)):
     """Admit the agent (it claims a seat). 409 ``no_free_seat`` carries the tenant's license
-    so the UI can offer "approve and raise the limit"."""
+    so the UI can offer "approve and raise the limit". Approving a new_network hold allows that network,
+    or the range ``widenTo`` (422 when it is wider than a /24 or /48 or does not contain the address)."""
     await _require_decider(current_user, raise_limit=bool(body and body.raiseLimitBy))
+    body = body or ApproveBody()
     try:
         result = await pending_agents.approve(get_database(), agent_id, _actor(current_user),
-                                              (body or ApproveBody()).raiseLimitBy)
+                                              body.raiseLimitBy, widen_to=body.widenTo)
     except pending_agents.DecisionError as err:
         return _decision_response(err)
     invalidate_cache("agents:*")
