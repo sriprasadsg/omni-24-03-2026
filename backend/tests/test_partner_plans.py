@@ -221,3 +221,113 @@ async def test_the_overview_shows_the_plan_ceiling_beside_the_screen_ceiling(wir
     await _partner(wired, ceiling=("Free", "Pro"))
     out = await pe.get_overview(ctx=await _ctx())
     assert out["planCeiling"] == ["Free", "Pro"] and "ceiling" in out
+
+
+# --- Task 3: a partner admin changes its customer's plan and extends its trial (D-13, D-15) ----------------
+
+async def _free_customer(wired, cid="c1", partner="partner_a", seats=7, plan="Free", trial_days=3):
+    doc = {"id": cid, "name": f"Customer {cid}", "partnerId": partner, "subscriptionTier": plan,
+           "license": {"maxAgents": seats, "seatsUsed": 0}, "maxAgents": seats, "enabledFeatures": []}
+    if plan == "Free":
+        doc["trial"] = plan_trial.new_trial(datetime.now(timezone.utc), trial_days)
+    await wired.db.tenants.insert_one(doc)
+
+
+async def _put_plan(cid, plan, role="partner_admin", pid="partner_a"):
+    return await pe.put_customer_plan(cid, pe.PlanBody(plan=plan), ctx=await _ctx(pid, role))
+
+
+async def _post_trial(cid, days, role="partner_admin", pid="partner_a"):
+    return await pe.post_customer_trial(cid, pe.TrialBody(days=days), ctx=await _ctx(pid, role))
+
+
+async def test_a_partner_admin_moves_its_customer_to_a_plan_inside_its_ceiling_and_seats_stay(wired):
+    """protects=D-13 and D-11; fails_when=the seats follow the plan, or a ledger entry is missing."""
+    await _partner(wired, ceiling=("Free", "Pro"))
+    await _free_customer(wired)
+    out = await _put_plan("c1", "Pro")
+    assert out["customer"]["plan"] == "Pro" and out["customer"]["seatsAssigned"] == 7
+    doc = await _stored(wired, "c1")
+    assert doc["subscriptionTier"] == "Pro" and doc["license"]["maxAgents"] == 7
+    assert len(_actions(wired, "plan.changed", "c1")) == 1
+    assert len(_actions(wired, "partner.customer_plan_changed", "partner_a")) == 1
+
+
+async def test_a_plan_outside_the_ceiling_is_a_422_and_nothing_changes(wired):
+    """protects=T-88-29; fails_when=the plan is stored or a ledger entry written."""
+    await _partner(wired, ceiling=("Free", "Pro"))
+    await _free_customer(wired)
+    out = await _put_plan("c1", "Enterprise")
+    assert out.status_code == 422 and _body(out)["code"] == "plan_outside_ceiling"
+    assert (await _stored(wired, "c1"))["subscriptionTier"] == "Free"
+    assert _actions(wired, "plan.changed") == []
+
+
+async def test_an_empty_ceiling_lets_a_partner_change_no_plan_even_back_to_free(wired):
+    """protects=an empty ceiling means no plan changes; fails_when=the Free fallback applies to a stored empty list."""
+    await _partner(wired, ceiling=())
+    await _free_customer(wired, plan="Pro")
+    out = await _put_plan("c1", "Free")
+    assert out.status_code == 422 and _body(out)["code"] == "plan_outside_ceiling"
+    assert (await _stored(wired, "c1"))["subscriptionTier"] == "Pro"
+
+
+async def test_another_partners_customer_is_a_404_and_a_viewer_is_a_403(wired):
+    """protects=T-88-29 ownership and role; fails_when=a foreign customer changes or a viewer succeeds."""
+    from fastapi import HTTPException
+    await _partner(wired, "partner_a", ceiling=("Free", "Pro"))
+    await _partner(wired, "partner_b", ceiling=("Free", "Pro"))
+    await _free_customer(wired, "other", partner="partner_b")
+    out = await _put_plan("other", "Pro")
+    assert out.status_code == 404
+    await _free_customer(wired, "mine")
+    with pytest.raises(HTTPException) as err:
+        await _put_plan("mine", "Pro", role="partner_viewer")
+    assert err.value.status_code == 403
+    assert (await _stored(wired, "other"))["subscriptionTier"] == "Free"
+    assert (await _stored(wired, "mine"))["subscriptionTier"] == "Free"
+
+
+async def test_a_partner_admin_extends_a_free_customers_trial_and_both_ledgers_record_it(wired):
+    """protects=D-15; fails_when=the end does not move 7 days, or one of the two ledger entries is missing."""
+    await _partner(wired)
+    await _free_customer(wired, trial_days=3)
+    before = datetime.fromisoformat((await _stored(wired, "c1"))["trial"]["endsAt"])
+    out = await _post_trial("c1", 7)
+    ends = datetime.fromisoformat(out["customer"]["trialEndsAt"])
+    assert ends - before == timedelta(days=7) and out["customer"]["plan"] == "Free"
+    assert len(_actions(wired, "trial.extended", "c1")) == 1
+    kept = _actions(wired, "partner.customer_trial_extended", "partner_a")
+    assert len(kept) == 1 and kept[0].kwargs["customerId"] == "c1" and kept[0].kwargs["days"] == 7
+
+
+async def test_extending_a_paid_customers_trial_is_a_422_not_on_trial(wired):
+    """protects=only a Free trial extends; fails_when=a Pro customer gains a trial."""
+    await _partner(wired)
+    await _free_customer(wired, plan="Pro")
+    out = await _post_trial("c1", 7)
+    assert out.status_code == 422 and _body(out)["code"] == "not_on_trial"
+    assert _actions(wired, "partner.customer_trial_extended") == []
+
+
+@pytest.mark.parametrize("days", [0, 366])
+async def test_a_trial_extension_outside_one_to_365_days_is_refused(days):
+    """protects=the 1..365 bound at the request model; fails_when=0 or 366 days is accepted."""
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        pe.TrialBody(days=days)
+
+
+async def test_extending_another_partners_customer_is_a_404_and_a_viewer_is_a_403(wired):
+    """protects=T-88-31 ownership and role; fails_when=a foreign trial moves or a viewer succeeds."""
+    from fastapi import HTTPException
+    await _partner(wired, "partner_a")
+    await _partner(wired, "partner_b")
+    await _free_customer(wired, "other", partner="partner_b")
+    await _free_customer(wired, "mine")
+    out = await _post_trial("other", 7)
+    assert out.status_code == 404
+    with pytest.raises(HTTPException) as err:
+        await _post_trial("mine", 7, role="partner_viewer")
+    assert err.value.status_code == 403
+    assert _actions(wired, "partner.customer_trial_extended") == []
