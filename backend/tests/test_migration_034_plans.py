@@ -224,3 +224,88 @@ async def test_adopt_plan_seats_records_the_previous_number_once(mongo_db):
     assert (await _t(mongo_db, "shield"))["license"]["maxAgents"] == 50
     assert await licensing.adopt_plan_seats(mongo_db, "cust-1", seats=50, override=None, previous=30) is False
     assert (await _t(mongo_db, "cust-1"))["license"]["maxAgents"] == 30
+
+
+# ---- the read-only go-live check (backend/scripts/check_plan_golive.py) --------------------------------
+
+import ast  # noqa: E402
+import importlib.util  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check_plan_golive.py"
+_WRITE_CALLS = {"insert_one", "insert_many", "update_one", "update_many", "delete_one", "delete_many", "drop",
+                "drop_database", "create_index"}
+
+
+def _golive():
+    spec = importlib.util.spec_from_file_location("check_plan_golive", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def _migrated(db):
+    """The seed after the migration, with the one agent address the seed leaves outside its list brought inside."""
+    await _seed(db)
+    await db.agents.update_one({"id": "agent-12"}, {"$set": {"publicIp": "9.9.9.5"}})
+    await _run(db)
+    await db._migrations.insert_one({"version": "034", "module": "034_plan_licensing"})
+
+
+async def test_check_passes_on_the_migrated_shapes(mongo_db):
+    check = _golive()
+    await _migrated(mongo_db)
+    assert await check.check(mongo_db) == []
+    lines = await check.report(mongo_db)
+    assert len(lines) == await mongo_db.tenants.count_documents({})
+    abc = next(line for line in lines if line.startswith("Abc"))
+    assert "Free" in abc and "5" in abc and ABC_IP in abc
+
+
+async def test_check_names_what_is_missing_before_the_migration(mongo_db):
+    check = _golive()
+    await _seed(mongo_db)
+    failures = "\n".join(await check.check(mongo_db))
+    assert "034" in failures and "plans" in failures
+    for tid in ("abc", "shield", "exafluence", "cust-1"):
+        assert f"{tid} has no trial" in failures, tid
+
+
+async def test_check_reports_a_wrong_seat_number_and_an_unlisted_agent_address(mongo_db):
+    check = _golive()
+    await _migrated(mongo_db)
+    await mongo_db.tenants.update_one({"id": "exafluence"}, {"$set": {"license.maxAgents": 7}})
+    await mongo_db.tenants.update_one({"id": "abc"}, {"$set": {"allowedNetworks": [{"cidr": "1.1.1.1/32"}]}})
+    failures = "\n".join(await check.check(mongo_db))
+    assert "exafluence" in failures and "seats" in failures
+    assert f"{ABC_IP}" in failures and "abc" in failures
+
+
+async def test_check_reports_a_platform_record_and_a_missing_hardware_index(mongo_db):
+    check = _golive()
+    await _migrated(mongo_db)
+    await mongo_db.tenants.update_one({"id": "platform-admin"}, {"$set": {"license.maxAgentsBeforePlans": 5}})
+    await mongo_db.agents.drop_index("agents_hw_uuid_sparse")
+    failures = "\n".join(await check.check(mongo_db))
+    assert "platform-admin" in failures and "agents_hw_uuid_sparse" in failures
+
+
+def test_the_check_script_never_writes():
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert not calls & _WRITE_CALLS
+
+
+async def test_run_prints_a_line_per_tenant_and_exits_by_the_result(mongo_db, capsys):
+    check = _golive()
+    url = os.getenv("MONGO_TEST_URL", "mongodb://127.0.0.1:27017")
+    await _seed(mongo_db)
+    assert await check.run(url, mongo_db.name) == 1
+    out = capsys.readouterr().out
+    assert out.count("FAIL ") >= 2 and "OK" not in out.splitlines()
+    assert sum(1 for line in out.splitlines() if "Exafluence" in line and "Pro" in line) == 1
+    await mongo_db.agents.update_one({"id": "agent-12"}, {"$set": {"publicIp": "9.9.9.5"}})
+    await _run(mongo_db)
+    await mongo_db._migrations.insert_one({"version": "034"})
+    assert await check.run(url, mongo_db.name) == 0
+    assert "OK" in capsys.readouterr().out.splitlines()
