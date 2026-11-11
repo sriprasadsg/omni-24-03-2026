@@ -641,7 +641,33 @@ Plans:
   4. A live stop drill across every actor shows that the platform stop and a tenant stop halt new security decisions, hold back queued instructions, freeze pending approvals and patch rollouts, and pause AI ticket replies (this re-verifies GATE-06 against the actors built in Phases 82–85).
   5. A two-tenant contract test per automatic loop (security response, patch rollouts, service desk, retention) shows nothing crosses tenants, and the live-only checklist (firewall round-trip, reboot gate, watchdog stop/start, alert delivery) is walked and recorded before any tenant is lifted out of shadow mode.
 
-**Plans**: TBD
+**Plans:** 13 plans
+
+Plans:
+**Wave 1**
+- [ ] 86-01-PLAN.md — tracer: Statistics card fed by GET /api/autonomous-ops/statistics, full column map, rule names, minutes table, copy gate
+- [ ] 86-02-PLAN.md — automated stop drill across every actor (platform and tenant stop, clean resume)
+- [ ] 86-03-PLAN.md — two-tenant contract per automatic loop (sweep, rollouts, service desk, retention)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 86-04-PLAN.md — Statistics card UI: period, readout, simulation line, time saved estimate, per-rule table
+- [ ] 86-05-PLAN.md — daily digest at 07:00 UTC to tenant admins (text, claim, email, loop)
+- [ ] 86-06-PLAN.md — D-18 export-controls commit, then the CSV/PDF export builder
+- [ ] 86-07-PLAN.md — go-live check records and the server-side shadow lift gate
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 86-08-PLAN.md — export routes: screen export and the Autonomous Ops Activity registry entry
+- [ ] 86-09-PLAN.md — migration 035 (indexes only) and two-tenant cases for statistics, export, digest
+- [ ] 86-10-PLAN.md — go-live document (user confirms the triggers for checks 1 and 2)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 86-11-PLAN.md — Export activity dialog and the Reporting screen card
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 86-12-PLAN.md — Going live card: checks, organizations, lift and turn-back-on dialogs
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 86-13-PLAN.md — phase gate on a git archive snapshot, then the user's restart, publish and push, read-only live checks
 **UI hint**: yes
 **Research**: None — UI, tests and copy checks (standard patterns).
 **Live-only verification** (operator steps): kill-switch drills on the live server (queued instructions, pending approvals, rollouts, AI ticket replies); the observe-first soak and per-tenant lift out of shadow mode; digest delivery; CSV and PDF export download.
