@@ -348,6 +348,7 @@ async def license_seat_maintenance_loop():
 async def license_seat_tick(db, runs: int) -> None:
     """One hour of seat upkeep; every 24th also reconciles. Each step has its own guard, so a failing
     partner pool repair never skips the reclaim or the expiry reminders (87 WR-07)."""
+    import cross_tenant
     import license_rules
     import licensing
     import partner_pool
@@ -356,7 +357,7 @@ async def license_seat_tick(db, runs: int) -> None:
     _log = logging.getLogger(__name__ + ".license_seats")
     steps = [licensing.reconcile_all, partner_pool.reconcile_pools] if runs % 24 == 0 else []
     for step in steps + [licensing.reclaim_inactive_agents, license_rules.send_expiry_reminders,
-                         plan_trial.send_trial_reminders]:
+                         plan_trial.send_trial_reminders, cross_tenant.report_live_pairs]:
         try:
             await step(db)
         except Exception as exc:

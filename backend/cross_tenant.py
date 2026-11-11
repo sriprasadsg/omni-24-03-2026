@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 import audit_ledger
 import licensing
@@ -38,6 +39,10 @@ PLATFORM_TENANT_ID = "platform-admin"
 _PROJECTION = {"_id": 0, "agentSecretHash": 0, "uninstallProtection": 0}
 _MAX_COPIES = 50
 _MOVE_LIMIT = 20
+REPORTS = "cross_tenant_reports"
+REPORT_EVERY = timedelta(hours=24)
+_REPORT_FIELDS = ("serialNumber", "smbiosUuid")
+_REPORT_GROUPS = 200
 
 
 def _raw(db):
@@ -50,6 +55,7 @@ async def ensure_indexes(db) -> None:
     agents = _raw(db).agents
     await agents.create_index("hardware.serialNumber", name="agents_hw_serial_sparse", sparse=True)
     await agents.create_index("hardware.smbiosUuid", name="agents_hw_uuid_sparse", sparse=True)
+    await _raw(db)[REPORTS].create_index("key", name="cross_tenant_reports_key", unique=True)
 
 
 async def _copies(db, tenant_id: str, hardware: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -247,3 +253,59 @@ async def list_moved(db, limit: int = 200) -> List[Dict[str, Any]]:
     return [{"id": r["id"], "tenantId": r["tenantId"], "tenantName": names.get(r["tenantId"]),
              "hostname": r.get("hostname"), "replacedReason": r.get("replacedReason"), "movedAt": r.get("movedAt"),
              "lastSeen": r.get("lastSeen")} for r in rows]
+
+
+async def _live_groups(raw, field: str, now: datetime) -> List[Dict[str, Any]]:
+    """Machines (by ``field``) held by seat-holding agents seen in the last 24 hours in two or more tenants."""
+    path = f"hardware.{field}"
+    since = (now - LIVE_WINDOW).isoformat()
+    rows = await raw.agents.aggregate([
+        {"$match": {path: {"$type": "string"}, "status": {"$nin": sorted(licensing.NON_SEAT_STATUSES)},
+                    "lastSeen": {"$gte": since}}},
+        {"$group": {"_id": f"${path}", "copies": {"$push": {"tenantId": "$tenantId", "id": "$id",
+                                                           "hostname": "$hostname", "lastSeen": "$lastSeen"}}}},
+        {"$match": {"copies.1": {"$exists": True}}}]).to_list(length=_REPORT_GROUPS)
+    groups = []
+    for row in rows:  # the string pre-filter is approximate; seen_within is the exact test
+        live = [c for c in row["copies"] if seat_identity.seen_within(c, LIVE_WINDOW, now)]
+        if len({c["tenantId"] for c in live}) >= 2:
+            groups.append({"value": row["_id"], "copies": live})
+    return groups
+
+
+async def report_live_pairs(db, now: Optional[datetime] = None) -> int:
+    """The accepted race of the cross-tenant check (A-88-RACE): one platform notice per machine key per day for
+    every serial or SMBIOS UUID held by seat-holding agents seen in the last 24 hours in two or more tenants.
+    Returns how many notices were posted."""
+    import pending_agents
+    raw = _raw(db)
+    now = now or datetime.now(timezone.utc)
+    await raw[REPORTS].create_index("key", name="cross_tenant_reports_key", unique=True)
+    posted = 0
+    for field in _REPORT_FIELDS:
+        for group in await _live_groups(raw, field, now):
+            key = f"{field}:{group['value']}"
+            try:  # one claim per key per day: a recent report matches nothing, so the upsert hits the unique key
+                await raw[REPORTS].update_one(
+                    {"key": key, "$or": [{"reportedAt": {"$exists": False}},
+                                         {"reportedAt": {"$lt": (now - REPORT_EVERY).isoformat()}}]},
+                    {"$set": {"reportedAt": now.isoformat()}}, upsert=True)
+            except DuplicateKeyError:
+                continue
+            names = {t["id"]: t.get("name") for t in await raw.tenants.find(
+                {"id": {"$in": sorted({c["tenantId"] for c in group["copies"]})}}, {"_id": 0, "id": 1, "name": 1}
+            ).to_list(length=None)}
+            where = ", ".join(f"{_label(names.get(c['tenantId']), c['tenantId'])} ({c.get('hostname')}, agent {c['id']})"
+                              for c in group["copies"])
+            try:
+                await pending_agents._post_in_app(
+                    raw, PLATFORM_TENANT_ID, "Computer live in two organizations",
+                    f"The computer with {'serial number' if field == 'serialNumber' else 'SMBIOS UUID'} {group['value']} "
+                    f"holds a seat and was seen in the last 24 hours in: {where}. Review the agents and restore or "
+                    "remove the wrong copy.", "warning",
+                    {"event": "agent.live_in_two_organizations", "key": key, "copies": group["copies"]})
+                posted += 1
+            except Exception as exc:  # release the claim so the next tick tries again
+                logger.error("Live-pair notice for %s was not stored: %s", key, exc)
+                await raw[REPORTS].delete_one({"key": key})
+    return posted
