@@ -155,8 +155,10 @@ async def test_a_new_machine_from_another_network_waits_and_the_tenant_is_told_w
 
 async def test_an_enrolled_agent_is_never_checked_against_the_networks(mongo_db):
     await harness.tenant(mongo_db, "t1")
-    assert (await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME))[0] == 200
-    code, _ = await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=OTHER)
+    code, first = await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME)
+    assert code == 200
+    code, _ = await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=OTHER,
+                                     agentSecret=first["agentSecret"])
     assert code == 200
     assert (await _agent(mongo_db, "M1"))["status"] == "Online"
 
@@ -198,9 +200,10 @@ async def test_an_ipv4_mapped_observed_address_matches_its_ipv4_network(mongo_db
 
 async def test_two_concurrent_first_enrollments_from_different_networks_teach_one(mongo_db):
     await harness.tenant(mongo_db, "t1")
-    first, second = await asyncio.gather(
-        harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
-        harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=OTHER))
+    with harness.register_patches(mongo_db):  # one patch scope around both calls: the limiter flag is shared
+        first, second = await asyncio.gather(
+            harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
+            harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=OTHER))
     assert sorted((first[0], second[0])) == [200, 202]
     assert len(await _networks(mongo_db)) == 1
     held = [first, second][0 if first[0] == 202 else 1][1]
@@ -209,9 +212,10 @@ async def test_two_concurrent_first_enrollments_from_different_networks_teach_on
 
 async def test_two_concurrent_first_enrollments_from_one_network_both_enroll(mongo_db):
     await harness.tenant(mongo_db, "t1")
-    results = await asyncio.gather(
-        harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
-        harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=HOME))
+    with harness.register_patches(mongo_db):
+        results = await asyncio.gather(
+            harness.register(mongo_db, "A", hardware=harness.hw("SA"), client_ip=HOME),
+            harness.register(mongo_db, "B", hardware=harness.hw("SB"), client_ip=HOME))
     assert [r[0] for r in results] == [200, 200]
     assert len(await _networks(mongo_db)) == 1
 

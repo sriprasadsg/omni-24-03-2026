@@ -23,15 +23,14 @@ from pymongo.errors import DuplicateKeyError
 
 import licensing
 import seat_identity
+from hold_reasons import (  # noqa: F401  (re-exported: callers and tests import these from here)
+    REASON_DUPLICATE_HARDWARE, REASON_SEAT_LIMIT, reason_text, refusal_text)
 
 logger = logging.getLogger(__name__)
 
 PENDING = "Pending"
 REJECTED = "Rejected"
 NOT_ADMITTED = frozenset({PENDING, REJECTED})
-
-REASON_SEAT_LIMIT = "seat_limit"
-REASON_DUPLICATE_HARDWARE = "duplicate_hardware_id"
 
 # How often a Pending agent should check back (register poll or heartbeat).
 RETRY_AFTER_SECONDS = 300
@@ -153,16 +152,6 @@ async def hold(db, tenant: Dict[str, Any], agent_id: str, fields: Dict[str, Any]
     return agent
 
 
-_REFUSAL_TEXT = {
-    REASON_SEAT_LIMIT: "Agent limit reached ({limit}). This computer is waiting for approval by your provider; "
-                       "it will connect once approved.",
-    REASON_DUPLICATE_HARDWARE: "duplicate_hardware_id: this machine is already enrolled as another agent that was "
-                               "seen in the last 24 hours. It is waiting for approval.",
-    "trial_ended": "trial_ended: the free trial of this organization has ended. This computer is waiting for "
-                   "approval by your provider.",
-}
-
-
 async def answer(db, response, tenant: Dict[str, Any], agent: Dict[str, Any], capable: bool,
                  agent_secret: Optional[str] = None) -> Dict[str, Any]:
     """The reply to a register call held as Pending: 202 for agents that understand it
@@ -171,7 +160,7 @@ async def answer(db, response, tenant: Dict[str, Any], agent: Dict[str, Any], ca
     reason = agent.get("pendingReason") or REASON_SEAT_LIMIT
     if not capable:
         limit = licensing.license_of(await _raw(db).tenants.find_one({"id": tenant["id"]}))["maxAgents"]
-        raise HTTPException(status_code=403, detail=_REFUSAL_TEXT.get(reason, reason).format(limit=limit))
+        raise HTTPException(status_code=403, detail=refusal_text(reason, limit))
     response.status_code = 202
     result = {"success": False, "status": "pending", "agentId": agent["id"], "pendingReason": reason,
               "retryAfterSeconds": RETRY_AFTER_SECONDS}
@@ -254,22 +243,6 @@ def alert_payload(tenant: Dict[str, Any], agent: Dict[str, Any], lic: Dict[str, 
     }
 
 
-_REASON_TEXT = {
-    REASON_SEAT_LIMIT: "the tenant has no free agent seat",
-    REASON_DUPLICATE_HARDWARE: "this machine is already enrolled as another agent that is still active",
-    "not_allowlisted": "the machine is not on the tenant's hardware allowlist",
-    "key_exhausted": "its install key is used up, expired or revoked",
-    "license_expired": "the tenant's agent license has expired",
-    "trial_ended": "the organization's free trial has ended",
-}
-
-
-def reason_text(reason: Optional[str]) -> str:
-    if reason and reason.startswith("sublimit:"):
-        return f"the {reason[len('sublimit:'):]} sub-limit is full"
-    return _REASON_TEXT.get(reason or "", reason or "unknown")
-
-
 async def _post_in_app(raw, tenant_id: str, title: str, message: str, severity: str,
                        metadata: Dict[str, Any]) -> str:
     """One in-app notification in a tenant's feed (read by GET /api/notifications)."""
@@ -342,7 +315,7 @@ async def notify_pending(db, tenant: Dict[str, Any], agent: Dict[str, Any]) -> b
         if count <= ALERT_INDIVIDUAL_LIMIT:
             await post_to_recipients(
                 raw, tenant, f"Agent waiting for approval: {agent.get('hostname')} ({tenant_label})",
-                f"{agent.get('hostname')} tried to enroll in {tenant_label} but {reason_text(payload['reason'])} "
+                f"{agent.get('hostname')} tried to enroll in {tenant_label} but {reason_text(payload['reason'], agent)} "
                 f"({payload['seatsUsed']}/{payload['maxAgents']} seats used). Approve or reject it under Agents → Pending.",
                 "warning", payload)
             return True

@@ -147,7 +147,9 @@ async def test_trial_end_holds_the_next_new_machine_and_leaves_the_enrolled_one_
     assert view["plan"] == "Free" and view["maxAgents"] == 5 and view["planSeats"] == 5
     assert view["seatOverride"] is None and view["partnerManaged"] is False and view["exempt"] is False
     assert view["trial"]["ended"] is True and view["trial"]["daysLeft"] == 0
-    assert view["allowedNetworks"] == [] and view["seatsUsed"] == 1
+    # 88-05: the first machine taught the tenant its network (D-06), and the view reports it
+    assert [(n["cidr"], n["source"]) for n in view["allowedNetworks"]] == [("203.0.113.7/32", "learned")]
+    assert view["seatsUsed"] == 1
 
 
 async def test_a_running_trial_does_not_hold_new_machines(wired):

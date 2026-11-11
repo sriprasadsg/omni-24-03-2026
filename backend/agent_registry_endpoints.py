@@ -189,9 +189,9 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     # is held as Pending instead of being refused outright.
     capable = pending_agents.supports_pending(data)
     seat_needed = not existing_agent or existing_agent.get("status") in licensing.NON_SEAT_STATUSES
+    observed = request.client.host if request.client else None  # the address the server saw, never the agent's claim
     identity = {
-        **pending_agents.identity_fields(data, hardware if isinstance(data.get("hardware"), dict) else {},
-                                         request.client.host if request.client else None),
+        **pending_agents.identity_fields(data, hardware if isinstance(data.get("hardware"), dict) else {}, observed),
         "seatKey": agent_seat_key, "identityStrength": seat_identity.identity_strength(agent_seat_key),
     }
     if agent_secret and capable:
@@ -234,6 +234,8 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     if existing_agent and existing_agent.get("awaitingCredentials"):
         agent_data["awaitingCredentials"] = False
 
+    if observed is not None:
+        agent_data["sourceIp"] = observed
     agent_data["seatKey"] = agent_seat_key
     agent_data["identityStrength"] = seat_identity.identity_strength(agent_seat_key)
     if isinstance(data.get("hardware"), dict):
@@ -292,7 +294,8 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         if not existing_agent:
             key_claimed = await enrollment_keys.claim_use(db, install_key)
             hold_reason = (await license_rules.hold_reason(db, tenant, hardware, data.get("platform"),
-                                                           install_key.get("defaultGroupId"))
+                                                           install_key.get("defaultGroupId"),
+                                                           source_ip=observed, hostname=hostname)
                            if key_claimed else license_rules.REASON_KEY_EXHAUSTED)
         if not existing_agent and hold_reason is None:
             try:

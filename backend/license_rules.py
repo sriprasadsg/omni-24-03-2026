@@ -2,9 +2,10 @@
 
 A new enrollment is checked, in order, against: license expiry (``license_expired``), the end of
 a Free tenant's trial (``trial_ended``, Phase 88; the platform organization is exempt and a tenant
-with no trial record is admitted), the hardware allowlist (``not_allowlisted``), the OS-class sub-limit
-(``sublimit:os:<class>``) and the install key's default-group sub-limit
-(``sublimit:group:<id>``). The first rule it fails holds it Pending with that reason;
+with no trial record is admitted), the hardware allowlist (``not_allowlisted``), the tenant's allowed
+networks (``new_network``, Phase 88: the address the server observed must be in one; a tenant with none
+yet learns the first machine's), the OS-class sub-limit (``sublimit:os:<class>``) and the install key's
+default-group sub-limit (``sublimit:group:<id>``). The first rule it fails holds it Pending with that reason;
 the total seat limit (licensing.try_claim_seat) still applies after all of them.
 Agents already enrolled are never re-checked: an expired license or a full sub-limit
 stops new machines, it does not suspend running ones. A partner's pool expiry counts as the
@@ -23,15 +24,13 @@ from typing import Any, Dict, List, Optional
 
 import agent_allowlist
 import licensing
+import network_rules
 import plan_service
 import plan_trial
+from hold_reasons import (  # noqa: F401  (module-level names kept for existing callers)
+    REASON_EXPIRED, REASON_KEY_EXHAUSTED, REASON_NEW_NETWORK, REASON_NOT_ALLOWLISTED, REASON_TRIAL_ENDED)
 
 logger = logging.getLogger(__name__)
-
-REASON_EXPIRED = "license_expired"
-REASON_TRIAL_ENDED = "trial_ended"
-REASON_NOT_ALLOWLISTED = "not_allowlisted"
-REASON_KEY_EXHAUSTED = "key_exhausted"
 
 OS_CLASSES = ("windows_workstation", "windows_server", "linux", "macos")
 _SUBLIMIT_KEY = re.compile(r"^(os:(windows_workstation|windows_server|linux|macos)|group:[A-Za-z0-9_-]{1,64})$")
@@ -124,9 +123,26 @@ def expired(lic: Dict[str, Any], now: Optional[datetime] = None) -> bool:
     return (now or datetime.now(timezone.utc)) >= at
 
 
+async def _new_network(db, fresh: Dict[str, Any], source_ip: Optional[str], hostname: Optional[str]) -> bool:
+    """Whether a new machine's observed address is outside the tenant's allowed networks. A tenant with
+    none yet claims the address atomically (D-06); the loser of that race checks against the winner's."""
+    ip = network_rules.normalize_ip(source_ip)
+    if ip is None:
+        return True  # no usable observed address: held, and nothing is learned
+    entries = fresh.get("allowedNetworks") or []
+    if not entries:
+        if await network_rules.learn_first(db, fresh["id"], ip, hostname):
+            return False
+        entries = (await _raw(db).tenants.find_one({"id": fresh["id"]}, {"_id": 0, "allowedNetworks": 1})
+                   or {}).get("allowedNetworks") or []
+    return not network_rules.contains(entries, ip)
+
+
 async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], platform: Any,
-                      default_group_id: Optional[str] = None) -> Optional[str]:
-    """Why a new enrollment must wait for approval, or None when the C4 controls admit it."""
+                      default_group_id: Optional[str] = None, source_ip: Optional[str] = None,
+                      hostname: Optional[str] = None) -> Optional[str]:
+    """Why a new enrollment must wait for approval, or None when the C4 controls admit it.
+    ``source_ip`` is the address the server observed for the request, nothing the agent reports."""
     raw = _raw(db)
     fresh = await raw.tenants.find_one({"id": tenant["id"]}) or tenant
     lic = licensing.license_of(fresh)
@@ -142,6 +158,8 @@ async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], plat
         return REASON_TRIAL_ENDED  # D-05, D-21: the Free trial is over; a missing trial record admits (fails open)
     if lic["allowlistMode"] == "enforce" and not await agent_allowlist.matches(db, tenant["id"], hardware):
         return REASON_NOT_ALLOWLISTED
+    if not plan_service.is_exempt(fresh) and await _new_network(db, fresh, source_ip, hostname):
+        return REASON_NEW_NETWORK  # D-01, D-06, D-33
     cls = os_class(hardware, platform)
     cap = _cap(lic, f"os:{cls}") if cls else None
     if cap is not None and await _seat_holders_of_class(raw, tenant["id"], cls) >= cap:
