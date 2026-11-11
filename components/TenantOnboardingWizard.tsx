@@ -17,7 +17,13 @@ const STEPS: { id: Step; label: string; icon: React.ReactNode }[] = [
     { id: 'done',   label: 'Done',          icon: <CheckIcon size={16} /> },
 ];
 
-const TIERS = ['Free', 'Starter', 'Pro', 'Enterprise'] as const;
+// The plan names the server accepts (88-01); a new organization starts on Free (D-24).
+const TIERS = ['Free', 'Pro', 'Enterprise', 'Custom'] as const;
+const MAX_SEATS = 1_000_000;
+const planHelp = (plan: string) =>
+    plan === 'Free' ? 'Starts a free trial today. Seats and screens follow the Free plan.'
+    : plan === 'Custom' ? 'Set per tenant by contract. Tick screens one by one in Manage Tenant.'
+    : `Seats and screens follow the ${plan} plan. Tick screens one by one in Manage Tenant.`;
 
 function StepIndicator({ current }: { current: Step }) {
     const idx = STEPS.findIndex(s => s.id === current);
@@ -52,7 +58,10 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
 
     // Step 1 form
     const [tenantName, setTenantName] = useState('');
-    const [tier, setTier] = useState<string>('Starter');
+    const [tier, setTier] = useState<string>('Free');
+    // Custom is set per tenant by contract (D-24): its seats are asked for here and sent as maxAgents.
+    const [seats, setSeats] = useState('');
+    const [seatsError, setSeatsError] = useState('');
 
     // Step 2 form
     const [adminName, setAdminName] = useState('');
@@ -61,7 +70,7 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
     const reset = () => {
         setStep('tenant'); setBusy(false); setError(null);
         setCreatedTenant(null); setCreatedApiKey(null);
-        setTenantName(''); setTier('Starter');
+        setTenantName(''); setTier('Free'); setSeats(''); setSeatsError('');
         setAdminName(''); setAdminEmail('');
     };
 
@@ -69,9 +78,15 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
 
     const handleCreateTenant = async () => {
         if (!tenantName.trim()) { setError('Organization name is required'); return; }
+        const custom = tier === 'Custom';
+        if (custom && (!/^\d+$/.test(seats.trim()) || Number(seats) > MAX_SEATS)) {
+            setSeatsError('Seats must be a whole number from 0 to 1,000,000.');
+            return;
+        }
+        setSeatsError('');
         setBusy(true); setError(null);
         try {
-            const tenant = await addTenant({ name: tenantName.trim(), subscriptionTier: tier });
+            const tenant = await addTenant({ name: tenantName.trim(), subscriptionTier: tier, ...(custom ? { maxAgents: Number(seats) } : {}) });
             setCreatedTenant(tenant);
             setStep('user');
         } catch (e) {
@@ -147,16 +162,30 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subscription Tier</label>
-                                <div className="grid grid-cols-2 gap-2">
+                                <p id="wizard-plan-label" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Plan</p>
+                                <div role="group" aria-labelledby="wizard-plan-label" className="grid grid-cols-2 gap-2">
                                     {TIERS.map(t => (
-                                        <button key={t} onClick={() => setTier(t)}
-                                            className={`py-2 px-4 text-sm font-medium rounded-lg border transition-colors ${tier === t ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>
+                                        <button key={t} type="button" aria-pressed={tier === t} aria-describedby="wizard-plan-help"
+                                            onClick={() => { setTier(t); setSeatsError(''); }}
+                                            className={`py-2 px-4 text-sm font-semibold rounded-lg border transition-colors ${tier === t ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>
                                             {t}
                                         </button>
                                     ))}
                                 </div>
+                                <p id="wizard-plan-help" className="mt-2 text-xs text-gray-500 dark:text-gray-400">{planHelp(tier)}</p>
                             </div>
+                            {tier === 'Custom' && (
+                                <div>
+                                    <label htmlFor="wizard-seats" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Seats <span className="text-red-500">*</span></label>
+                                    <input id="wizard-seats" type="number" inputMode="numeric" min={0} max={MAX_SEATS} step={1}
+                                        value={seats} onChange={e => setSeats(e.target.value)} required
+                                        onKeyDown={e => e.key === 'Enter' && handleCreateTenant()}
+                                        placeholder="e.g., 40" aria-describedby="wizard-seats-help"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none" />
+                                    <p id="wizard-seats-help" className="mt-2 text-xs text-gray-500 dark:text-gray-400">The seat limit from the contract. 0 means no computer can enroll.</p>
+                                    {seatsError && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{seatsError}</p>}
+                                </div>
+                            )}
                             <button onClick={handleCreateTenant} disabled={busy || !tenantName.trim()}
                                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50">
                                 {busy ? <CogIcon size={16} className="animate-spin" /> : <ChevronRightIcon size={16} />}

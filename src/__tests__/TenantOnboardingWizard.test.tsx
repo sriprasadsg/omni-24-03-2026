@@ -22,7 +22,7 @@ const fillName = (name: string) => fireEvent.change(screen.getByPlaceholderText(
 const plan = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
 const create = () => fireEvent.click(screen.getByRole('button', { name: /Create Organization/ }));
 
-beforeEach(() => addTenant.mockReset());
+beforeEach(() => { addTenant.mockReset(); addTenant.mockResolvedValue({ id: 't0', name: 'x' }); });
 afterEach(cleanup);
 
 describe('TenantOnboardingWizard plan step (UI-SPEC S3)', () => {
@@ -87,7 +87,7 @@ describe('TenantOnboardingWizard plan step (UI-SPEC S3)', () => {
   });
 
   it('a refused create stays on the step with the typed values and the server sentence', async () => {
-    addTenant.mockRejectedValue(new Error('unknown_plan: That plan is not available.'));
+    addTenant.mockImplementation(async () => { throw new Error('unknown_plan: That plan is not available.'); });
     open();
     fillName('Acme');
     fireEvent.click(plan('Custom'));
