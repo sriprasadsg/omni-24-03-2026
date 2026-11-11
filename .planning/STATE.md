@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
 status: executing
-stopped_at: Completed 88-13-PLAN.md
-last_updated: "2026-11-11T03:13:44.285Z"
+stopped_at: Completed 88-11-PLAN.md
+last_updated: "2026-11-11T07:17:42.592Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 88 execution started
-state_head: 538d2d08891904939a59bf12d6eba9cab0984f75
+state_head: 4664e887a110e351e6d1351a726be080696d4387
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 153
+  completed_plans: 154
   percent: 75
 ---
 
@@ -672,6 +672,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 88]: 88-10: an empty stored partner planCeiling means no plan changes (change_plan falls back to Free only when the field is absent); partner customer rows show trialEndsAt for any unconsumed Free trial, including an ended one
 - [Phase 88]: 88-12: choosing a plan in Manage Tenant ticks nothing; a box is disabled when outside the plan and not currently ticked (kept screens stay untickable-off)
 - [Phase 88]: 88-13: Use plan number only for a direct tenant with an override on a non-Custom plan; Extend refreshes only the trial so unsaved edits are kept
+- [Phase 88]: 88-11: adopt_plan_seats filters through the direct-tenant filter and is guarded by a missing maxAgentsBeforePlans record, so migration 034's seat overwrite is recorded once, never touches partner customers or the platform, and a second run writes nothing
+- [Phase 88]: 88-11: a tenant whose stored plan seats are unusable is treated like Custom (keeps its number as seatOverride); check_plan_golive.py accepts plan seats or seatOverride and tests agent publicIp against allowedNetworks
 
 ## Performance Metrics
 
@@ -980,6 +982,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P10 | 25 min | 3 tasks | 7 files |
 | Phase 88 P12 | 25 min | 2 tasks | 9 files |
 | Phase 88 P13 | 12 min | 2 tasks | 8 files |
+| Phase 88 P11 | 52 min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1014,8 +1017,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-11T03:13:43.946Z
-**Stopped at:** Completed 88-13-PLAN.md
+**Last session:** 2026-11-11T07:17:42.275Z
+**Stopped at:** Completed 88-11-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1044,7 +1047,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
-Plan: 13 of 16
+Plan: 14 of 16
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
