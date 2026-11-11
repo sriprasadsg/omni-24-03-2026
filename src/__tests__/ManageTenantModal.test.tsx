@@ -4,7 +4,7 @@
  * parent feature is off. The server-side rule is covered by
  * backend/tests/test_tenant_feature_switches.py.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import type { Tenant } from '../../types';
 
@@ -100,15 +100,17 @@ describe('ManageTenantModal sidebar screens', () => {
     expect(saved).not.toContain('screen:patchManagement');
   });
 
-  it('choosing a tier sets its features and keeps only the screens already ticked', () => {
+  // D-27 (Phase 88): a plan is a ceiling, not a preset, so choosing one never ticks or unticks a box.
+  it('D-27: choosing a plan changes no checkbox', () => {
     const onSave = vi.fn();
     const ticked = { ...tenant, enabledFeatures: ['view:reporting', 'screen:reporting'] } as unknown as Tenant;
     render(<ManageTenantModal isOpen onClose={() => {}} tenant={ticked} onSave={onSave} onDelete={() => {}} />);
     fireEvent.change(screen.getByDisplayValue('Custom'), { target: { value: 'Pro' } });
+    expect(switchBox('Security Operations').checked).toBe(false);
     fireEvent.click(screen.getByText('Save Changes'));
     const saved = onSave.mock.calls[0][1].features as string[];
-    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:reporting']));
-    expect(saved.filter(f => f.startsWith('screen:'))).toEqual(['screen:reporting']);
+    expect([...saved].sort()).toEqual(['screen:reporting', 'view:dashboard', 'view:reporting']);
+    expect(onSave.mock.calls[0][1].tier).toBe('Pro');
   });
 
   it('switching Security on ticks none of its screens; a Super Admin ticks each one', () => {
@@ -143,5 +145,71 @@ describe('ManageTenantModal agent capabilities', () => {
     render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={() => {}} onDelete={() => {}} />);
     expect(switchBox('Autonomous Patching').checked).toBe(false);
     expect(switchBox('Agent Self-Update').checked).toBe(true);
+  });
+});
+
+// Phase 88 (LIC-04, D-27, D-28): the chosen plan's screen list is a ceiling for the boxes.
+const planList = [
+  { key: 'Free', seats: 5, trialDays: 14, screens: ['screen:dashboard', 'view:agents'], tenantCount: 1 },
+  { key: 'Pro', seats: 50, trialDays: null, screens: ['screen:dashboard', 'view:agents', 'view:logs'], tenantCount: 1 },
+  { key: 'Enterprise', seats: 500, trialDays: null, screens: ['screen:dashboard'], tenantCount: 1 },
+  { key: 'Custom', seats: null, trialDays: null, screens: 'all', tenantCount: 1 },
+];
+const freeTenant = (enabledFeatures: string[] = []) => ({ id: 't2', name: 'Initech', subscriptionTier: 'Free', enabledFeatures }) as unknown as Tenant;
+
+describe('ManageTenantModal plan ceiling (Phase 88)', () => {
+  beforeEach(() => {
+    vi.mocked(authFetch).mockImplementation(async (url: string) =>
+      (String(url).includes('/platform/plans') ? { ok: true, json: async () => ({ plans: planList }) } : { ok: false, json: async () => [] }) as Response);
+  });
+  afterEach(() => {
+    vi.mocked(authFetch).mockReset();
+    vi.mocked(authFetch).mockResolvedValue({ ok: false, json: async () => [] } as Response);
+  });
+
+  it('offers Free, Pro, Enterprise and Custom', () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    const select = screen.getByDisplayValue('Free') as HTMLSelectElement;
+    expect([...select.options].map(o => o.value)).toEqual(['Free', 'Pro', 'Enterprise', 'Custom']);
+  });
+
+  it('disables a switch outside the plan with the reason, and enables it after choosing a plan that has it', async () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    await waitFor(() => expect(switchBox('Log Explorer').disabled).toBe(true));
+    expect(switchLabel('Log Explorer').getAttribute('title')).toBe('Not part of the Free plan');
+    expect(switchBox('Overview').disabled).toBe(false);
+
+    fireEvent.change(screen.getByDisplayValue('Free'), { target: { value: 'Pro' } });
+    expect(switchBox('Log Explorer')).toMatchObject({ checked: false, disabled: false });
+    expect(switchBox('Overview').checked).toBe(false);
+  });
+
+  it('keeps a screen the tenant already has outside the plan: ticked, marked, and gone for good once unticked', async () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant(['view:logs'])} onSave={() => {}} onDelete={() => {}} />);
+    await waitFor(() => expect(within(switchLabel('Log Explorer')).queryByText('outside plan')).toBeTruthy());
+    expect(switchBox('Log Explorer')).toMatchObject({ checked: true, disabled: false });
+
+    fireEvent.click(switchBox('Log Explorer'));
+    expect(switchBox('Log Explorer')).toMatchObject({ checked: false, disabled: true });
+    expect(within(switchLabel('Log Explorer')).queryByText('outside plan')).toBeNull();
+  });
+
+  it('select all ticks only what the plan allows', async () => {
+    const onSave = vi.fn();
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={onSave} onDelete={() => {}} />);
+    await waitFor(() => expect(switchBox('Log Explorer').disabled).toBe(true));
+    fireEvent.click(within(screen.getByText('Enable All Standard Features').closest('label')!).getByRole('checkbox'));
+    expect(switchBox('Overview').checked).toBe(true);
+    expect(switchBox('Log Explorer').checked).toBe(false);
+    fireEvent.click(screen.getByText('Save Changes'));
+    expect([...onSave.mock.calls[0][1].features].sort()).toEqual(['screen:dashboard', 'view:agents', 'view:dashboard']);
+    expect(onSave.mock.calls[0][1].tier).toBe('Free');
+  });
+
+  it('leaves every box enabled when the plans cannot be loaded (the server still refuses)', async () => {
+    vi.mocked(authFetch).mockImplementation(async () => ({ ok: false, json: async () => [] }) as Response);
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    await Promise.resolve();
+    expect(switchBox('Log Explorer').disabled).toBe(false);
   });
 });
