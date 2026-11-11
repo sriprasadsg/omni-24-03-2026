@@ -186,6 +186,40 @@ describe('ManageTenantModal plan ceiling (Phase 88)', () => {
     expect(switchBox('Overview').checked).toBe(false);
   });
 
+  it('UI-SPEC S2: one visible shared note explains the greyed boxes and each greyed box points at it (G-15)', async () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    await waitFor(() => expect(switchBox('Log Explorer').disabled).toBe(true));
+    const note = screen.getByText('Greyed-out screens are not part of the Free plan. Choose a larger plan to tick them.');
+    expect(note.id).toBeTruthy();
+    expect(switchBox('Log Explorer').getAttribute('aria-describedby')).toBe(note.id);
+    expect(switchBox('Overview').getAttribute('aria-describedby')).toBeNull();
+    expect(screen.getAllByText(/Greyed-out screens are not part of/)).toHaveLength(1);
+
+    fireEvent.change(screen.getByDisplayValue('Free'), { target: { value: 'Custom' } });
+    expect(screen.queryByText(/Greyed-out screens are not part of/)).toBeNull();
+  });
+
+  it('UI-SPEC S2: the outside-plan marker is readable amber (G-08)', async () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant(['view:logs'])} onSave={() => {}} onDelete={() => {}} />);
+    const marker = await waitFor(() => within(switchLabel('Log Explorer')).getByText('outside plan'));
+    expect(marker.className).toMatch(/text-amber-700/);
+    expect(marker.className).not.toMatch(/text-amber-600/);
+  });
+
+  it('UI-SPEC S2: the heading is Plan and the helper names the seat consequence (G-13, G-14)', () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
+    expect(screen.queryByText('Subscription Tier')).toBeNull();
+    expect(screen.getByText(/The plan decides the seat limit, unless this tenant has its own number or belongs to a partner, and limits which screens can be ticked below\. Choosing a plan ticks nothing, and screens already on stay on\./)).toBeTruthy();
+  });
+
+  it('UI-SPEC S2: says so when the plan limits could not be loaded, and keeps the boxes enabled (G-16)', async () => {
+    vi.mocked(authFetch).mockImplementation(async () => ({ ok: false, json: async () => [] }) as Response);
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant()} onSave={() => {}} onDelete={() => {}} />);
+    await waitFor(() => screen.getByText("Couldn't load the plan limits. The server still enforces them."));
+    expect(switchBox('Log Explorer').disabled).toBe(false);
+  });
+
   it('keeps a screen the tenant already has outside the plan: ticked, marked, and gone for good once unticked', async () => {
     render(<ManageTenantModal isOpen onClose={() => {}} tenant={freeTenant(['view:logs'])} onSave={() => {}} onDelete={() => {}} />);
     await waitFor(() => expect(within(switchLabel('Log Explorer')).queryByText('outside plan')).toBeTruthy());
