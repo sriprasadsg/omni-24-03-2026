@@ -26,6 +26,7 @@ class PartnerCreate(BaseModel):
     poolSize: int = Field(..., ge=1, le=licensing.MAX_AGENTS_CEILING)
     expiresAt: Optional[datetime] = None
     screenCeiling: List[str] = Field(default_factory=list, max_length=300)
+    planCeiling: List[str] = Field(default_factory=lambda: ["Free"], max_length=4)
     adminName: str = Field(..., min_length=1, max_length=100)
     adminEmail: str = Field(..., min_length=1, max_length=254)
 
@@ -44,6 +45,7 @@ class PartnerUpdate(BaseModel):
     poolSize: Optional[int] = Field(None, ge=1, le=licensing.MAX_AGENTS_CEILING)
     expiresAt: Optional[datetime] = None
     screenCeiling: Optional[List[str]] = Field(None, max_length=300)
+    planCeiling: Optional[List[str]] = Field(None, max_length=4)
 
 
 class MoveBody(BaseModel):
@@ -78,7 +80,7 @@ async def create_partner(data: PartnerCreate, current_user=Depends(get_current_u
         return await service.appoint(
             mongodb.db, name=data.name, pool_size=data.poolSize, expires_at=data.expiresAt,
             screen_ceiling=data.screenCeiling, admin_name=data.adminName, admin_email=data.adminEmail,
-            actor=current_user,
+            actor=current_user, plan_ceiling=data.planCeiling,
         )
     except PartnerError as err:
         return error_response(err)
@@ -86,7 +88,7 @@ async def create_partner(data: PartnerCreate, current_user=Depends(get_current_u
 
 @router.patch("/{partner_id}")
 async def update_partner(partner_id: str, data: PartnerUpdate, current_user=Depends(get_current_user)):
-    """Change a partner's name, pool size, pool expiry or screen ceiling."""
+    """Change a partner's name, pool size, pool expiry, screen ceiling or plan ceiling."""
     _require_super_admin(current_user)
     changes = {key: getattr(data, key) for key in data.model_fields_set
                if key == "expiresAt" or getattr(data, key) is not None}

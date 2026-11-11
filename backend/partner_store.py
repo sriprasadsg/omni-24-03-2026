@@ -24,6 +24,16 @@ PLATFORM_AUDIT_TENANT = "platform-admin"
 # D-01: the only customer fields a partner ever receives, in this order.
 CUSTOMER_FIELDS = ("id", "name", "seatsAssigned", "seatsUsed", "agentsOnline", "agentsTotal", "licenseExpiresAt")
 _NOT_COUNTED_AGENTS = frozenset({"Pending", "Rejected"})
+# D-13: the plans a partner may sell when the Super Admin has not chosen (every partner appointed before Phase 88).
+PLAN_CEILING_DEFAULT = ("Free",)
+
+
+def plan_ceiling(partner_doc: Dict[str, Any]) -> List[str]:
+    """The plan keys this partner may sell: the stored list (an empty one means none), else Free only."""
+    stored = (partner_doc.get("partner") or {}).get("planCeiling")
+    if isinstance(stored, list):
+        return [p for p in stored if isinstance(p, str)]
+    return list(PLAN_CEILING_DEFAULT)
 
 
 async def find_partner(db, partner_id: str) -> Optional[Dict[str, Any]]:
@@ -61,6 +71,7 @@ def partner_summary(partner_doc: Dict[str, Any], customer_count: int, now: Optio
         "expired": view["expired"],
         "screenCeiling": ceiling,
         "unrestricted": "all" in ceiling,
+        "planCeiling": plan_ceiling(partner_doc),
         "status": pool.get("status") or "active",
         "customerCount": customer_count,
     }

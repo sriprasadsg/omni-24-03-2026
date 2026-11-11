@@ -14,10 +14,12 @@ import authentication_service
 import licensing
 import partner_invites
 import partner_pool
+import plan_service
 import rbac_defaults
 import tenant_features
 from partner_pool import PartnerError, _raw
-from partner_store import PARTNER_TYPE, audit, customer_rows, find_partner, name_taken, partner_summary
+from partner_store import (PARTNER_TYPE, PLAN_CEILING_DEFAULT, audit, customer_rows, find_partner, name_taken,
+                           partner_summary, plan_ceiling)
 
 ALL_SCREENS = "all"
 _NAME_UNAVAILABLE = "That name isn't available."
@@ -31,6 +33,19 @@ def validate_ceiling(values: Iterable[str]) -> List[str]:
             raise PartnerError(422, "invalid_screen", f"'{value}' is not a screen that can be sold.")
     if ALL_SCREENS in cleaned and len(cleaned) > 1:
         raise PartnerError(422, "invalid_screen", "'all' cannot be combined with individual screens.")
+    return cleaned
+
+
+def validate_plan_ceiling(values: Iterable[str]) -> List[str]:
+    """The plans a partner may sell (D-13): canonical plan keys, de-duplicated in order. An empty list is
+    allowed and means the partner changes no customer's plan."""
+    cleaned: List[str] = []
+    for value in values or []:
+        key = plan_service.normalize_plan(value)
+        if key is None:
+            raise PartnerError(422, "invalid_plan", f"'{str(value)[:40]}' is not a plan.")
+        if key not in cleaned:
+            cleaned.append(key)
     return cleaned
 
 
@@ -59,12 +74,13 @@ async def _remove_half_appointed(db, partner_id: str, address: str) -> None:
 
 async def appoint(db, *, name: str, pool_size: int, expires_at: Optional[datetime],
                   screen_ceiling: Iterable[str], admin_name: str, admin_email: str,
-                  actor: Any) -> Dict[str, Any]:
+                  actor: Any, plan_ceiling: Optional[Iterable[str]] = None) -> Dict[str, Any]:
     """Create the partner organization and invite its first admin; returns ``{partner, emailSent}``.
     Every refusal (name, ceiling, email) comes before the first write."""
     name = name.strip()
     admin_name = admin_name.strip()
     ceiling = validate_ceiling(screen_ceiling)
+    plans = validate_plan_ceiling(PLAN_CEILING_DEFAULT if plan_ceiling is None else plan_ceiling)
     address = partner_invites.normalize_email(admin_email)
     if await name_taken(db, name):
         raise PartnerError(409, "name_unavailable", _NAME_UNAVAILABLE)
@@ -80,6 +96,7 @@ async def appoint(db, *, name: str, pool_size: int, expires_at: Optional[datetim
             "allocated": 0,
             "expiresAt": _utc_iso(expires_at),
             "screenCeiling": ceiling,
+            "planCeiling": plans,
             "status": "active",
         },
         "license": {"maxAgents": 0, "seatsUsed": 0, "inactiveReclaimDays": licensing.DEFAULT_RECLAIM_DAYS},
@@ -116,7 +133,7 @@ async def _summary_of(db, partner_id: str) -> Dict[str, Any]:
 
 async def update_partner(db, partner_id: str, *, changes: Dict[str, Any], actor: Any) -> Dict[str, Any]:
     """Apply only the fields the caller sent: name, poolSize (never below what is handed out, D-07),
-    expiresAt (``None`` clears it, D-08) and screenCeiling (D-10). Everything is validated, and the
+    expiresAt (``None`` clears it, D-08), screenCeiling (D-10) and planCeiling (D-13). Everything is validated, and the
     pool resize (the one step that can be refused by the data) runs, before any other field is written.
     A customer's screens are never touched (D-19). Returns the new summary."""
     raw = _raw(db)
@@ -141,6 +158,12 @@ async def update_partner(db, partner_id: str, *, changes: Dict[str, Any], actor:
         if ceiling != before:
             sets["partner.screenCeiling"] = ceiling
             events.append(("partner.ceiling_changed", before, ceiling))
+    if "planCeiling" in changes:
+        plans = validate_plan_ceiling(changes["planCeiling"])
+        before_plans = plan_ceiling(doc)
+        if plans != before_plans:
+            sets["partner.planCeiling"] = plans
+            events.append(("partner.plan_ceiling_changed", before_plans, plans))
     if "expiresAt" in changes:
         expiry = _utc_iso(changes["expiresAt"])
         if expiry != pool.get("expiresAt"):
