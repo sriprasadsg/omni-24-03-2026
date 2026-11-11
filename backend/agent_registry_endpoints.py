@@ -22,6 +22,7 @@ import enrollment_keys
 import license_rules
 import agent_capabilities
 import licensing
+import cross_tenant
 import pending_agents
 import seat_identity
 import asset_identity
@@ -297,6 +298,8 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
                                                            install_key.get("defaultGroupId"),
                                                            source_ip=observed, hostname=hostname)
                            if key_claimed else license_rules.REASON_KEY_EXHAUSTED)
+        else:
+            hold_reason = await license_rules.returning_hold_reason(db, tenant, hardware)
         if not existing_agent and hold_reason is None:
             try:
                 replaced_id = await _take_over_hardware_seat(db, tenant["id"], hardware, agent_id)
@@ -309,14 +312,19 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
             if not claimed:
                 hold_reason = pending_agents.REASON_SEAT_LIMIT
         if hold_reason:
+            detail = (await cross_tenant.hold_detail(db, tenant["id"], hardware)
+                      if hold_reason == license_rules.REASON_CROSS_TENANT else None)
             try:
-                held = await pending_agents.hold(db, tenant, agent_id, identity, hold_reason, existing_agent)
+                held = await pending_agents.hold(db, tenant, agent_id, identity, hold_reason, existing_agent,
+                                                 extra={"crossTenant": detail} if detail else None)
             except Exception as e:
                 if key_claimed:
                     await enrollment_keys.release_use(db, install_key)
                 if "E11000 duplicate key error" in str(e) and not existing_agent:
                     raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
                 raise
+            if detail:
+                await cross_tenant.alert_platform_hold(db, tenant, held, detail)
             return await pending_agents.answer(db, response, tenant, held, capable,
                                                agent_secret if capable else None)
     try:
@@ -340,6 +348,8 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
             raise e
 
     await machine_identity.remember(db, tenant["id"], agent_seat_key, agent_id, hostname)
+    if seat_needed:
+        await cross_tenant.retire_silent_copies(db, tenant, hardware, agent_id, actor="enrollment")
 
     if not existing_agent and install_key.get("defaultGroupId"):
         await license_rules.join_group(db, tenant["id"], install_key["defaultGroupId"], agent_id, "enrollment")

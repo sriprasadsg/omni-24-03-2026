@@ -272,20 +272,20 @@ async def _feed(db, tenant_id):
 
 async def test_a_machine_live_in_another_organization_is_held_and_neither_name_leaks(mongo_db):
     await _two_tenants(mongo_db)
-    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1, hostname="alpha-pc")
-    before = await mongo_db.agents.find_one({"id": "agent-a"}, {"_id": 0})
+    await _agent(mongo_db, "tenant-a", "owner-copy-1", serial="S1", seen_hours=1, hostname="alpha-pc")
+    before = await mongo_db.agents.find_one({"id": "owner-copy-1"}, {"_id": 0})
     code, body, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"))
     assert code == 202 and body["pendingReason"] == "cross_tenant_duplicate"
     held = await mongo_db.agents.find_one({"id": body["agentId"]})
     assert held["status"] == "Pending" and held["tenantId"] == "tenant-b"
-    assert held["crossTenant"] == {"agentId": "agent-a", "tenantId": "tenant-a", "tenantName": "Alpha Org",
+    assert held["crossTenant"] == {"agentId": "owner-copy-1", "tenantId": "tenant-a", "tenantName": "Alpha Org",
                                    "hostname": "alpha-pc"}
-    assert await mongo_db.agents.find_one({"id": "agent-a"}, {"_id": 0}) == before
+    assert await mongo_db.agents.find_one({"id": "owner-copy-1"}, {"_id": 0}) == before
     assert await _feed(mongo_db, "tenant-a") == []
     b_feed = await _feed(mongo_db, "tenant-b")
     assert len(b_feed) == 1 and WAITING in b_feed[0]["message"]
     leaked = json.dumps(b_feed, default=str)
-    for secret in ("Alpha", "tenant-a", "agent-a", "alpha-pc"):
+    for secret in ("Alpha", "tenant-a", "owner-copy-1", "alpha-pc"):
         assert secret not in leaked
     platform = [n for n in await _feed(mongo_db, "platform-admin")
                 if n["metadata"].get("event") == "agent.cross_tenant_duplicate"]

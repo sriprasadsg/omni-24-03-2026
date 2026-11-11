@@ -13,6 +13,7 @@ REASON_TRIAL_ENDED = "trial_ended"
 REASON_NOT_ALLOWLISTED = "not_allowlisted"
 REASON_KEY_EXHAUSTED = "key_exhausted"
 REASON_NEW_NETWORK = "new_network"
+REASON_CROSS_TENANT = "cross_tenant_duplicate"
 
 REFUSAL_TEXT = {
     REASON_SEAT_LIMIT: "Agent limit reached ({limit}). This computer is waiting for approval by your provider; "
@@ -23,6 +24,8 @@ REFUSAL_TEXT = {
                         "approval by your provider.",
     REASON_NEW_NETWORK: "new_network: this computer enrolled from a network this organization has not used before. "
                         "It is waiting for platform approval.",
+    REASON_CROSS_TENANT: "cross_tenant_duplicate: this computer is enrolled in another organization. It is waiting "
+                         "for platform approval.",
 }
 
 REASON_TEXT = {
@@ -33,6 +36,8 @@ REASON_TEXT = {
     REASON_EXPIRED: "the tenant's agent license has expired",
     REASON_TRIAL_ENDED: "the organization's free trial has ended",
     REASON_NEW_NETWORK: "it enrolled from a new network {ip}, waiting for platform approval",
+    # D-36: the only text a tenant sees; it names no other organization
+    REASON_CROSS_TENANT: "this computer is enrolled in another organization; waiting for platform approval",
 }
 
 

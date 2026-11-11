@@ -2,7 +2,8 @@
 
 A new enrollment is checked, in order, against: license expiry (``license_expired``), the end of
 a Free tenant's trial (``trial_ended``, Phase 88; the platform organization is exempt and a tenant
-with no trial record is admitted), the hardware allowlist (``not_allowlisted``), the tenant's allowed
+with no trial record is admitted), a machine live in another organization (``cross_tenant_duplicate``, Phase 88:
+held for the platform, the platform organization included), the hardware allowlist (``not_allowlisted``), the tenant's allowed
 networks (``new_network``, Phase 88: the address the server observed must be in one; a tenant with none
 yet learns the first machine's), the OS-class sub-limit (``sublimit:os:<class>``) and the install key's
 default-group sub-limit (``sublimit:group:<id>``). The first rule it fails holds it Pending with that reason;
@@ -23,12 +24,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import agent_allowlist
+import cross_tenant
 import licensing
 import network_rules
 import plan_service
 import plan_trial
 from hold_reasons import (  # noqa: F401  (module-level names kept for existing callers)
-    REASON_EXPIRED, REASON_KEY_EXHAUSTED, REASON_NEW_NETWORK, REASON_NOT_ALLOWLISTED, REASON_TRIAL_ENDED)
+    REASON_CROSS_TENANT, REASON_EXPIRED, REASON_KEY_EXHAUSTED, REASON_NEW_NETWORK, REASON_NOT_ALLOWLISTED,
+    REASON_TRIAL_ENDED)
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +159,8 @@ async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], plat
             return REASON_EXPIRED
     if not plan_service.is_exempt(fresh) and plan_service.plan_key_of(fresh) == "Free" and plan_trial.ended(fresh):
         return REASON_TRIAL_ENDED  # D-05, D-21: the Free trial is over; a missing trial record admits (fails open)
+    if await cross_tenant.live_owner(db, fresh["id"], hardware) is not None:
+        return REASON_CROSS_TENANT  # D-02, D-35: one computer, one organization; the platform is not exempt (A-88-A8)
     if lic["allowlistMode"] == "enforce" and not await agent_allowlist.matches(db, tenant["id"], hardware):
         return REASON_NOT_ALLOWLISTED
     if not plan_service.is_exempt(fresh) and await _new_network(db, fresh, source_ip, hostname):
@@ -166,6 +171,14 @@ async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], plat
         return f"sublimit:os:{cls}"
     if default_group_id and await group_room(db, fresh, default_group_id) == 0:
         return f"sublimit:group:{default_group_id}"
+    return None
+
+
+async def returning_hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any]) -> Optional[str]:
+    """Why a returning agent that needs a seat again must wait: only the cross-tenant rule applies to it,
+    because it is not a new machine (D-01) but a copy live in another organization still is a duplicate."""
+    if await cross_tenant.live_owner(db, tenant["id"], hardware) is not None:
+        return REASON_CROSS_TENANT
     return None
 
 
