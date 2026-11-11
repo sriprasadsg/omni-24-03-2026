@@ -73,7 +73,7 @@ describe('TenantLicensePanel plan, override and trial', () => {
     mockServer(VIEW, { ...VIEW, trial: { ...VIEW.trial, endsAt: '2026-11-27T00:00:00Z', daysLeft: 16 } });
     render(<TenantLicensePanel tenantId="t1" />);
     await waitFor(() => screen.getByText('9 days left'));
-    expect(screen.getByText(/2026-11-20/)).toBeTruthy();
+    expect(screen.getByText('Nov 20, 2026').getAttribute('title')).toBe('2026-11-20');
 
     const days = screen.getByLabelText(/Extend trial by/) as HTMLInputElement;
     const extend = screen.getByText('Extend') as HTMLButtonElement;
@@ -87,6 +87,46 @@ describe('TenantLicensePanel plan, override and trial', () => {
     await waitFor(() => expect(patches().length).toBe(1));
     expect(sentBody()).toEqual({ trialExtendDays: 7 });
     await waitFor(() => screen.getByText('16 days left'));
+  });
+
+  it('UI-SPEC S5: Use plan number is a neutral underlined 14/600 text button of 32px, and says what happened (G-07, G-20)', async () => {
+    mockServer(VIEW, { ...VIEW, maxAgents: 5, seatOverride: null });
+    render(<TenantLicensePanel tenantId="t1" />);
+    await waitFor(() => screen.getByText('Use plan number'));
+    const button = screen.getByText('Use plan number');
+    expect(button.className).not.toMatch(/primary/);
+    expect(button.className).toMatch(/min-h-8/);
+    expect(button.className).toMatch(/text-sm/);
+    expect(button.className).toMatch(/font-semibold/);
+    expect(button.className).toMatch(/underline/);
+    fireEvent.click(button);
+    const status = await waitFor(() => screen.getByRole('status'));
+    expect(status.textContent).toBe("Seat limit is the plan's number again (5).");
+  });
+
+  it('UI-SPEC S5: Extend says the new end date, points at its effect line and has no half-step padding (G-20, G-22, G-04, G-02)', async () => {
+    mockServer(VIEW, { ...VIEW, trial: { ...VIEW.trial, endsAt: '2026-11-27T00:00:00Z', daysLeft: 16 } });
+    render(<TenantLicensePanel tenantId="t1" />);
+    await waitFor(() => screen.getByText('9 days left'));
+    const extend = screen.getByText('Extend');
+    expect(extend.className).toMatch(/min-h-10/);
+    expect(extend.className).not.toMatch(/py-1(\.5)?\b/);
+    const effect = screen.getByText('Counts from today if the trial has ended. Recorded in the audit log.');
+    expect(extend.getAttribute('aria-describedby')).toBe(effect.id);
+    expect(screen.getByText(/Extend trial by/).className).not.toMatch(/font-medium/);
+    fireEvent.click(extend);
+    const status = await waitFor(() => screen.getByRole('status'));
+    expect(status.textContent).toBe('Trial now ends Nov 27, 2026.');
+  });
+
+  it('clears the status line when a field is edited (G-20)', async () => {
+    mockServer(VIEW, { ...VIEW, maxAgents: 5, seatOverride: null });
+    render(<TenantLicensePanel tenantId="t1" />);
+    await waitFor(() => screen.getByText('Use plan number'));
+    fireEvent.click(screen.getByText('Use plan number'));
+    await waitFor(() => screen.getByRole('status'));
+    fireEvent.change(screen.getByLabelText('Max agents'), { target: { value: '9' } });
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('shows no trial row on a paid plan', async () => {

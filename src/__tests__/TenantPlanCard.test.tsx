@@ -70,6 +70,25 @@ describe('TenantPlanCard', () => {
     expect(screen.getByText(/the first computer you enroll sets it/)).toBeTruthy();
   });
 
+  it('UI-SPEC S4: neutral plan name, no medium weight, 4px list rhythm, one line saying what a network does (G-06, G-02, G-05, G-19)', async () => {
+    authFetch.mockResolvedValue(answer(VIEW));
+    render(<TenantPlanCard tenantId="t1" />);
+    await waitFor(() => screen.getByText('Free'));
+    const plan = screen.getByText('Free');
+    expect(plan.className).not.toMatch(/text-primary/);
+    expect(plan.className).toMatch(/font-semibold/);
+    expect(screen.getByTestId('tenant-plan-card').innerHTML).not.toMatch(/font-medium/);
+    expect(screen.getByText('203.0.113.7 (learned)').parentElement!.className).toMatch(/space-y-1\b/);
+    expect(screen.getByText('Computers enrolling from any other network wait for approval.')).toBeTruthy();
+  });
+
+  it('shows the network explanation only under a non-empty list (G-19)', async () => {
+    authFetch.mockResolvedValue(answer({ ...VIEW, allowedNetworks: [] }));
+    render(<TenantPlanCard tenantId="t1" />);
+    await waitFor(() => screen.getByText(/No network learned yet/));
+    expect(screen.queryByText(/wait for approval\.$/)).toBeNull();
+  });
+
   it('renders nothing for an exempt organization', async () => {
     authFetch.mockResolvedValue(answer({ ...VIEW, exempt: true, maxAgents: null }));
     const { container } = render(<TenantPlanCard tenantId="platform" />);
