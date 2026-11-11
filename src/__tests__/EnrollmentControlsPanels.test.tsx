@@ -9,14 +9,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 const authFetch = vi.fn();
-const fetchTenantLicense = vi.fn();
-const updateTenantLicense = vi.fn();
+const fetchLicenceView = vi.fn();
+const updateLicence = vi.fn();
 
 vi.mock('../../services/apiService', () => ({
   API_BASE: '/api',
   authFetch: (...args: unknown[]) => authFetch(...args),
-  fetchTenantLicense: (...args: unknown[]) => fetchTenantLicense(...args),
-  updateTenantLicense: (...args: unknown[]) => updateTenantLicense(...args),
+}));
+vi.mock('../../services/licenceApi', () => ({
+  fetchLicenceView: (...args: unknown[]) => fetchLicenceView(...args),
+  updateLicence: (...args: unknown[]) => updateLicence(...args),
 }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
@@ -27,15 +29,16 @@ import { TenantAllowlistPanel } from '../../components/TenantAllowlistPanel';
 const LICENSE = {
   tenantId: 't1', maxAgents: 10, seatsUsed: 4, seatsAvailable: 6, overBy: 0, inactiveReclaimDays: 30,
   allowlistMode: 'off', subLimits: [], expiresAt: '2027-01-31T23:59:59+00:00',
+  plan: 'Custom', planSeats: null, seatOverride: null, partnerManaged: false, exempt: false, trial: null, allowedNetworks: [],
 };
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
 describe('TenantLicensePanel controls', () => {
-  beforeEach(() => { fetchTenantLicense.mockReset(); updateTenantLicense.mockReset(); });
+  beforeEach(() => { fetchLicenceView.mockReset(); updateLicence.mockReset(); });
 
   it('saves allowlist mode and a sub-limit', async () => {
-    fetchTenantLicense.mockResolvedValue(LICENSE);
-    updateTenantLicense.mockResolvedValue({ ...LICENSE, allowlistMode: 'enforce', subLimits: [{ key: 'os:windows_server', max: 2 }] });
+    fetchLicenceView.mockResolvedValue(LICENSE);
+    updateLicence.mockResolvedValue({ ...LICENSE, allowlistMode: 'enforce', subLimits: [{ key: 'os:windows_server', max: 2 }] });
     render(<TenantLicensePanel tenantId="t1" />);
     await waitFor(() => screen.getByDisplayValue('2027-01-31'));
     fireEvent.change(screen.getByDisplayValue('Off: any machine may enroll'), { target: { value: 'enforce' } });
@@ -43,22 +46,22 @@ describe('TenantLicensePanel controls', () => {
     fireEvent.change(screen.getByLabelText('Sub-limit key'), { target: { value: 'os:windows_server' } });
     fireEvent.change(screen.getByLabelText('Sub-limit max'), { target: { value: '2' } });
     fireEvent.click(screen.getByText('Save license'));
-    await waitFor(() => expect(updateTenantLicense).toHaveBeenCalled());
-    const [, changes] = updateTenantLicense.mock.calls[0];
+    await waitFor(() => expect(updateLicence).toHaveBeenCalled());
+    const [, changes] = updateLicence.mock.calls[0];
     expect(changes.allowlistMode).toBe('enforce');
     expect(changes.subLimits).toEqual([{ key: 'os:windows_server', max: 2 }]);
     expect('expiresAt' in changes).toBe(false); // untouched expiry is not resent
   });
 
   it('clears the expiry with null', async () => {
-    fetchTenantLicense.mockResolvedValue(LICENSE);
-    updateTenantLicense.mockResolvedValue({ ...LICENSE, expiresAt: null });
+    fetchLicenceView.mockResolvedValue(LICENSE);
+    updateLicence.mockResolvedValue({ ...LICENSE, expiresAt: null });
     render(<TenantLicensePanel tenantId="t1" />);
     const date = await waitFor(() => screen.getByDisplayValue('2027-01-31'));
     fireEvent.change(date, { target: { value: '' } });
     fireEvent.click(screen.getByText('Save license'));
-    await waitFor(() => expect(updateTenantLicense).toHaveBeenCalled());
-    expect(updateTenantLicense.mock.calls[0][1].expiresAt).toBeNull();
+    await waitFor(() => expect(updateLicence).toHaveBeenCalled());
+    expect(updateLicence.mock.calls[0][1].expiresAt).toBeNull();
   });
 });
 

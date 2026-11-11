@@ -11,8 +11,10 @@ import type { Tenant } from '../../types';
 vi.mock('../../services/apiService', () => ({
   API_BASE: '/api',
   authFetch: vi.fn().mockResolvedValue({ ok: false, json: async () => [] }),
-  fetchTenantLicense: vi.fn().mockReturnValue(new Promise(() => {})),
-  updateTenantLicense: vi.fn(),
+}));
+vi.mock('../../services/licenceApi', () => ({
+  fetchLicenceView: vi.fn().mockReturnValue(new Promise(() => {})),
+  updateLicence: vi.fn(),
 }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 

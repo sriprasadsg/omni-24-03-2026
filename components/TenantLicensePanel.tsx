@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchTenantLicense, updateTenantLicense, TenantLicense, LicenseSubLimit } from '../services/apiService';
+import { fetchLicenceView, updateLicence, LicenceView, LicenceChanges, LicenceSubLimit } from '../services/licenceApi';
 
 interface TenantLicensePanelProps {
   tenantId: string;
@@ -8,16 +8,18 @@ interface TenantLicensePanelProps {
 const OS_KEYS = ['os:windows_workstation', 'os:windows_server', 'os:linux', 'os:macos'];
 
 const dateOf = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
-const sameLimits = (a: LicenseSubLimit[], b: LicenseSubLimit[]) =>
+const sameLimits = (a: LicenceSubLimit[], b: LicenceSubLimit[]) =>
   a.length === b.length && a.every((s, i) => s.key === b[i].key && s.max === b[i].max);
 
 /**
  * Agent license editor for super admins: seat limit and reclaim window (spec C2), plus the
  * enrollment controls of spec C4: an expiry date, allowlist enforcement and sub-limits per
  * OS class or agent group. New machines that break a rule wait for approval under Agents.
+ * Plan-driven (88-13): the plan's seat number beside the tenant's limit with "Use plan number" (D-09), the Free
+ * trial end with an extension (D-15) and the allowed networks, read-only (D-19).
  */
 export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId }) => {
-  const [license, setLicense] = useState<TenantLicense | null>(null);
+  const [license, setLicense] = useState<LicenceView | null>(null);
   const [maxAgents, setMaxAgents] = useState('');
   const [reclaimDays, setReclaimDays] = useState('');
   const [expiresOn, setExpiresOn] = useState('');
@@ -26,10 +28,12 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [extendDays, setExtendDays] = useState('7');
+  const [acting, setActing] = useState(false);
 
-  const adopt = (l: TenantLicense) => {
+  const adopt = (l: LicenceView) => {
     setLicense(l);
-    setMaxAgents(String(l.maxAgents));
+    setMaxAgents(l.maxAgents === null ? '' : String(l.maxAgents));
     setReclaimDays(String(l.inactiveReclaimDays));
     setExpiresOn(dateOf(l.expiresAt));
     setAllowlistMode(l.allowlistMode || 'off');
@@ -39,7 +43,7 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
   useEffect(() => {
     let active = true;
     setError(null);
-    fetchTenantLicense(tenantId)
+    fetchLicenceView(tenantId)
       .then(l => { if (active) adopt(l); })
       .catch(e => active && setError(e.message));
     return () => { active = false; };
@@ -47,11 +51,11 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
 
   const parsedMax = Number(maxAgents);
   const parsedDays = Number(reclaimDays);
-  const parsedLimits: LicenseSubLimit[] = subLimits
+  const parsedLimits: LicenceSubLimit[] = subLimits
     .filter(s => s.key.trim())
     .map(s => ({ key: s.key.trim(), max: Number(s.max) }));
   const limitsValid = parsedLimits.every(s => Number.isInteger(s.max) && s.max >= 0);
-  const valid = Number.isInteger(parsedMax) && parsedMax >= 0 && Number.isInteger(parsedDays)
+  const valid = maxAgents.trim() !== '' && Number.isInteger(parsedMax) && parsedMax >= 0 && Number.isInteger(parsedDays)
     && parsedDays >= 1 && parsedDays <= 365 && limitsValid;
   const expiryChanged = !!license && expiresOn !== dateOf(license.expiresAt);
   const dirty = !!license && (parsedMax !== license.maxAgents || parsedDays !== license.inactiveReclaimDays
@@ -64,11 +68,11 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
     setError(null);
     setSaved(false);
     try {
-      const changes: Parameters<typeof updateTenantLicense>[1] = {
+      const changes: LicenceChanges = {
         maxAgents: parsedMax, inactiveReclaimDays: parsedDays, allowlistMode, subLimits: parsedLimits,
       };
       if (expiryChanged) changes.expiresAt = expiresOn ? new Date(`${expiresOn}T23:59:59Z`).toISOString() : null;
-      adopt(await updateTenantLicense(tenantId, changes));
+      adopt(await updateLicence(tenantId, changes));
       setSaved(true);
     } catch (e: any) {
       setError(e.message);
@@ -78,6 +82,26 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
   };
 
   const touch = () => setSaved(false);
+
+  // "Use plan number" and "Extend" are their own PATCH; the server answers the whole licence view.
+  const act = async (changes: LicenceChanges, reset: boolean) => {
+    setActing(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const next = await updateLicence(tenantId, changes);
+      if (reset) adopt(next); else setLicense(next);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setActing(false);
+    }
+  };
+  const parsedExtend = Number(extendDays);
+  const extendValid = extendDays.trim() !== '' && Number.isInteger(parsedExtend) && parsedExtend >= 1 && parsedExtend <= 365;
+  const trial = license?.trial ?? null;
+  const showOverride = !!license && license.seatOverride !== null && !license.partnerManaged;
+  const canUsePlanNumber = showOverride && license!.plan !== 'Custom';
   const inputClass = 'w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white';
   const expired = !!license?.expiresAt && new Date(license.expiresAt) < new Date();
 
@@ -90,12 +114,42 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
       </p>
       {license && (
         <p className="text-sm mb-3 text-gray-700 dark:text-gray-300">
-          <strong>{license.seatsUsed}</strong> of <strong>{license.maxAgents}</strong> seats in use
+          <strong>{license.seatsUsed}</strong> of <strong>{license.exempt ? 'unlimited' : license.maxAgents}</strong> seats in use
           {license.overBy > 0
             ? <span className="ml-2 text-red-600 dark:text-red-400">({license.overBy} over the limit: new installs wait for approval)</span>
             : <span className="ml-2 text-gray-500 dark:text-gray-400">({license.seatsAvailable} free)</span>}
           {expired && <span className="ml-2 text-red-600 dark:text-red-400">License expired: new installs wait for approval</span>}
         </p>
+      )}
+      {license && !license.exempt && (
+        <div className="mb-3 rounded-md bg-gray-50 dark:bg-gray-900/40 p-3 text-sm text-gray-700 dark:text-gray-300" data-testid="license-plan-row">
+          <p>{license.planSeats === null ? `Plan ${license.plan}: seats set per tenant` : `Plan ${license.plan}: ${license.planSeats} seats`}</p>
+          <p>{`Limit ${license.maxAgents}${showOverride ? ' (override)' : ''}`}</p>
+          {license.partnerManaged && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">The partner's allotment sets the seats for this customer.</p>
+          )}
+          {canUsePlanNumber && (
+            <button type="button" disabled={acting} onClick={() => act({ clearSeatOverride: true }, true)}
+                    className="mt-1 text-xs text-primary-600 dark:text-primary-400 disabled:opacity-50">Use plan number</button>
+          )}
+        </div>
+      )}
+      {license && license.plan === 'Free' && trial && (
+        <div className="mb-3 rounded-md bg-gray-50 dark:bg-gray-900/40 p-3 text-sm text-gray-700 dark:text-gray-300" data-testid="license-trial-row">
+          <p>
+            {`Free trial ends ${dateOf(trial.endsAt)}: `}
+            <strong>{trial.ended ? 'ended' : `${trial.daysLeft} ${trial.daysLeft === 1 ? 'day' : 'days'} left`}</strong>
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+              Extend trial by (days)
+              <input type="number" min={1} max={365} className={`${inputClass} w-24`} value={extendDays}
+                     onChange={e => setExtendDays(e.target.value)} />
+            </label>
+            <button type="button" disabled={!extendValid || acting} onClick={() => act({ trialExtendDays: parsedExtend }, false)}
+                    className="px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-50">Extend</button>
+          </div>
+        </div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -150,6 +204,16 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
           </div>
         ))}
       </div>
+
+      {license && (
+        <div className="mt-3">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Allowed networks</p>
+          {license.allowedNetworks.length === 0
+            ? <p className="text-xs text-gray-500 dark:text-gray-400">None yet: the first computer to enroll sets the network.</p>
+            : <ul className="mt-1 space-y-0.5">{license.allowedNetworks.map(n => (
+                <li key={n.cidr} className="text-sm text-gray-700 dark:text-gray-300">{`${n.cidr} (${n.source})`}</li>))}</ul>}
+        </div>
+      )}
 
       {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">{error}</p>}
       <div className="mt-3 flex items-center gap-3">
