@@ -28,7 +28,7 @@ function payload(totals: Partial<typeof ZERO>, minutes = 0, shadowOnly = false) 
 
 const renderCard = () => render(<StatsCard tenantId={null} days={30} onDaysChange={() => {}} refreshSignal={0} />);
 
-beforeEach(() => fetchStats.mockReset());
+beforeEach(() => { fetchStats.mockReset(); });
 
 describe('the Statistics card summary line', () => {
   it('shows done, undone and the estimate for real decisions', async () => {
@@ -51,7 +51,7 @@ describe('the Statistics card summary line', () => {
   });
 
   it('says the statistics could not be loaded when the request fails', async () => {
-    fetchStats.mockRejectedValue(new Error('down'));
+    fetchStats.mockImplementation(() => Promise.reject(new Error('down')));
     renderCard();
     expect(await screen.findByText("Statistics couldn't be loaded")).toBeInTheDocument();
   });

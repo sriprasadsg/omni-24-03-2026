@@ -353,6 +353,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "autonomous_ops_response_endpoints", "router")  # Phase 83: response settings (tenant admin)
     _load(app, "autonomous_ops_response_platform_endpoints", "router")  # Phase 83: response settings for every organization
     _load(app, "autonomous_ops_service_desk_endpoints", "router")  # Phase 85: service desk switch, words and restore
+    _load(app, "autonomous_ops_reporting_endpoints", "router")  # Phase 86: statistics and activity export
     _load(app, "watchdog_ingest_endpoints", "router")  # Phase 82: watchdog heartbeat/events (loopback + bearer token)
 
     # ── Optional / Feature Routers (non-fatal if missing) ────────────────────

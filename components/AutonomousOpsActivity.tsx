@@ -12,6 +12,8 @@ import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
 import { DeskSettingsCard } from './serviceDesk/DeskSettingsCard';
+import { StatsCard } from './autonomousOpsStats/StatsCard';
+import type { StatsWindow } from '../services/autonomousOpsReporting';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
@@ -38,6 +40,8 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     // The incident cards on screen (the Review link on a Pending row needs one) and how many decisions were made here.
     const [decisionIds, setDecisionIds] = useState<ReadonlySet<string>>(() => new Set());
     const [decidedCount, setDecidedCount] = useState(0);
+    // The Statistics period; the Export dialog reuses it as its default (86-11).
+    const [statsDays, setStatsDays] = useState<StatsWindow>(30);
 
     const scope = resolveAutonomousOpsScope(currentUser?.role, tenantId);
     const readOnly = platformTier(currentUser?.role) === 'support';
@@ -136,6 +140,15 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                         <DeskSettingsCard
                             key={`desk-${scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}`}
                             tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
+                        />
+                    )}
+                    {showDecisions && (
+                        <StatsCard
+                            key={`stats-${scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}`}
+                            tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
+                            days={statsDays}
+                            onDaysChange={setStatsDays}
+                            refreshSignal={refreshSignal}
                         />
                     )}
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
