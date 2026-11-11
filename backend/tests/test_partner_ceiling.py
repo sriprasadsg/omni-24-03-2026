@@ -45,10 +45,11 @@ async def _partner(wired, pid="partner_a", ceiling=tuple(CEILING)):
     })
 
 
-async def _customer(wired, cid="c1", partner="partner_a", features=tuple(START)):
+async def _customer(wired, cid="c1", partner="partner_a", features=tuple(START), tier=None):
     await wired.db.tenants.insert_one({
         "id": cid, "name": f"Customer {cid}", "partnerId": partner, "license": {"maxAgents": 5, "seatsUsed": 0},
         "enabledFeatures": list(features), "registrationKey": "reg_secret",
+        **({"subscriptionTier": tier} if tier else {}),
     })
 
 
@@ -145,7 +146,7 @@ async def test_a_switch_whose_parent_is_missing_is_refused_naming_both(wired):
 
 async def test_an_unrestricted_partner_may_sell_any_switch(wired):
     await _partner(wired, ceiling=("all",))
-    await _customer(wired)
+    await _customer(wired, tier="Enterprise")  # view:reporting is an Enterprise-plan screen too (D-30)
     out = await _put("c1", ["view:agents", "screen:chat", "view:reporting"])
     assert out["unrestricted"] is True and out["ceiling"] == ["all"]
     assert out["enabledFeatures"][:3] == ["view:agents", "screen:chat", "view:reporting"]
@@ -155,7 +156,7 @@ async def test_a_viewer_reads_the_screens_but_cannot_change_them(wired):
     await _partner(wired)
     await _customer(wired)
     got = await pe.get_customer_features("c1", ctx=await _ctx(role="partner_viewer"))
-    assert set(got) == {"enabledFeatures", "ceiling", "unrestricted", "kept"}
+    assert set(got) == {"enabledFeatures", "ceiling", "unrestricted", "kept", "plan", "planScreens"}
     with pytest.raises(HTTPException) as exc:
         await _put("c1", ["view:agents"], role="partner_viewer")
     assert exc.value.status_code == 403
@@ -179,7 +180,7 @@ async def test_the_features_answer_carries_no_secret(wired):
     await _partner(wired)
     await _customer(wired)
     out = await _put("c1", ["view:agents"])
-    assert "reg_secret" not in json.dumps(out) and set(out) == {"enabledFeatures", "ceiling", "unrestricted", "kept"}
+    assert "reg_secret" not in json.dumps(out) and set(out) == {"enabledFeatures", "ceiling", "unrestricted", "kept", "plan", "planScreens"}
 
 
 async def test_creation_validates_the_screens_with_the_same_rules(wired):
