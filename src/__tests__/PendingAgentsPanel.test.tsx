@@ -11,9 +11,12 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 const authFetch = vi.fn();
 
+const movedFetch = vi.fn();
+// The moved-agents list (S7) shares the module; its request is routed apart so the pending-list
+// queues below stay in order.
 vi.mock('../../services/apiService', () => ({
   API_BASE: '/api',
-  authFetch: (...args: unknown[]) => authFetch(...args),
+  authFetch: (...args: unknown[]) => String(args[0]).includes('/agents/pending/moved') ? movedFetch(...args) : authFetch(...args),
 }));
 const showToast = vi.fn();
 vi.mock('../../utils/toast', () => ({ showToast: (...args: unknown[]) => showToast(...args) }));
@@ -33,8 +36,13 @@ const list = (canDecide: boolean, agents: unknown[] = [AGENT]) => ({
 });
 const ok = (body: unknown = {}) => ({ ok: true, status: 200, json: async () => body });
 
+const refused = { ok: false, status: 403, json: async () => ({ error: 'forbidden' }) };
+const movedList = (agents: unknown[]) => ({ ok: true, status: 200, json: async () => ({ agents }) });
+const MOVED = { id: 'agent-o', tenantId: 'tenant-b', tenantName: 'Globex', hostname: 'OLD-LT-1', replacedReason: 'moved',
+  movedAt: '2026-10-14T12:00:00Z' };
+
 describe('PendingAgentsPanel', () => {
-  beforeEach(() => { authFetch.mockReset(); showToast.mockReset(); });
+  beforeEach(() => { authFetch.mockReset(); showToast.mockReset(); movedFetch.mockReset(); movedFetch.mockResolvedValue(refused); });
 
   it('renders nothing while no agent is waiting', async () => {
     authFetch.mockResolvedValue(list(true, []));
@@ -116,7 +124,7 @@ const TRIAL = { ...AGENT, id: 'agent-t', hostname: 'TRIAL-LT-3', pendingReason: 
 const fail = (status: number, body: unknown) => ({ ok: false, status, json: async () => body });
 
 describe('PendingAgentsPanel Phase 88 holds', () => {
-  beforeEach(() => { authFetch.mockReset(); showToast.mockReset(); });
+  beforeEach(() => { authFetch.mockReset(); showToast.mockReset(); movedFetch.mockReset(); movedFetch.mockResolvedValue(refused); });
 
   it('tenant admins read each hold plainly, get no controls and never see another organization', async () => {
     authFetch.mockResolvedValue(list(false, [NEW_NET, CROSS, TRIAL]));
@@ -287,5 +295,43 @@ describe('PendingAgentsPanel Phase 88 holds', () => {
     authFetch.mockResolvedValue(list(true, [TRIAL]));
     render(<PendingAgentsPanel tenantId={null} />);
     await waitFor(() => screen.getByText(/These computers were held by a license rule and wait for your decision/));
+  });
+});
+
+describe('PendingAgentsPanel moved agents (S7)', () => {
+  beforeEach(() => { authFetch.mockReset(); showToast.mockReset(); movedFetch.mockReset(); movedFetch.mockResolvedValue(movedList([MOVED])); });
+
+  it('deciders see the moved list under the pending table', async () => {
+    authFetch.mockResolvedValue(list(true));
+    render(<PendingAgentsPanel tenantId={null} />);
+    await waitFor(() => screen.getByText('FIN-LT-042'));
+    await waitFor(() => screen.getByText('Agents retired by a move (1)'));
+    expect(screen.getByText('OLD-LT-1 in Globex, moved Oct 14, 2026 (approved move)')).toBeTruthy();
+  });
+
+  it('deciders still see the moved list when nothing is waiting', async () => {
+    authFetch.mockResolvedValue(list(true, []));
+    render(<PendingAgentsPanel tenantId={null} />);
+    await waitFor(() => screen.getByText('Agents retired by a move (1)'));
+    expect(screen.queryByTestId('pending-agents-panel')).toBeNull();
+  });
+
+  it('refetches the moved list after the panel reloads, so an approved move appears', async () => {
+    authFetch.mockResolvedValueOnce(list(true, [AGENT])).mockResolvedValueOnce(ok({ agentId: 'agent-9' }))
+      .mockResolvedValue(list(true, []));
+    movedFetch.mockResolvedValueOnce(movedList([])).mockResolvedValue(movedList([MOVED]));
+    render(<PendingAgentsPanel tenantId={null} />);
+    await waitFor(() => screen.getByText('FIN-LT-042'));
+    fireEvent.click(screen.getByText('Approve'));
+    await waitFor(() => screen.getByText('Agents retired by a move (1)'));
+  });
+
+  it('tenant users never ask for or see the moved list, and see nothing while nothing waits', async () => {
+    authFetch.mockResolvedValue(list(false, []));
+    const { container } = render(<PendingAgentsPanel tenantId="tenant-a" />);
+    await waitFor(() => expect(authFetch).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 0));
+    expect(movedFetch).not.toHaveBeenCalled();
+    expect(container.innerHTML).toBe('');
   });
 });
