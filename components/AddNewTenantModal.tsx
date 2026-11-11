@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { PLAN_KEYS } from '../services/plansApi';
+import { ErrorBlock } from './PartnerCustomerModals';
 
 interface AddNewTenantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (tenantData: { name: string; subscriptionTier: string; maxAgents?: number }) => void;
+  /** May reject: the modal then stays open with the typed values and shows the refusal (UI-SPEC S3). */
+  onSave: (tenantData: { name: string; subscriptionTier: string; maxAgents?: number }) => void | Promise<void>;
 }
 
 export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, onClose, onSave }) => {
@@ -15,6 +17,13 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
   const [seats, setSeats] = useState('');
   const [seatsError, setSeatsError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const planHelp = subscriptionTier === 'Free'
+    ? 'Starts a free trial today. Seats and screens follow the Free plan.'
+    : subscriptionTier === 'Custom'
+      ? 'Set per tenant by contract. Tick screens one by one in Manage Tenant.'
+      : `Seats and screens follow the ${subscriptionTier} plan. Tick screens one by one in Manage Tenant.`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +34,7 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
         return;
       }
       setSeatsError('');
+      setSubmitError('');
       setIsSubmitting(true);
       try {
         await onSave({ name: tenantName.trim(), subscriptionTier, ...(custom ? { maxAgents: Number(seats) } : {}) });
@@ -32,7 +42,9 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
         setSeats('');
         onClose();
       } catch (error) {
-        console.error("Failed to add tenant:", error);
+        // Stay open with every typed value; the server's sentence is shown as sent.
+        setSubmitError(error instanceof Error && error.message.trim()
+          ? error.message : "Couldn't create the tenant. Check your connection and try again.");
       } finally {
         setIsSubmitting(false);
       }
@@ -83,15 +95,17 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
           </div>
 
           <div>
-            <label htmlFor="subscriptionTier" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Subscription Tier</label>
+            <label htmlFor="subscriptionTier" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Plan</label>
             <select
               id="subscriptionTier"
+              aria-describedby="subscriptionTierHelp"
               value={subscriptionTier}
               onChange={(e) => setSubscriptionTier(e.target.value)}
               className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white transition-all"
             >
               {PLAN_KEYS.map(key => <option key={key} value={key}>{key}</option>)}
             </select>
+            <p id="subscriptionTierHelp" className="mt-2 text-xs text-gray-500 dark:text-gray-400">{planHelp}</p>
           </div>
 
           {subscriptionTier === 'Custom' && (
@@ -108,10 +122,15 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
                 required
                 className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white transition-all"
                 placeholder="e.g., 40"
+                aria-describedby="tenantSeatsHelp"
               />
+              <p id="tenantSeatsHelp" className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                The seat limit from the contract. 0 means no computer can enroll.
+              </p>
               {seatsError && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{seatsError}</p>}
             </div>
           )}
+          {submitError && <ErrorBlock>{submitError}</ErrorBlock>}
         </div>
       </form>
     </Modal>
