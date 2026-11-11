@@ -15,6 +15,7 @@ import agent_vuln_ingest_service
 from geo_security_service import run_geo_security_detectors
 from ueba_service import persist_security_alert
 from agent_uninstall_endpoints import heartbeat_uninstall_protection
+import cross_tenant
 import licensing
 import pending_agents
 import agent_capabilities
@@ -78,6 +79,8 @@ async def report_heartbeat(
     # who it is (no capability data, no tasks) and is told to keep waiting.
     if existing_agent and existing_agent.get("status") == pending_agents.REJECTED:
         raise HTTPException(status_code=403, detail="agent_rejected: this agent was rejected by the platform administrator")
+    if existing_agent and existing_agent.get("status") == "Replaced" and existing_agent.get("replacedReason") in cross_tenant.MOVED_REASONS:
+        raise HTTPException(status_code=403, detail="agent_replaced: this computer was moved to another organization")
     _hb_tenant = await db.tenants.find_one({"id": _hb_tenant_id}) if _hb_tenant_id else None
     if existing_agent and existing_agent.get("status") == pending_agents.PENDING and _hb_tenant:
         return await pending_agents.answer_heartbeat(
@@ -89,6 +92,11 @@ async def report_heartbeat(
     # without a free seat it is held as Pending (spec C3).
     needs_seat = not existing_agent or existing_agent.get("status") in licensing.NON_SEAT_STATUSES
     if needs_seat and _hb_tenant:
+        detail = await cross_tenant.hold_detail(db, _hb_tenant_id, existing_agent.get("hardware") or {}) if existing_agent else None
+        if detail:  # the computer is live in another organization: held, never a second licence (Pitfall 5)
+            await cross_tenant.alert_platform_hold(db, _hb_tenant, existing_agent, detail)
+            return await pending_agents.answer_heartbeat(db, request, response, _hb_tenant, agent_id, payload, existing_agent,
+                                                         cross_tenant.REASON_CROSS_TENANT, extra={"crossTenant": detail})
         if not await licensing.try_claim_seat(db, _hb_tenant_id):
             logger.warning("Heartbeat held: tenant %s has no free agent seat; agent %s is Pending",
                            _hb_tenant_id, agent_id)

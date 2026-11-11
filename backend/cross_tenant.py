@@ -23,6 +23,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from pymongo import ReturnDocument
+
 import audit_ledger
 import licensing
 import seat_identity
@@ -204,3 +206,44 @@ async def after_admission(db, agent: Dict[str, Any], actor: str) -> int:
     await machine_identity.remember(db, tenant_id, agent.get("seatKey") or seat_identity.seat_key(
         hardware, agent.get("deviceId")), agent["id"], agent.get("hostname"))
     return retired
+
+
+async def restore(db, agent_id: str, actor: str) -> Dict[str, Any]:
+    """Turn an agent retired because its computer moved back to Inactive (D-43). It takes a seat again at its next
+    check-in, through the same cross-tenant rule. LookupError for an unknown id, ValueError for an agent that is
+    not moved. Both ledgers record it; the agent's own tenant's entry names no other organization."""
+    import pending_agents
+    raw = _raw(db)
+    now = datetime.now(timezone.utc).isoformat()
+    agent = await raw.agents.find_one_and_update(
+        {"id": agent_id, "status": "Replaced", "replacedReason": {"$in": list(MOVED_REASONS)}},
+        {"$set": {"status": "Inactive", "restoredAt": now, "restoredBy": actor},
+         "$unset": {"replacedReason": "", "movedAt": "", "replacedAt": ""}},
+        projection=_PROJECTION, return_document=ReturnDocument.BEFORE)
+    if agent is None:
+        if not await raw.agents.find_one({"id": agent_id}, {"_id": 1}):
+            raise LookupError("Agent not found")
+        raise ValueError("not_moved: this agent was not retired because its computer moved")
+    pending_agents.forget_status(agent_id)
+    who = {"email": actor}
+    try:
+        await audit_ledger.event("agent.restored", PLATFORM_TENANT_ID, actor=who, agentId=agent_id,
+                                 tenantId=agent["tenantId"], tenantName=await _tenant_name(raw, agent["tenantId"]),
+                                 hostname=agent.get("hostname"), was=agent.get("replacedReason"))
+        await audit_ledger.event("agent.restored", agent["tenantId"], actor=who, agentId=agent_id,
+                                 hostname=agent.get("hostname"))
+    except Exception as exc:
+        logger.warning("Ledger entries for the restore of %s were not recorded: %s", agent_id, exc)
+    return {"agentId": agent_id, "status": "Inactive"}
+
+
+async def list_moved(db, limit: int = 200) -> List[Dict[str, Any]]:
+    """Agents retired because their computer moved, newest move first, with their tenant's name (platform only)."""
+    raw = _raw(db)
+    rows = await raw.agents.find({"status": "Replaced", "replacedReason": {"$in": list(MOVED_REASONS)}},
+                                 _PROJECTION).sort("movedAt", -1).limit(limit).to_list(length=limit)
+    names = {t["id"]: t.get("name") for t in await raw.tenants.find(
+        {"id": {"$in": sorted({r["tenantId"] for r in rows})}}, {"_id": 0, "id": 1, "name": 1}).to_list(length=None)}
+    return [{"id": r["id"], "tenantId": r["tenantId"], "tenantName": names.get(r["tenantId"]),
+             "hostname": r.get("hostname"), "replacedReason": r.get("replacedReason"), "movedAt": r.get("movedAt"),
+             "lastSeen": r.get("lastSeen")} for r in rows]

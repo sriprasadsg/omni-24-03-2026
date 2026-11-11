@@ -186,11 +186,12 @@ def heartbeat_identity(payload: Dict[str, Any], existing: Optional[Dict[str, Any
 
 
 async def answer_heartbeat(db, request, response, tenant: Dict[str, Any], agent_id: str, payload: Dict[str, Any],
-                           existing: Optional[Dict[str, Any]], reason: str) -> Dict[str, Any]:
+                           existing: Optional[Dict[str, Any]], reason: str,
+                           extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Hold a heartbeating agent as Pending (storing only who it is; capability data is
     dropped) and answer 202, or 403 for builds that predate the pending answer."""
     source_ip = request.client.host if request.client else None
-    await hold(db, tenant, agent_id, heartbeat_identity(payload, existing, source_ip), reason, existing)
+    await hold(db, tenant, agent_id, heartbeat_identity(payload, existing, source_ip), reason, existing, extra)
     if not supports_pending(payload):
         raise HTTPException(status_code=403, detail="Agent limit reached. This agent is waiting for approval by your provider.")
     response.status_code = 202

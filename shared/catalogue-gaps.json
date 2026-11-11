@@ -1,7 +1,7 @@
 {
   "version": 1,
   "agentAuthExcludedRoutes": 12,
-  "maxExemptRoutes": 29,
+  "maxExemptRoutes": 31,
   "agentCapableRoutes": [
     {
       "route": "GET /api/swarm/peers",
@@ -63,6 +63,10 @@
     },
     {
       "route": "GET /api/agents/pending",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "GET /api/agents/pending/moved",
       "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
     },
     {
@@ -131,6 +135,10 @@
     },
     {
       "route": "POST /api/agents/pending/{agent_id}/reject",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "POST /api/agents/pending/{agent_id}/restore",
       "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
     },
     {

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+import cross_tenant
 import licensing
 import pending_agents
 from authentication_service import get_current_user
@@ -142,3 +143,25 @@ async def bulk_decide(body: BulkBody, current_user=Depends(get_current_user)):
     if body.action == "approve":
         invalidate_cache("agents:*")
     return {"results": results, "succeeded": sum(r["ok"] for r in results), "failed": sum(not r["ok"] for r in results)}
+
+
+@router.get("/moved", dependencies=[Depends(_require_pending_access)])
+async def list_moved_agents(current_user=Depends(get_current_user)):
+    """Agents retired because their computer moved to another organization (platform staff only, D-43)."""
+    if not can_read_all_tenants(current_user):
+        raise HTTPException(status_code=403, detail="Only platform staff can list moved agents")
+    return {"agents": await cross_tenant.list_moved(get_database())}
+
+
+@router.post("/{agent_id}/restore", dependencies=[Depends(_require_pending_access)])
+async def restore_moved_agent(agent_id: str, current_user=Depends(get_current_user)):
+    """Turn a moved agent back to Inactive; it takes a seat again at its next check-in (D-43)."""
+    await _require_decider(current_user)
+    try:
+        result = await cross_tenant.restore(get_database(), agent_id, _actor(current_user))
+    except LookupError as err:
+        return _decision_response(pending_agents.DecisionError(404, str(err)))
+    except ValueError as err:
+        return _decision_response(pending_agents.DecisionError(409, str(err)))
+    invalidate_cache("agents:*")
+    return result
