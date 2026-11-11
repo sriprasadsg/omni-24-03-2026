@@ -399,6 +399,43 @@ describe('ChooseScreensModal (PART-06, D-10, D-19)', () => {
     expect(props.onRefetch).toHaveBeenCalled();
   });
 
+  it('shows the customer\'s plan, greys the screens outside it and says where to change the plan (D-30)', async () => {
+    fetchCustomerFeatures.mockResolvedValue(features({ plan: 'Free', planScreens: ['screen:customDashboards'] }));
+    mount();
+    expect(await within(dialog()).findByText("Plan: Free. Screens outside it can't be added; change the plan under Plan and trial.")).toBeTruthy();
+    expect((within(dialog()).getByLabelText('Digital Twin') as HTMLInputElement).disabled).toBe(true);
+    expect(within(dialog()).getByText("Greyed-out screens are not in this customer's Free plan.")).toBeTruthy();
+    expect((within(dialog()).getByLabelText('Custom Dashboards') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('names the plan but greys nothing when the plan covers every screen', async () => {
+    fetchCustomerFeatures.mockResolvedValue(features({ plan: 'Enterprise', planScreens: ['all'] }));
+    mount();
+    expect(await within(dialog()).findByText("Plan: Enterprise. Screens outside it can't be added; change the plan under Plan and trial.")).toBeTruthy();
+    expect(within(dialog()).queryByText(/Greyed-out screens/)).toBeNull();
+    expect((within(dialog()).getByLabelText('Digital Twin') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('omits the plan line for a view without a plan (an older server)', async () => {
+    fetchCustomerFeatures.mockResolvedValue(features());
+    mount();
+    await within(dialog()).findByLabelText('Digital Twin');
+    expect(within(dialog()).queryByText(/^Plan: /)).toBeNull();
+  });
+
+  it('shows screen_outside_plan verbatim in the red block and refetches the view', async () => {
+    fetchCustomerFeatures.mockResolvedValue(features({ plan: 'Free', planScreens: ['screen:customDashboards', 'screen:digitalTwin'] }));
+    const refusal = "Digital Twin is not part of this customer's Free plan.";
+    saveCustomerFeatures.mockRejectedValue(new PartnerApiError(refusal, 422, 'screen_outside_plan'));
+    const props = mount();
+    fireEvent.click(await within(dialog()).findByLabelText('Digital Twin'));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save screens' }));
+    const alert = await within(dialog()).findByRole('alert');
+    expect(alert.textContent).toBe(refusal);
+    expect(props.onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetchCustomerFeatures).toHaveBeenCalledTimes(2));
+  });
+
   it('shows a kept screen outside the ceiling locked with the kept sentence and still sends it', async () => {
     fetchCustomerFeatures.mockResolvedValue(features({ enabledFeatures: ['screen:dashboard', 'view:tracing'], kept: ['view:tracing'] }));
     saveCustomerFeatures.mockResolvedValue(features());

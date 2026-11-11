@@ -95,6 +95,8 @@ const Harness: React.FC<{
   unrestricted?: boolean;
   initial: string[];
   kept?: string[];
+  planScreens?: string[];
+  planName?: string;
   disabled?: boolean;
   onChange?: (next: string[]) => void;
 }> = ({ initial, onChange, ...rest }) => {
@@ -221,6 +223,85 @@ describe('PartnerScreenPicker, customer mode (D-10, D-19)', () => {
     render(<Harness mode="customer" ceiling={CEILING} initial={VALUE} disabled />);
     for (const checkbox of screen.getAllByRole('checkbox')) expect((checkbox as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Select all screens' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('PartnerScreenPicker, the customer plan limit (88-15, LIC-04, D-30; 88-UI-SPEC S11)', () => {
+  const PLAN = ['view:assets', 'screen:assetManagement'];
+  const NOTE = "Greyed-out screens are not in this customer's Free plan.";
+
+  it('shows a screen outside the plan greyed, unticked and described by one shared visible note, with no per-row title', () => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={PLAN} planName="Free" initial={START} />);
+    const greyed = box('Tracing & APM');
+    expect(greyed.disabled).toBe(true);
+    expect(greyed.checked).toBe(false);
+    expect(greyed.getAttribute('title')).toBeNull();
+    expect(screen.getAllByText(NOTE)).toHaveLength(1);
+    const note = screen.getByText(NOTE);
+    expect(greyed.getAttribute('aria-describedby')).toBe(note.id);
+    expect(box('Security Operations').getAttribute('aria-describedby')).toBe(note.id);
+    expect(box('Assets').disabled).toBe(false);
+    expect(box('Asset Management').disabled).toBe(false);
+    expect(box('Assets').getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('names no plan in the note when the plan name is not given', () => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={PLAN} initial={START} />);
+    expect(screen.getByText("Greyed-out screens are not in this customer's plan.")).toBeTruthy();
+  });
+
+  it.each([['undefined', undefined], ['all', ['all']]])('limits only by the partner ceiling when planScreens is %s (Phase 87 unchanged)', (_n, planScreens) => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={planScreens} planName="Pro" initial={START} />);
+    expect(box('Tracing & APM').disabled).toBe(false);
+    expect(screen.queryByText(/Greyed-out screens/)).toBeNull();
+  });
+
+  it('shows no note when the plan covers every screen the partner can sell', () => {
+    render(<Harness mode="customer" ceiling={PLAN} planScreens={PLAN} planName="Free" initial={START} />);
+    expect(screen.queryByText(/Greyed-out screens/)).toBeNull();
+    expect(box('Assets').disabled).toBe(false);
+  });
+
+  it('keeps a held screen outside the plan ticked and locked with the kept sentence, and still sends it', () => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={PLAN} planName="Free" initial={[...START, 'view:tracing']} />);
+    const kept = box('Tracing & APM');
+    expect(kept.checked).toBe(true);
+    expect(kept.disabled).toBe(true);
+    expect(screen.getByText("Kept from before. You can't add it again.")).toBeTruthy();
+    fireEvent.click(box('Asset Management'));
+    expect(current()).toEqual(expect.arrayContaining(['view:tracing', 'screen:assetManagement']));
+  });
+
+  it('keeps a held screen that is outside both the plan and the ceiling', () => {
+    render(<Harness mode="customer" ceiling={PLAN} planScreens={PLAN} planName="Free" initial={[...START, 'view:compliance']} />);
+    expect(box('Compliance Management').checked).toBe(true);
+    expect(box('Compliance Management').disabled).toBe(true);
+  });
+
+  it('Select all and Clear all act only on rows the plan allows', () => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={PLAN} planName="Free" initial={START} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Select all screens' }));
+    expect(current().sort()).toEqual([...START, ...PLAN].sort());
+    expect(box('Tracing & APM').checked).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all screens' }));
+    expect(current().sort()).toEqual([...START].sort());
+  });
+
+  it('does not offer a child whose parent the plan blocks, and does not call that a missing parent', () => {
+    render(<Harness mode="customer" ceiling={PLAN} planScreens={['view:assets']} planName="Free" initial={START} />);
+    expect(box('Assets').disabled).toBe(true);
+    expect(screen.queryByText('Needs Asset Management.')).toBeNull();
+  });
+
+  it('counts only visible rows, kept ones included', () => {
+    render(<Harness mode="customer" ceiling={['all']} planScreens={PLAN} planName="Free" initial={[...START, 'view:tracing']} />);
+    expect(screen.getByText('1 screen selected')).toBeTruthy();
+  });
+
+  it('ignores planScreens in ceiling mode, which is the plan table\'s own list editor', () => {
+    render(<Harness mode="ceiling" planScreens={PLAN} initial={[]} />);
+    expect(box('Tracing & APM').disabled).toBe(false);
+    expect(screen.queryByText(/Greyed-out screens/)).toBeNull();
   });
 });
 
