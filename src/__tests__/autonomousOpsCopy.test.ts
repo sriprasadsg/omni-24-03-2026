@@ -59,6 +59,8 @@ const EXPECTED_FILES = [
   'backend/service_desk_endpoints.py',
   'backend/autonomous_ops_service_desk_endpoints.py',
   'backend/service_desk_tray_endpoints.py',
+  'backend/autonomous_ops_reporting_endpoints.py',
+  'services/autonomousOpsReporting.ts',
 ];
 
 // Whole directories are walked recursively, so a file added later is covered without a list edit (UI-SPEC DEV-4).
@@ -70,6 +72,8 @@ const EXPECTED_DIRECTORIES = [
   'backend/service_desk',
   'components/serviceDesk',
   'services/serviceDesk',
+  'backend/autonomous_ops/reporting',
+  'components/autonomousOpsStats',
 ];
 
 const RULES: Rule[] = rulesFile.rules as Rule[];
@@ -143,7 +147,7 @@ describe('ACTV-08 real copy', () => {
   });
 
   it('scans at least the status card, dialog, banner, activity screen, client and poller', () => {
-    expect(FRONTEND_FILES).toHaveLength(21);
+    expect(FRONTEND_FILES).toHaveLength(22);
   });
 });
 
@@ -241,6 +245,7 @@ describe('ACTV-08 directories', () => {
   it('every .ts and .tsx file under the frontend directories passes every rule', () => {
     expect(FRONTEND_DIRECTORIES).toEqual([
       'components/patchRollouts', 'services/patchRollouts', 'components/serviceDesk', 'services/serviceDesk',
+      'components/autonomousOpsStats',
     ]);
     const { missingOrEmpty, problems } = scanDirectories(FRONTEND_DIRECTORIES, RULES);
     expect(missingOrEmpty).toEqual([]);
