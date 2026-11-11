@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE, authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { PendingMovedAgents } from './PendingMovedAgents';
 
 interface HardwareInfo {
     serialNumber?: string | null;
@@ -102,6 +103,8 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
     const [ranges, setRanges] = useState<Record<string, string>>({});
     const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
     const headingRef = useRef<HTMLHeadingElement>(null);
+    // Moves with every reload so the moved-agents list refetches alongside (S7).
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const load = useCallback(async () => {
         const qs = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
@@ -109,6 +112,7 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
             const res = await authFetch(`${API_BASE}/agents/pending${qs}`, { method: 'GET' });
             if (!res.ok) throw new Error((await errorOf(res)).message);
             setData(await res.json());
+            setRefreshKey(k => k + 1);
         } catch (e) {
             console.warn('Pending agents unavailable:', e);
         }
@@ -225,7 +229,9 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
         }
     };
 
-    if (!data || data.agents.length === 0) return null;
+    if (!data) return null;
+    // An approved move leaves nothing waiting but a retired agent to restore: deciders keep the moved list.
+    if (data.agents.length === 0) return data.canDecide ? <PendingMovedAgents refreshKey={refreshKey} /> : null;
     const pendingCount = data.agents.filter(a => a.status === 'Pending').length;
     const toggle = (id: string) => setSelected(prev => {
         const next = new Set(prev);
@@ -235,6 +241,7 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
     const btn = 'px-2 py-1 text-xs rounded-md disabled:opacity-50';
 
     return (
+        <>
         <div className="rounded-2xl p-5 bg-amber-500/[0.06] ring-1 ring-inset ring-amber-500/25"
              data-testid="pending-agents-panel">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -370,6 +377,8 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
                 </table>
             </div>
         </div>
+        {data.canDecide && <PendingMovedAgents refreshKey={refreshKey} />}
+        </>
     );
 };
 
