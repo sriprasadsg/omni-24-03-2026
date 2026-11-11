@@ -478,7 +478,7 @@ Applicable state considerations resolved: 70 covered, 5 backstop, 3 dismissed, 0
 
 ## Conformance gaps in built UI (88-12, 88-13; nothing was edited)
 
-Severity: **A** = fix before the UI is published (88-16). **Update 2026-11-11: G-01..G-23 are all fixed (commit hashes in the Surface column); the Built and File:line columns describe the code as it was.**, **B** = fix with the next touch, **C** = low.
+Severity: **A** = fix before the UI is published (88-16). **Update 2026-11-11: G-01..G-24 are all fixed (commit hashes in the Surface column); the Built and File:line columns describe the code as it was.**, **B** = fix with the next touch, **C** = low.
 
 | ID | Sev | File:line | Built | Contract | Surface |
 |----|-----|-----------|-------|----------|---------|
@@ -505,6 +505,7 @@ Severity: **A** = fix before the UI is published (88-16). **Update 2026-11-11: G
 | G-21 | C | `components/TenantLicensePanel.tsx:140` | ISO `YYYY-MM-DD` | `Mon D, YYYY` (ISO in `title`) | S5 — fixed 175230c9a |
 | G-23 | A | `components/PlansPanel.tsx:123-126` | visible label is the bare `Save` on each of the three plan sections (no aria-label either) | visible `Save {plan} plan`, pending `Saving...` (verb plus noun, unique per section; update the 88-12 PlansPanel tests that query `Save`) | S1 — fixed 281c41818 |
 | G-22 | C | `components/TenantLicensePanel.tsx:149-150` | `Extend` with no effect line | `aria-describedby` to the effect line (visible label unchanged) | S5 — fixed 175230c9a |
+| G-24 | A | `components/TenantOnboardingWizard.tsx:20,55,64` | offers and defaults to `Starter`, which the server refuses (`unknown_plan` since 88-01); no Custom, no seats; label `Subscription Tier` | S3 plan rules: Free, Pro, Enterprise, Custom, Free by default, `Plan` label, per-plan helper, Custom seats sent as `maxAgents`, a refusal keeps the step open (this wizard, not `AddNewTenantModal`, is the live Add New Tenant) | S3 — fixed d975cba99 |
 
 Adjacent, pre-existing and not Phase 88 work (not counted): the `Upgrade to add more` button in `AgentsDashboard.tsx` (self-service upgrades are out of scope, D-39); the legacy `bg-green-600` `Approve` (3.3:1); and the Agents list does not render the `Replaced` status that D-37 and D-38 give tenant A (no plan in 88-12..88-15 covers it).
 

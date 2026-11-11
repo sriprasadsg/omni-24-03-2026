@@ -162,6 +162,7 @@ Fixed against `88-UI-SPEC.md` "Conformance gaps in built UI" (user decision 2026
 - `281c41818` PlansPanel: G-09 (plan screen lists use `PartnerScreenPicker mode="ceiling"`: parent rule, Overview always included, select/clear all), G-10 (`closeOnBackdrop={false}`), G-23 (`Save {plan} plan`, `Saving...`); ridden along G-01, G-02, G-03, G-04, G-11 (live effect lines), G-12 (red block, `Try again`, empty state), Custom helper line, fields disabled while a section saves.
 - `9b7628e5b` ManageTenantModal: G-08 (`text-amber-700`), G-15 (one visible shared note + `aria-describedby`); ridden along G-13 (Plan heading), G-14, G-16.
 - `5de68c159` AddNewTenantModal: G-18 modal side (a rejected `onSave` keeps the modal open and shows the server sentence), G-13, G-17.
+- `3ed51a6f2` (test) and `d975cba99` (fix) TenantOnboardingWizard, G-24: the live Add New Tenant wizard (UI-SPEC S3) offered and defaulted to `Starter`, which POST /api/tenants refuses since 88-01. Now Free, Pro, Enterprise, Custom, Free by default (state and reset), `Plan` label, per-plan helper, required Seats for Custom sent as `maxAgents`, a refusal keeps the step open with the typed values. 7 new tests; full suite 1987 passed.
 - `7b55d96d5` App.tsx: G-18 one-hunk rethrow in `handleAddNewTenant`, committed alone with `git apply --cached`; the user's other App.tsx hunks stay uncommitted.
 
 Tests: PlansPanel 14, ManageTenantModal 18, AddNewTenantModal 9 (existing queries for a bare `Save` and `Subscription Tier` updated); full suite 1980 passed (was 1962), typecheck clean, build green.
