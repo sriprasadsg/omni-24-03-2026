@@ -249,7 +249,7 @@ async def _migrated(db):
     await _seed(db)
     await db.agents.update_one({"id": "agent-12"}, {"$set": {"publicIp": "9.9.9.5"}})
     await _run(db)
-    await db._migrations.insert_one({"version": "034", "module": "034_plan_licensing"})
+    await db["_migrations"].insert_one({"version": "034", "module": "034_plan_licensing"})
 
 
 async def test_check_passes_on_the_migrated_shapes(mongo_db):
@@ -290,7 +290,7 @@ async def test_check_reports_a_platform_record_and_a_missing_hardware_index(mong
     assert "platform-admin" in failures and "agents_hw_uuid_sparse" in failures
 
 
-def test_the_check_script_never_writes():
+async def test_the_check_script_never_writes():
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
     assert not calls & _WRITE_CALLS
@@ -306,6 +306,6 @@ async def test_run_prints_a_line_per_tenant_and_exits_by_the_result(mongo_db, ca
     assert sum(1 for line in out.splitlines() if "Exafluence" in line and "Pro" in line) == 1
     await mongo_db.agents.update_one({"id": "agent-12"}, {"$set": {"publicIp": "9.9.9.5"}})
     await _run(mongo_db)
-    await mongo_db._migrations.insert_one({"version": "034"})
+    await mongo_db["_migrations"].insert_one({"version": "034"})
     assert await check.run(url, mongo_db.name) == 0
     assert "OK" in capsys.readouterr().out.splitlines()
