@@ -53,6 +53,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   const [agentCaps, setAgentCaps] = useState<Set<string>>(new Set(alwaysOnCapabilities));
   // The plan table; if it cannot be loaded every box stays enabled (the server still refuses).
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansFailed, setPlansFailed] = useState(false);
 
   useEffect(() => {
     if (tenant) {
@@ -82,7 +83,8 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   useEffect(() => {
     if (!isOpen) return;
     let live = true;
-    fetchPlans().then(p => { if (live) setPlans(p); }).catch(() => { if (live) setPlans([]); });
+    setPlansFailed(false);
+    fetchPlans().then(p => { if (live) setPlans(p); }).catch(() => { if (live) { setPlans([]); setPlansFailed(true); } });
     return () => { live = false; };
   }, [isOpen]);
 
@@ -100,6 +102,9 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
 
   const allowed = allowedScreens(plans.find(p => p.key === currentTier));
   const inPlan = (feature: string) => allowed === 'all' || allowed.has(feature);
+  // One visible note explains every greyed-out box (about 190 on Free); each box points at it (UI-SPEC S2).
+  const planNoteId = 'tenant-plan-limit-note';
+  const isPlanOff = (feature: string) => !inPlan(feature) && !enabledFeatures.has(feature);
 
   const handleToggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -164,6 +169,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     const outsidePlan = !inPlan(feature.permission);
     const planOff = outsidePlan && !ticked;
     const title = parentOff ? `Needs ${parentLabel}` : planOff ? `Not part of the ${currentTier} plan` : undefined;
+    const describedBy = !parentOff && planOff ? planNoteId : undefined;
     return (
       <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff || planOff ? 'opacity-50' : ''}`}
         title={title}>
@@ -171,12 +177,13 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
           type="checkbox"
           checked={ticked}
           disabled={parentOff || planOff}
+          aria-describedby={describedBy}
           onChange={() => handleFeatureToggle(feature.permission)}
           className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
         />
         <span className="text-sm text-gray-600 dark:text-gray-400">
           {feature.label}
-          {outsidePlan && ticked && <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">outside plan</span>}
+          {outsidePlan && ticked && <span className="ml-1 text-xs text-amber-700 dark:text-amber-400">outside plan</span>}
           {feature.parent && !nested && <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">(needs {parentLabel})</span>}
         </span>
       </label>
@@ -225,11 +232,16 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
           <TenantEnrollmentKeysPanel tenantId={tenant.id} canManage />
           <TenantAllowlistPanel tenantId={tenant.id} canManage />
           <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Subscription Tier</h3>
+            <h3 id="tenant-plan-heading" className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2">Plan</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              The plan limits which screens can be ticked below; choosing one ticks nothing.
+              The plan decides the seat limit, unless this tenant has its own number or belongs to a partner, and limits which
+              screens can be ticked below. Choosing a plan ticks nothing, and screens already on stay on.
             </p>
+            {plansFailed && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Couldn't load the plan limits. The server still enforces them.</p>
+            )}
             <select
+              aria-labelledby="tenant-plan-heading"
               value={currentTier}
               onChange={handleTierChange}
               className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm dark:text-white"
@@ -375,6 +387,12 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
                 <span className="text-sm text-gray-800 dark:text-gray-200">Enable All Standard Features</span>
               </label>
             </div>
+
+            {allToggleableFeatures.some(isPlanOff) && (
+              <p id={planNoteId} className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                {`Greyed-out screens are not part of the ${currentTier} plan. Choose a larger plan to tick them.`}
+              </p>
+            )}
 
             <div className="mt-4 space-y-4">
               {permissionGroups.map(group => (
