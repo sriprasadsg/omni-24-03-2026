@@ -349,3 +349,61 @@ async def test_moved_agents_are_listed_for_the_platform_only(mongo_db):
     assert [(a["id"], a["tenantName"], a["hostname"], a["replacedReason"]) for a in out["agents"]] == [
         ("agent-a", "Alpha Org", "alpha-pc", "moved")]
     assert out["agents"][0]["movedAt"]
+
+
+# -- an hourly report of machines live in two organizations (A-88-RACE) ------------------------------
+
+async def _notices(db):
+    return [n for n in await db.notifications.find({"tenantId": "platform-admin"}).to_list(50)
+            if n["metadata"].get("event") == "agent.live_in_two_organizations"]
+
+
+async def test_a_machine_live_in_two_organizations_is_reported_once_a_day(mongo_db):
+    await _tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=2, hostname="alpha-pc")
+    await _agent(mongo_db, "tenant-b", "agent-b", serial="S1", seen_hours=1, hostname="beta-pc")
+    now = datetime.now(timezone.utc)
+    assert await cross_tenant.report_live_pairs(mongo_db, now) == 1
+    notices = await _notices(mongo_db)
+    assert len(notices) == 1 and "audience" not in notices[0]["metadata"]
+    assert "Alpha Org" in notices[0]["message"] and "Beta Org" in notices[0]["message"]
+    assert await cross_tenant.report_live_pairs(mongo_db, now + timedelta(hours=1)) == 0
+    later = now + timedelta(hours=25)
+    await mongo_db.agents.update_many({}, {"$set": {"lastSeen": (later - timedelta(hours=1)).isoformat()}})
+    assert await cross_tenant.report_live_pairs(mongo_db, later) == 1
+    assert len(await _notices(mongo_db)) == 2
+
+
+async def test_the_uuid_pairs_are_reported_too_and_each_key_once(mongo_db):
+    await _tenants(mongo_db)
+    uuid = "4c4c4544-0042-3510-8051-b8c04f4d4a32"
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", uuid=uuid, seen_hours=2)
+    await _agent(mongo_db, "tenant-b", "agent-b", serial="S1", uuid=uuid, seen_hours=1)
+    assert await cross_tenant.report_live_pairs(mongo_db) == 2  # one per key: the serial and the UUID
+    assert await cross_tenant.report_live_pairs(mongo_db) == 0
+
+
+@pytest.mark.parametrize("second", [
+    dict(tenant="tenant-b", seen_hours=30),                       # silent for more than a day
+    dict(tenant="tenant-a", seen_hours=1),                        # the same tenant
+    dict(tenant="tenant-b", seen_hours=1, status="Inactive"),     # holds no seat
+    dict(tenant="tenant-b", seen_hours=1, status="Replaced"),
+])
+async def test_pairs_that_are_not_both_live_seat_holders_in_two_tenants_are_not_reported(mongo_db, second):
+    await _tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=2)
+    await _agent(mongo_db, second["tenant"], "agent-2", serial="S1", seen_hours=second["seen_hours"],
+                 status=second.get("status", "Online"), hostname="second-pc")
+    assert await cross_tenant.report_live_pairs(mongo_db) == 0
+    assert await _notices(mongo_db) == []
+
+
+async def test_the_licence_tick_reports_live_pairs_even_when_an_earlier_step_fails(mongo_db):
+    import app_background_tasks as tasks
+    import licensing
+    await _tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=2)
+    await _agent(mongo_db, "tenant-b", "agent-b", serial="S1", seen_hours=1)
+    with patch.object(licensing, "reclaim_inactive_agents", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        await tasks.license_seat_tick(mongo_db, 1)
+    assert len(await _notices(mongo_db)) == 1
