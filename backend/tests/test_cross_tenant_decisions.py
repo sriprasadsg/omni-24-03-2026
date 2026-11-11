@@ -19,9 +19,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
+from starlette.responses import Response
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import agent_heartbeat_endpoints as hb
 import cross_tenant
 import pending_agent_endpoints as pae
 import pending_agents
@@ -33,6 +36,7 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 KEY_A, KEY_B = "reg_aaaaaaaaaaaaaaaaaaaa", "reg_bbbbbbbbbbbbbbbbbbbb"
 SUPER = TokenData(username="root@example.com", role="Super Admin", tenant_id="platform-admin", mfa_verified=True)
 ADMIN_B = TokenData(username="admin@b.example", role="Tenant Admin", tenant_id="tenant-b", mfa_verified=True)
+ADMIN_A = TokenData(username="admin@a.example", role="Tenant Admin", tenant_id="tenant-a", mfa_verified=True)
 
 
 @pytest.fixture(autouse=True)
@@ -221,3 +225,127 @@ async def test_the_tenant_list_never_carries_the_other_organization_but_the_plat
         assert other not in text
     platform_agent = [a for a in platform_view["agents"] if a["id"] == held["agentId"]][0]
     assert platform_agent["crossTenant"]["tenantName"] == "Alpha Org"
+
+
+# -- a moved agent cannot heartbeat its way back (Pitfall 5) -----------------------------------------
+
+async def _heartbeat(db, tenant_id, agent_id, payload=None):
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    response = Response()
+    request = Request({"type": "http", "method": "POST", "path": f"/api/agents/{agent_id}/heartbeat",
+                       "headers": [], "client": ("203.0.113.7", 5555)})
+    with patch.object(hb, "get_database", return_value=db), patch.object(hb.agent_limiter, "enabled", False), \
+            patch("audit_ledger.event", new=AsyncMock()):
+        out = await hb.report_heartbeat(request, response, agent_id, AsyncMock(),
+                                        payload or {"hostname": "x", "supportsPending": True}, tenant)
+    return response.status_code, out
+
+
+@pytest.mark.parametrize("reason", ["moved", "moved_silent"])
+async def test_a_moved_agent_is_refused_at_its_heartbeat_and_claims_no_seat(mongo_db, reason):
+    await _tenants(mongo_db, seats_used_a=3)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", status="Replaced", seen_hours=2,
+                 replacedReason=reason, movedAt=_ago(1))
+    with pytest.raises(HTTPException) as exc:
+        await _heartbeat(mongo_db, "tenant-a", "agent-a")
+    assert exc.value.status_code == 403 and exc.value.detail.startswith("agent_replaced:")
+    assert await _seats(mongo_db, "tenant-a") == 3
+    assert (await mongo_db.agents.find_one({"id": "agent-a"}))["status"] == "Replaced"
+
+
+async def test_an_in_tenant_replacement_keeps_its_old_behaviour(mongo_db):
+    await _tenants(mongo_db, seats_used_a=3)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", status="Replaced", seen_hours=2,
+                 replacedBy="agent-new")
+    try:
+        await _heartbeat(mongo_db, "tenant-a", "agent-a")
+    except HTTPException as exc:
+        assert not str(exc.detail).startswith("agent_replaced")
+
+
+async def test_a_returning_agent_whose_machine_is_live_elsewhere_is_held_not_given_a_seat(mongo_db):
+    await _tenants(mongo_db, seats_used_a=3)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", status="Inactive", seen_hours=50)
+    await _agent(mongo_db, "tenant-b", "agent-b", serial="S1", seen_hours=1, hostname="beta-pc")
+    code, out = await _heartbeat(mongo_db, "tenant-a", "agent-a")
+    assert code == 202 and out["pendingReason"] == "cross_tenant_duplicate"
+    held = await mongo_db.agents.find_one({"id": "agent-a"})
+    assert held["status"] == "Pending" and held["crossTenant"]["tenantId"] == "tenant-b"
+    assert await _seats(mongo_db, "tenant-a") == 3
+    assert "Beta" not in json.dumps(out) and "beta-pc" not in json.dumps(out)
+    platform = [n for n in await mongo_db.notifications.find({"tenantId": "platform-admin"}).to_list(20)
+                if n["metadata"].get("event") == "agent.cross_tenant_duplicate"]
+    assert len(platform) == 1
+
+
+# -- restoring a retired agent (D-43) ----------------------------------------------------------------
+
+async def _restore(db, agent_id, user=SUPER):
+    with patch.object(pae, "get_database", return_value=db), patch.object(pae, "invalidate_cache"), \
+            patch("audit_ledger.event", new=AsyncMock()) as ledger:
+        try:
+            out = await pae.restore_moved_agent(agent_id, user)
+        except HTTPException as exc:
+            return exc, ledger
+    return out, ledger
+
+
+async def _moved(db):
+    await _tenants(db, seats_used_a=3)
+    await _agent(db, "tenant-a", "agent-a", serial="S1", seen_hours=1, hostname="alpha-pc")
+    code, held = await _register_b(db)
+    assert code == 202
+    await _approve(db, held["agentId"])
+    return held["agentId"]
+
+
+async def test_the_super_admin_restores_a_moved_agent_and_both_ledgers_record_it(mongo_db):
+    await _moved(mongo_db)
+    out, ledger = await _restore(mongo_db, "agent-a")
+    assert out["status"] == "Inactive"
+    a = await mongo_db.agents.find_one({"id": "agent-a"})
+    assert a["status"] == "Inactive" and a["restoredBy"] == "root@example.com" and a["restoredAt"]
+    for gone in ("replacedReason", "movedAt", "replacedAt"):
+        assert gone not in a
+    entries = [c for c in ledger.await_args_list if c.args[0] == "agent.restored"]
+    assert sorted(c.args[1] for c in entries) == ["platform-admin", "tenant-a"]
+    own = [c for c in entries if c.args[1] == "tenant-a"][0]
+    for other in ("Beta", "tenant-b"):
+        assert other not in repr(own)
+
+
+async def test_a_restored_agent_that_returns_while_its_machine_is_live_in_the_new_tenant_is_held(mongo_db):
+    b_id = await _moved(mongo_db)
+    await mongo_db.agents.update_one({"id": b_id}, {"$set": {"status": "Online", "lastSeen": _ago(0.1)}})
+    await _restore(mongo_db, "agent-a")
+    code, out = await _heartbeat(mongo_db, "tenant-a", "agent-a")
+    assert code == 202 and out["pendingReason"] == "cross_tenant_duplicate"
+    assert await _seats(mongo_db, "tenant-a") == 2
+
+
+async def test_restoring_an_agent_that_is_not_moved_or_unknown_or_by_a_tenant_admin_is_refused(mongo_db):
+    await _tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-live", serial="S5", seen_hours=1)
+    await _agent(mongo_db, "tenant-a", "agent-sub", serial="S6", status="Replaced", replacedBy="agent-new")
+    response, _ = await _restore(mongo_db, "agent-live")
+    assert _error(response)[0] == 409
+    response, _ = await _restore(mongo_db, "agent-sub")
+    assert _error(response)[0] == 409
+    response, _ = await _restore(mongo_db, "no-such-agent")
+    assert _error(response)[0] == 404
+    denied, ledger = await _restore(mongo_db, "agent-live", ADMIN_A)
+    assert isinstance(denied, HTTPException) and denied.status_code == 403
+    ledger.assert_not_awaited()
+    assert (await mongo_db.agents.find_one({"id": "agent-sub"}))["status"] == "Replaced"
+
+
+async def test_moved_agents_are_listed_for_the_platform_only(mongo_db):
+    await _moved(mongo_db)
+    with patch.object(pae, "get_database", return_value=mongo_db):
+        out = await pae.list_moved_agents(current_user=SUPER)
+        with pytest.raises(HTTPException) as exc:
+            await pae.list_moved_agents(current_user=ADMIN_A)
+    assert exc.value.status_code == 403
+    assert [(a["id"], a["tenantName"], a["hostname"], a["replacedReason"]) for a in out["agents"]] == [
+        ("agent-a", "Alpha Org", "alpha-pc", "moved")]
+    assert out["agents"][0]["movedAt"]
