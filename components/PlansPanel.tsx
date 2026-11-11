@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { Plan, PlanChanges, PlanKey, fetchPlans, savePlan } from '../services/plansApi';
+import { PartnerScreenPicker } from './PartnerScreenPicker';
+import { ErrorBlock } from './PartnerCustomerModals';
 import featureSwitches from '../shared/tenant-feature-switches.json';
 
 /**
@@ -13,8 +15,11 @@ const groups: { name: string; features: { permission: string; label: string }[] 
 const allScreens = groups.flatMap(g => g.features.map(f => f.permission));
 const MAX_SEATS = 1_000_000;
 
-const INPUT = 'w-28 px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md dark:text-white';
+const INPUT = 'w-28 min-h-10 px-3 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md dark:text-white';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const SECONDARY_BUTTON = 'min-h-10 px-4 text-sm font-semibold text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none';
+const EFFECT = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
 
 const screensOf = (plan: Plan): Set<string> => new Set(plan.screens === 'all' ? allScreens : plan.screens);
 const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every(x => b.has(x));
@@ -34,12 +39,6 @@ const PlanSection: React.FC<{ plan: Plan; onSaved: (plan: Plan) => void }> = ({ 
   const daysChanged = isFree && trialDays !== String(plan.trialDays ?? '');
   const screensChanged = !sameSet(screens, screensOf(plan));
   const dirty = seatsChanged || daysChanged || screensChanged;
-
-  const toggle = (permission: string) => setScreens(prev => {
-    const next = new Set(prev);
-    if (next.has(permission)) next.delete(permission); else next.add(permission);
-    return next;
-  });
 
   const save = async () => {
     const changes: PlanChanges = {};
@@ -72,57 +71,66 @@ const PlanSection: React.FC<{ plan: Plan; onSaved: (plan: Plan) => void }> = ({ 
     }
   };
 
+  const seatsEffectId = `${plan.key}-seats-effect`;
+  const daysEffectId = `${plan.key}-days-effect`;
+
   return (
     <section aria-label={`${plan.key} plan`} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white">{plan.key}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.key}</h3>
         <span className="text-xs text-gray-500 dark:text-gray-400">{plural(plan.tenantCount, 'tenant')}</span>
       </div>
       {plan.key === 'Custom' ? (
-        <p className="text-sm text-gray-600 dark:text-gray-300">Set per tenant by contract</p>
+        <>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Set per tenant by contract</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose the seats and screens for each Custom tenant in Manage Tenant.</p>
+        </>
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-4 mb-3">
-            <label className="text-sm text-gray-700 dark:text-gray-300">
-              Seats
-              <input type="number" min={0} max={MAX_SEATS} step={1} value={seats} aria-label={`${plan.key} seats`}
-                onChange={e => setSeats(e.target.value)} className={`${INPUT} block mt-1`} />
-            </label>
-            {isFree && (
-              <label className="text-sm text-gray-700 dark:text-gray-300">
-                Trial days
-                <input type="number" min={1} max={365} step={1} value={trialDays} aria-label="Free trial days"
-                  onChange={e => setTrialDays(e.target.value)} className={`${INPUT} block mt-1`} />
+          <div className="flex flex-wrap items-start gap-4 mb-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              <label>
+                Seats
+                <input type="number" inputMode="numeric" min={0} max={MAX_SEATS} step={1} value={seats} aria-label={`${plan.key} seats`}
+                  disabled={saving} aria-describedby={seatsChanged ? seatsEffectId : undefined}
+                  onChange={e => setSeats(e.target.value)} className={`${INPUT} block mt-1`} />
               </label>
+            </div>
+            {isFree && (
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                <label>
+                  Trial days
+                  <input type="number" inputMode="numeric" min={1} max={365} step={1} value={trialDays} aria-label="Free trial days"
+                    disabled={saving} aria-describedby={daysChanged ? daysEffectId : undefined}
+                    onChange={e => setTrialDays(e.target.value)} className={`${INPUT} block mt-1`} />
+                </label>
+              </div>
             )}
           </div>
+          {seatsChanged && (
+            <p id={seatsEffectId} aria-live="polite" className={`mb-3 ${EFFECT}`}>
+              {`Applies at once to every tenant on ${plan.key} that has no seat override (${plan.tenantCount} on this plan). Running agents are never cut off; computers over the new limit wait for approval.`}
+            </p>
+          )}
+          {daysChanged && (
+            <p id={daysEffectId} aria-live="polite" className={`mb-3 ${EFFECT}`}>Applies to trials that start afterwards.</p>
+          )}
           <details className="mb-3">
-            <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200">
+            <summary className="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-200">
               Screens ({screens.size} of {allScreens.length})
             </summary>
-            <div className="mt-2 space-y-3 max-h-72 overflow-y-auto">
-              {groups.map(group => (
-                <div key={group.name} role="group" aria-label={`${plan.key} screens: ${group.name}`}>
-                  <h4 className="font-semibold text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                    {group.name} ({group.features.filter(f => screens.has(f.permission)).length}/{group.features.length})
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    {group.features.map(f => (
-                      <label key={f.permission} className="flex items-center space-x-3">
-                        <input type="checkbox" checked={screens.has(f.permission)} onChange={() => toggle(f.permission)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{f.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="mt-2 max-h-72 overflow-y-auto">
+              <PartnerScreenPicker mode="ceiling" value={[...screens]} disabled={saving}
+                onChange={next => setScreens(new Set(next))} />
             </div>
           </details>
+          {screensChanged && (
+            <p aria-live="polite" className={`mb-3 ${EFFECT}`}>Only limits what can be ticked from now on; screens already on stay on.</p>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={save} disabled={!dirty || saving}
-              className="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
-              {saving ? 'Saving...' : 'Save'}
+              className="min-h-10 px-4 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {saving ? 'Saving...' : `Save ${plan.key} plan`}
             </button>
             {status && (
               <p role={status.kind === 'error' ? 'alert' : 'status'}
@@ -139,37 +147,48 @@ const PlanSection: React.FC<{ plan: Plan; onSaved: (plan: Plan) => void }> = ({ 
 
 export const PlansPanel: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [plans, setPlans] = useState<Plan[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
     let live = true;
     setPlans(null);
-    setError(null);
+    setFailed(false);
     fetchPlans()
       .then(p => { if (live) setPlans(p); })
-      .catch(e => { if (live) setError(e instanceof Error ? e.message : 'Could not load the plans.'); });
+      .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [isOpen]);
+  }, [isOpen, attempt]);
 
   const replace = (updated: Plan) => setPlans(prev => prev && prev.map(p => (p.key === updated.key ? updated : p)));
+  const retry = <button type="button" onClick={() => setAttempt(n => n + 1)} className={SECONDARY_BUTTON}>Try again</button>;
 
-  const footer = (
-    <button type="button" onClick={onClose}
-      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none">
-      Close
-    </button>
-  );
+  const footer = <button type="button" onClick={onClose} className={SECONDARY_BUTTON}>Close</button>;
 
+  // closeOnBackdrop is off: a stray click outside must not throw away unsaved plan edits.
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Plans" size="4xl" footer={footer}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Plans" size="4xl" footer={footer} closeOnBackdrop={false}>
       <div className="space-y-4">
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Seat changes apply at once to every tenant on the plan without an override. Screen changes only limit what can be
           ticked from now on. Trial-day changes apply to trials that start afterwards.
         </p>
-        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        {!plans && !error && <p className="text-sm text-gray-500 dark:text-gray-400" aria-busy="true">Loading plans...</p>}
+        {failed && (
+          <div className="space-y-2">
+            <ErrorBlock>Couldn't load the plans. Check your connection and try again.</ErrorBlock>
+            {retry}
+          </div>
+        )}
+        {!plans && !failed && <p className="text-sm text-gray-500 dark:text-gray-400" aria-busy="true">Loading plans...</p>}
+        {plans && plans.length === 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No plans were found. Try again, and if this stays empty ask whoever runs the platform to check the plan migration.
+            </p>
+            {retry}
+          </div>
+        )}
         {plans?.map(plan => <PlanSection key={plan.key} plan={plan} onSaved={replace} />)}
       </div>
     </Modal>
