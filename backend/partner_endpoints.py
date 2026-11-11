@@ -32,6 +32,7 @@ class CustomerCreate(BaseModel):
     enabledFeatures: Optional[List[str]] = Field(default=None, max_length=300)
     adminName: str = Field(..., min_length=1, max_length=100)
     adminEmail: str = Field(..., min_length=1, max_length=254)
+    plan: Optional[str] = Field(None, max_length=32)
 
     @field_validator("name", "adminName")
     @classmethod
@@ -99,7 +100,7 @@ async def post_customer(data: CustomerCreate, ctx=Depends(current_partner)):
     try:
         return await service.create_customer(
             mongodb.db, partner, name=data.name, seats=data.seats, enabled_features=data.enabledFeatures,
-            admin_name=data.adminName, admin_email=data.adminEmail, actor=user,
+            admin_name=data.adminName, admin_email=data.adminEmail, actor=user, plan=data.plan or "Free",
         )
     except PartnerError as err:
         return error_response(err)

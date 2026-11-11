@@ -2,8 +2,9 @@
 
 Everything here runs on the raw handle with an explicit filter: ``tenants`` is exempt from the tenant
 wrapper, so the partner scoping is the filter written in this file, never the request context.
-``CUSTOMER_FIELDS`` is the whole of what a partner may see about a customer (D-01): customer rows are
-rebuilt key by key from it and a stored document is never returned.
+``CUSTOMER_FIELDS`` is the whole of what a partner may see about a customer (D-01, plus the plan and the end
+of an open Free trial since Phase 88): customer rows are rebuilt key by key from it and a stored document
+is never returned.
 """
 import logging
 import re
@@ -15,6 +16,7 @@ from fastapi.responses import JSONResponse
 import audit_ledger
 import license_rules
 import licensing
+import plan_service
 from partner_pool import PartnerError, _raw
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,8 @@ logger = logging.getLogger(__name__)
 PARTNER_TYPE = "partner"
 PLATFORM_AUDIT_TENANT = "platform-admin"
 # D-01: the only customer fields a partner ever receives, in this order.
-CUSTOMER_FIELDS = ("id", "name", "seatsAssigned", "seatsUsed", "agentsOnline", "agentsTotal", "licenseExpiresAt")
+CUSTOMER_FIELDS = ("id", "name", "seatsAssigned", "seatsUsed", "agentsOnline", "agentsTotal", "licenseExpiresAt",
+                   "plan", "trialEndsAt")
 _NOT_COUNTED_AGENTS = frozenset({"Pending", "Rejected"})
 # D-13: the plans a partner may sell when the Super Admin has not chosen (every partner appointed before Phase 88).
 PLAN_CEILING_DEFAULT = ("Free",)
@@ -95,6 +98,15 @@ def _earlier(a: Optional[str], b: Optional[str]) -> Optional[str]:
     return a if pa else (b if pb else None)
 
 
+def _open_trial_end(customer: Dict[str, Any]) -> Optional[str]:
+    """When a Free customer's trial ends, or None for a paid plan, a consumed trial or no trial record."""
+    trial = customer.get("trial")
+    if plan_service.plan_key_of(customer) != "Free" or not isinstance(trial, dict) or trial.get("consumed"):
+        return None
+    ends = trial.get("endsAt")
+    return ends if isinstance(ends, str) and ends else None
+
+
 async def customer_rows(db, partner_doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     """One D-01 row per customer of this partner, ordered by name then id."""
     raw = _raw(db)
@@ -102,7 +114,7 @@ async def customer_rows(db, partner_doc: Dict[str, Any]) -> List[Dict[str, Any]]
     pool_expiry = (partner_doc.get("partner") or {}).get("expiresAt")
     customers = await raw.tenants.find(
         {"partnerId": partner_id},
-        {"_id": 0, "id": 1, "name": 1, "license": 1, "maxAgents": 1},
+        {"_id": 0, "id": 1, "name": 1, "license": 1, "maxAgents": 1, "subscriptionTier": 1, "trial": 1},
     ).to_list(length=None)
     ids = [c["id"] for c in customers]
     online: Dict[str, int] = {}
@@ -130,6 +142,8 @@ async def customer_rows(db, partner_doc: Dict[str, Any]) -> List[Dict[str, Any]]
             "agentsOnline": online.get(customer["id"], 0),
             "agentsTotal": total.get(customer["id"], 0),
             "licenseExpiresAt": _earlier(lic["expiresAt"], pool_expiry),
+            "plan": plan_service.plan_key_of(customer),
+            "trialEndsAt": _open_trial_end(customer),
         }
         rows.append({key: values[key] for key in CUSTOMER_FIELDS})
     rows.sort(key=lambda r: (str(r["name"] or "").casefold(), r["id"]))

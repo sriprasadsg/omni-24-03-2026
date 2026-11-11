@@ -14,12 +14,13 @@ import licensing
 import partner_invites
 import partner_pool
 import plan_service
+import plan_trial
 import rbac_defaults
 import screen_ceiling
 import tenant_docs
 import tenant_features
 from partner_pool import PartnerError, _raw
-from partner_store import audit, customer_rows, find_partner, name_taken, pool_view
+from partner_store import audit, customer_rows, find_partner, name_taken, plan_ceiling, pool_view
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +87,23 @@ async def _customer_screens(db, partner_doc: Dict[str, Any], customer_plan: str,
 
 async def create_customer(db, partner_doc: Dict[str, Any], *, name: str, seats: int,
                           enabled_features: Optional[Iterable[str]], admin_name: str, admin_email: str,
-                          actor: Any) -> Dict[str, Any]:
+                          actor: Any, plan: str = "Free") -> Dict[str, Any]:
     """Create one customer organization with ``seats`` claimed from the pool and invite its first admin
     (D-09); returns ``{"customer": D-01 row, "emailSent": bool}`` and never a link or token.
 
     Every refusal that needs no write comes first (expired pool, bad or used email, name); then the pool is
-    claimed and the customer stored; if the invite then fails the customer is deleted and the seats returned."""
+    claimed and the customer stored; if the invite then fails the customer is deleted and the seats returned.
+
+    The customer starts on ``plan`` (default Free, D-23), which must be inside the partner's plan ceiling (D-13):
+    Free starts the plan's trial, any other plan gets a consumed one. Its seats are the allotment, never the
+    plan's number, so no seat override is stored (D-11)."""
     partner_id = partner_doc["id"]
     name = name.strip()
+    key = plan_service.normalize_plan(plan)
+    if key is None:
+        raise PartnerError(422, "unknown_plan", f"Unknown plan {str(plan)[:40]!r}; use Free, Pro or Enterprise.")
+    if key not in {plan_service.normalize_plan(p) for p in plan_ceiling(partner_doc)}:
+        raise PartnerError(422, "plan_outside_ceiling", f"{key} is not one of the plans you can sell.")
     if partner_pool.pool_expired(partner_doc):
         raise PartnerError(409, "pool_expired", EXPIRED_CREATE)
     address = partner_invites.normalize_email(admin_email)
@@ -101,11 +111,16 @@ async def create_customer(db, partner_doc: Dict[str, Any], *, name: str, seats: 
         raise partner_invites._unavailable()
     if await name_taken(db, name):
         raise PartnerError(409, "name_unavailable", NAME_UNAVAILABLE)
-    features = await _customer_screens(db, partner_doc, "Free", enabled_features or [], [])  # 88-10 adds the plan choice
+    features = await _customer_screens(db, partner_doc, key, enabled_features or [], [])
+    now = datetime.now(timezone.utc)
+    trial_days = (await plan_service.plans(db))["Free"].get("trialDays")
+    free_trial = key == "Free" and isinstance(trial_days, int) and not isinstance(trial_days, bool) and trial_days >= 0
+    trial = plan_trial.new_trial(now, trial_days) if free_trial else plan_trial.consumed_trial(now)
     if not await partner_pool.claim(db, partner_id, seats, require_active=True):
         free = await partner_pool.free_seats(db, partner_id)
         raise PartnerError(409, "pool_full", f"Only {free} seats are free in your pool.", free=free)
-    doc = tenant_docs.build_tenant_doc(name, max_agents=seats, enabled_features=features, partner_id=partner_id)
+    doc = tenant_docs.build_tenant_doc(name, max_agents=seats, enabled_features=features, partner_id=partner_id,
+                                       subscription_tier=key, trial=trial)
     try:
         await _raw(db).tenants.insert_one(dict(doc))
     except Exception as exc:
@@ -155,6 +170,7 @@ async def overview(db, partner_doc: Dict[str, Any], role: str) -> Dict[str, Any]
         "pool": pool_view(partner_doc),
         "ceiling": ceiling,
         "unrestricted": "all" in ceiling,
+        "planCeiling": plan_ceiling(partner_doc),
         "customers": await customer_rows(db, partner_doc),
     }
 
