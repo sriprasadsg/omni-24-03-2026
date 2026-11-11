@@ -13,7 +13,9 @@ from pymongo.errors import DuplicateKeyError
 import licensing
 import partner_invites
 import partner_pool
+import plan_service
 import rbac_defaults
+import screen_ceiling
 import tenant_docs
 import tenant_features
 from partner_pool import PartnerError, _raw
@@ -63,28 +65,23 @@ def _label(screen: str) -> str:
     return tenant_features.SWITCH_LABELS.get(screen, screen)
 
 
-def _final_screens(partner_doc: Dict[str, Any], submitted: Iterable[str], current: Iterable[str]) -> list:
-    """The screen list to store (D-10, D-19): the submitted order de-duplicated, then the screens the
-    customer already has outside the ceiling, then any missing start screen. Refuses ``all``, unknown
-    strings, a screen outside the ceiling and a switch whose parent is missing."""
-    allowed = _allowed(partner_doc)
-    kept = [s for s in dict.fromkeys(current) if s not in allowed]
-    known = set(tenant_features.SWITCHABLE) | set(tenant_features.START_FEATURES) | set(kept)
-    known.discard(tenant_features.ALL_FEATURES)
-    wanted = list(dict.fromkeys(submitted))
-    for value in wanted:
-        if not isinstance(value, str) or value not in known:
-            raise PartnerError(422, "invalid_screen", f"'{value}' is not a screen that can be sold.")
-    for value in wanted:
-        if value not in allowed and value not in kept:
-            raise PartnerError(422, "screen_outside_ceiling", f"{_label(value)} is not one of the screens you can sell.",
-                               screen=value)
-    final = list(dict.fromkeys([*wanted, *kept, *tenant_features.START_FEATURES]))
-    for value in final:
-        parent = tenant_features.SWITCH_PARENTS.get(value)
-        if value not in kept and parent is not None and parent not in final:
-            raise PartnerError(422, "missing_parent", f"{_label(value)} needs {_label(parent)}.", screen=value, parent=parent)
-    return final
+async def _customer_screens(db, partner_doc: Dict[str, Any], customer_plan: str, submitted: Iterable[str],
+                            current: Iterable[str]) -> list:
+    """The screen list to store for a partner's customer (D-30): each new screen must be inside both the
+    customer's plan and the partner's own ceiling; screens already on stay (D-28), and the ones outside the
+    partner's ceiling stay even when not submitted (a partner never removes what only the platform could add)."""
+    current = [s for s in current if isinstance(s, str)]
+    partner_set = _allowed(partner_doc)
+    limits = [
+        (await screen_ceiling.plan_allowed(db, customer_plan),
+         "{label} is not part of this customer's {plan} plan.", "screen_outside_plan"),
+        (partner_set, "{label} is not one of the screens you can sell.", "screen_outside_ceiling"),
+    ]
+    try:
+        return screen_ceiling.final_screens(limits, submitted, current, plan=customer_plan,
+                                            sticky=[s for s in dict.fromkeys(current) if s not in partner_set])
+    except screen_ceiling.CeilingError as err:
+        raise PartnerError(422, err.code, err.message, **err.numbers)
 
 
 async def create_customer(db, partner_doc: Dict[str, Any], *, name: str, seats: int,
@@ -104,7 +101,7 @@ async def create_customer(db, partner_doc: Dict[str, Any], *, name: str, seats: 
         raise partner_invites._unavailable()
     if await name_taken(db, name):
         raise PartnerError(409, "name_unavailable", NAME_UNAVAILABLE)
-    features = _final_screens(partner_doc, enabled_features or [], current=[])
+    features = await _customer_screens(db, partner_doc, "Free", enabled_features or [], [])  # 88-10 adds the plan choice
     if not await partner_pool.claim(db, partner_id, seats, require_active=True):
         free = await partner_pool.free_seats(db, partner_id)
         raise PartnerError(409, "pool_full", f"Only {free} seats are free in your pool.", free=free)
@@ -162,17 +159,22 @@ async def overview(db, partner_doc: Dict[str, Any], role: str) -> Dict[str, Any]
     }
 
 
-def _features_view(partner_doc: Dict[str, Any], enabled: Iterable[str]) -> Dict[str, Any]:
-    allowed = _allowed(partner_doc)
+async def _features_view(db, partner_doc: Dict[str, Any], customer: Dict[str, Any], enabled: Iterable[str]) -> Dict[str, Any]:
+    """The customer's screens with the partner's ceiling and the customer's plan; ``kept`` is every enabled
+    screen outside what both limits allow (it stays on, D-28)."""
+    plan = plan_service.plan_key_of(customer)
+    plan_set = await screen_ceiling.plan_allowed(db, plan)
+    partner_set = _allowed(partner_doc)
     enabled = [s for s in enabled if isinstance(s, str)]
     ceiling = _ceiling(partner_doc)
     return {"enabledFeatures": enabled, "ceiling": ceiling, "unrestricted": "all" in ceiling,
-            "kept": [s for s in enabled if s not in allowed]}
+            "kept": [s for s in enabled if s not in plan_set or s not in partner_set],
+            "plan": plan, "planScreens": ["all"] if set(tenant_features.SWITCHABLE) <= plan_set else sorted(plan_set)}
 
 
 async def _own_customer(db, partner_doc: Dict[str, Any], customer_id: str) -> Dict[str, Any]:
     customer = await _raw(db).tenants.find_one({"id": customer_id, "partnerId": partner_doc["id"]},
-                                               {"_id": 0, "id": 1, "enabledFeatures": 1})
+                                               {"_id": 0, "id": 1, "enabledFeatures": 1, "subscriptionTier": 1})
     if customer is None:
         raise PartnerError(404, "not_found", "Customer not found")
     return customer
@@ -181,7 +183,7 @@ async def _own_customer(db, partner_doc: Dict[str, Any], customer_id: str) -> Di
 async def customer_features(db, partner_doc: Dict[str, Any], customer_id: str) -> Dict[str, Any]:
     """The customer's screens, the partner's ceiling, and the screens kept beyond it (D-10, D-19)."""
     customer = await _own_customer(db, partner_doc, customer_id)
-    return _features_view(partner_doc, customer.get("enabledFeatures") or [])
+    return await _features_view(db, partner_doc, customer, customer.get("enabledFeatures") or [])
 
 
 async def set_customer_features(db, partner_doc: Dict[str, Any], customer_id: str, features: Iterable[str],
@@ -192,7 +194,7 @@ async def set_customer_features(db, partner_doc: Dict[str, Any], customer_id: st
     customer = await _own_customer(db, partner_doc, customer_id)
     before = customer.get("enabledFeatures")
     current = [s for s in before or [] if isinstance(s, str)]
-    final = _final_screens(partner_doc, features, current)
+    final = await _customer_screens(db, partner_doc, plan_service.plan_key_of(customer), features, current)
     guard = {"enabledFeatures": before} if before is not None else {"enabledFeatures": {"$exists": False}}
     res = await _raw(db).tenants.update_one(
         {"id": customer_id, "partnerId": partner_id, **guard},
@@ -201,7 +203,7 @@ async def set_customer_features(db, partner_doc: Dict[str, Any], customer_id: st
         raise PartnerError(409, "changed", "The screens changed while you were saving. Try again.")
     await audit("partner.customer_screens_changed", actor=actor, partner_id=partner_id, customerId=customer_id,
                 added=[s for s in final if s not in current], removed=[s for s in current if s not in final])
-    return _features_view(partner_doc, final)
+    return await _features_view(db, partner_doc, customer, final)
 
 
 # --- the partner's own team (D-17) ----------------------------------------------------------------

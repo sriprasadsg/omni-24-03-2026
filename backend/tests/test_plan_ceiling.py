@@ -62,10 +62,7 @@ from types import SimpleNamespace  # noqa: E402
 from unittest.mock import AsyncMock, patch  # noqa: E402
 
 import partner_endpoints as pe  # noqa: E402
-try:  # RED phase only: the module does not exist yet
-    import screen_ceiling as sc  # noqa: E402
-except ImportError:
-    sc = None
+import screen_ceiling as sc  # noqa: E402
 from auth_types import TokenData  # noqa: E402
 from tests._mongo_test_db import mongo_db  # noqa: E402,F401  (fixture)
 
