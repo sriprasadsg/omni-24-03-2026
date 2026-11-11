@@ -11,15 +11,20 @@ The platform-admin organization is exempt from plan, trial, network and seat lim
 A tenant with no ``subscriptionTier`` reads as Free; an empty plans collection reads the D-03
 defaults, so a fresh database behaves like a seeded one.
 """
+import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import licensing
 import plan_trial
 
+logger = logging.getLogger(__name__)
+
 PLAN_KEYS = ("Free", "Pro", "Enterprise", "Custom")
 PLATFORM_TENANT_ID = "platform-admin"
 COLLECTION = "plans"
+MAX_PLAN_SCREENS = 300
+EDITABLE_FIELDS = ("seats", "trialDays", "screens")
 
 DEFAULT_PLANS: Dict[str, Dict[str, Any]] = {
     "Free": {"key": "Free", "seats": 5, "trialDays": 14},
@@ -165,6 +170,112 @@ async def change_plan(db, tenant_id: str, new_plan: Any, *, actor: Any, via: str
         await partner_store.audit("partner.customer_plan_changed", actor=actor, partner_id=partner_doc["id"],
                                   customerId=tenant_id, before=old, after=key)
     return {"changed": True, "from": old, "to": key, "licence": await licence_view(db, tenant_id)}
+
+
+async def _tenant_counts(db) -> Dict[str, int]:
+    """Tenants per plan (a missing or unknown plan reads as Free); the platform and partner organizations are not counted."""
+    counts = {key: 0 for key in PLAN_KEYS}
+    rows = _raw(db).tenants.aggregate([
+        {"$match": {"type": {"$ne": "partner"}, "id": {"$ne": PLATFORM_TENANT_ID}}},
+        {"$group": {"_id": "$subscriptionTier", "n": {"$sum": 1}}}])
+    async for row in rows:
+        counts[normalize_plan(row["_id"]) or "Free"] += row["n"]
+    return counts
+
+
+def _screens_of(key: str, doc: Dict[str, Any]) -> Union[str, List[str]]:
+    import screen_ceiling  # lazy: screen_ceiling imports this module
+    if key == "Custom" or doc.get("screens") == "all":
+        return "all"
+    stored = doc.get("screens")
+    return [s for s in stored if isinstance(s, str)] if isinstance(stored, list) else screen_ceiling.seed_screens(key)
+
+
+def _entry(key: str, doc: Dict[str, Any], count: int) -> Dict[str, Any]:
+    return {"key": key, "seats": doc.get("seats"), "trialDays": doc.get("trialDays"), "screens": _screens_of(key, doc),
+            "tenantCount": count, "updatedAt": doc.get("updatedAt"), "updatedBy": doc.get("updatedBy")}
+
+
+async def list_plans(db) -> List[Dict[str, Any]]:
+    """The four plans in order for the Super Admin's table (D-14)."""
+    stored, counts = await plans(db), await _tenant_counts(db)
+    return [_entry(key, stored[key], counts[key]) for key in PLAN_KEYS]
+
+
+def _clean_screens(value: Any) -> List[str]:
+    import tenant_features
+    if not isinstance(value, list) or len(value) > MAX_PLAN_SCREENS:
+        raise PlanError(422, "invalid_screen", f"screens must be a list of at most {MAX_PLAN_SCREENS} screens")
+    for item in value:
+        if not isinstance(item, str) or item not in tenant_features.SWITCHABLE:
+            raise PlanError(422, "invalid_screen", f"{str(item)[:60]!r} is not a screen that can be sold.")
+    return list(dict.fromkeys(value))
+
+
+def _clean_changes(key: str, changes: Dict[str, Any]) -> Dict[str, Any]:
+    """The editable fields of ``changes``, validated; every refusal is a 422 PlanError and nothing is stored."""
+    known = {f: changes[f] for f in EDITABLE_FIELDS if f in (changes or {})}
+    if not known:
+        raise PlanError(422, "nothing_to_update", "Send seats, trialDays or screens.")
+    if "trialDays" in known and key != "Free":
+        raise PlanError(422, "trial_only_on_free", "Only the Free plan has a trial.")
+    if "seats" in known:
+        try:
+            known["seats"] = licensing._check_seats(known["seats"])
+        except ValueError as exc:
+            raise PlanError(422, "invalid_seats", str(exc)) from None
+    days = known.get("trialDays")
+    if "trialDays" in known and (not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= 365):
+        raise PlanError(422, "invalid_trial_days", "trialDays must be a whole number from 1 to 365.")
+    if "screens" in known:
+        known["screens"] = _clean_screens(known["screens"])
+    return known
+
+
+async def update_plan(db, key: Any, changes: Dict[str, Any], *, actor: Any) -> Dict[str, Any]:
+    """Edit one plan's seats, trial days or screens (D-14); returns ``{"plan": entry, "tenantsUpdated": n}``.
+
+    Seats are applied at once to every direct tenant on the plan without an override (licensing.apply_plan_seats;
+    partner customers and the platform are never touched) and announced to their admins (D-25). Screens and
+    trial days limit only what comes next (D-28): no tenant's screens or stored trial change. Custom is per
+    tenant (D-17). A request that changes nothing writes, announces and records nothing."""
+    import audit_ledger
+    import plan_notices
+    canonical = normalize_plan(key)
+    if canonical is None:
+        raise PlanError(422, "unknown_plan", f"Unknown plan {str(key)[:40]!r}; use Free, Pro or Enterprise")
+    if canonical == "Custom":
+        raise PlanError(422, "custom_is_per_tenant", "Custom is set per tenant, not here.")
+    wanted = _clean_changes(canonical, changes)
+    doc = (await plans(db))[canonical]
+    current = {"seats": doc.get("seats"), "trialDays": doc.get("trialDays"), "screens": _screens_of(canonical, doc)}
+    after = {f: v for f, v in wanted.items() if current[f] != v}
+    if not after:
+        return {"plan": _entry(canonical, doc, (await _tenant_counts(db))[canonical]), "tenantsUpdated": 0}
+    before = {f: current[f] for f in after}
+
+    who = getattr(actor, "username", None) or (actor if isinstance(actor, str) else None) or "system"
+    defaults = {f: DEFAULT_PLANS[canonical][f] for f in ("seats", "trialDays") if f not in after}
+    await _raw(db)[COLLECTION].update_one(
+        {"key": canonical},
+        {"$set": {**after, "updatedAt": datetime.now(timezone.utc).isoformat(), "updatedBy": who},
+         "$setOnInsert": {"key": canonical, **defaults}}, upsert=True)
+
+    ids: List[str] = []
+    if "seats" in after:
+        ids = await licensing.apply_plan_seats(db, canonical, after["seats"])
+        for tenant_id in ids:
+            await plan_notices.announce(
+                db, tenant_id, event="seats.changed", title="Agent seat limit changed",
+                message=f"The {canonical} plan now allows {after['seats']} agent seats (was {before['seats']}).",
+                actor=actor, before=before["seats"], after=after["seats"], via="plan_edit")
+    try:
+        await audit_ledger.event("plan.updated", PLATFORM_TENANT_ID, actor=plan_notices._actor(actor), plan=canonical,
+                                 before=before, after=after, tenantsUpdated=len(ids))
+    except Exception as exc:  # the edit is made; a ledger failure must not report it as failed
+        logger.warning("audit for plan.updated on %s was not recorded: %s", canonical, exc)
+    entry = next(e for e in await list_plans(db) if e["key"] == canonical)
+    return {"plan": entry, "tenantsUpdated": len(ids)}
 
 
 async def licence_view(db, tenant_id: str) -> Dict[str, Any]:
