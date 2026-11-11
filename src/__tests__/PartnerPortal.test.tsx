@@ -15,6 +15,8 @@ vi.mock('../../services/partnerApi', async () => {
     fetchPartnerTeam: vi.fn(),
     createPartnerCustomer: vi.fn(),
     changeCustomerSeats: vi.fn(),
+    changeCustomerPlan: vi.fn(),
+    extendCustomerTrial: vi.fn(),
     fetchCustomerFeatures: vi.fn(),
     saveCustomerFeatures: vi.fn(),
     inviteColleague: vi.fn(),
@@ -49,6 +51,8 @@ const customer = (over: Partial<PartnerCustomerRow> = {}): PartnerCustomerRow =>
   agentsOnline: 4,
   agentsTotal: 9,
   licenseExpiresAt: null,
+  plan: 'Pro',
+  trialEndsAt: null,
   ...over,
 });
 
@@ -57,6 +61,7 @@ const overview = (over: Partial<PartnerOverview> = {}, pool: Partial<PartnerOver
   role: 'admin',
   pool: { size: 100, handedOut: 40, free: 60, expiresAt: null, expired: false, ...pool },
   ceiling: ['view:assets'],
+  planCeiling: ['Free', 'Pro'],
   unrestricted: false,
   customers: [customer()],
   ...over,
@@ -189,7 +194,8 @@ describe('PartnerPortal customers table (S5)', () => {
     expect((cells[1].querySelector('[role="img"]')?.firstElementChild as HTMLElement).style.width).toBe('25%');
     expect(cells[2].textContent).toBe('20');
     expect(cells[3].textContent).toBe('0 online of 0');
-    expect(cells[4].textContent).toContain('Mar 31, 2027');
+    expect(cells[4].textContent).toBe('Pro');
+    expect(cells[5].textContent).toContain('Mar 31, 2027');
     expect(container.querySelectorAll('a, [href]').length).toBe(0);
     expect(screen.getByText('Initech').closest('a')).toBeNull();
   });
@@ -228,11 +234,15 @@ describe('PartnerPortal customers table (S5)', () => {
 
   it('renders the column headers and an Actions column for the admin only', async () => {
     await renderLoaded(overview());
-    for (const h of ['Customer', 'Seats used', 'Seats assigned', 'Agents', 'Licence expires', 'Actions']) {
+    for (const h of ['Customer', 'Seats used', 'Seats assigned', 'Agents', 'Plan', 'Licence expires', 'Actions']) {
       expect(within(customersSection()).getByRole('columnheader', { name: h })).toBeTruthy();
     }
     expect(screen.getByRole('button', { name: 'Change seats for Globex' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose screens for Globex' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Change plan and trial for Globex' })).toBeTruthy();
+    const heads = within(customersSection()).getAllByRole('columnheader').map(h => h.textContent);
+    expect(heads.indexOf('Plan')).toBe(heads.indexOf('Agents') + 1);
+    expect(heads.indexOf('Licence expires')).toBe(heads.indexOf('Plan') + 1);
   });
 
   it('pages at 25 rows with Show more customers, and searches above 10 customers', async () => {
@@ -282,6 +292,8 @@ describe('PartnerPortal viewer variant (PART-05, D-04)', () => {
     expect(screen.queryByRole('button', { name: /Create customer/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Change seats/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Choose screens/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Plan and trial/ })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: 'Plan' })).toBeTruthy();
     expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Team' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Invite colleague/ })).toBeNull();
@@ -394,5 +406,76 @@ describe('PartnerPortal dialogs follow the refreshed rows (87 WR-10)', () => {
     fireEvent.change(within(dialog).getByLabelText('Seats'), { target: { value: '15' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save seats' }));
     expect(await within(dialog).findByText('18 seats in use')).toBeTruthy();
+  });
+});
+
+describe('PartnerPortal plans (88-15, D-13, D-15; 88-UI-SPEC S9)', () => {
+  const rows = () => [
+    customer({ id: 'a', name: 'Alpha', plan: 'Free', trialEndsAt: '2099-11-24T23:59:59Z' }),
+    customer({ id: 'b', name: 'Beta', plan: 'Free', trialEndsAt: '2020-01-05T23:59:59Z' }),
+    customer({ id: 'c', name: 'Gamma', plan: 'Pro', trialEndsAt: null }),
+    customer({ id: 'd', name: 'Delta', plan: undefined, trialEndsAt: undefined }),
+  ];
+  const planOf = (name: string) => (screen.getByText(name).closest('tr') as HTMLElement).querySelectorAll('td')[4].textContent;
+
+  it('shows the plan with an open trial end, an ended trial, a plain plan and a dash when there is none (Mon D, YYYY)', async () => {
+    await renderLoaded(overview({ customers: rows() }));
+    expect(planOf('Alpha')).toBe('Free (trial ends Nov 24, 2099)');
+    expect(planOf('Beta')).toBe('Free (trial ended Jan 5, 2020)');
+    expect(planOf('Gamma')).toBe('Pro');
+    expect(planOf('Delta')).toBe('—');
+  });
+
+  it('shows the Plan row on the stacked cards of a narrow screen', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+    try {
+      await renderLoaded(overview({ customers: rows() }));
+      const card = screen.getByLabelText('Alpha');
+      expect(within(card).getByText('Plan')).toBeTruthy();
+      expect(within(card).getByText('Free (trial ends Nov 24, 2099)')).toBeTruthy();
+      expect(within(screen.getByLabelText('Beta')).getByText('Free (trial ended Jan 5, 2020)')).toBeTruthy();
+      expect(within(card).getByRole('button', { name: 'Change plan and trial for Alpha' })).toBeTruthy();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it('adds no plan or trial column to the CSV (the six D-01 columns stay)', async () => {
+    await renderLoaded(overview({ customers: rows() }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
+    await waitFor(() => expect(download).toHaveBeenCalled());
+    const text = download.mock.calls[0][1] as string;
+    expect(text.split('\n')[0]).toBe('Customer,Seats assigned,Seats used,Agents online,Agents total,Licence expires');
+    expect(text).not.toMatch(/trial|Free|Pro/i);
+  });
+
+  it('opens Plan and trial with the plans the partner can sell, saves the choice and refetches the overview', async () => {
+    await renderLoaded(overview({ customers: [customer({ name: 'Globex', plan: 'Free', trialEndsAt: '2099-11-24T23:59:59Z' })] }));
+    (api.changeCustomerPlan as ReturnType<typeof vi.fn>).mockResolvedValue(customer({ plan: 'Pro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change plan and trial for Globex' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Plan for Globex' })).toBeTruthy();
+    const options = Array.from((within(dialog).getByLabelText('Plan') as HTMLSelectElement).options).map(o => o.textContent);
+    expect(options).toEqual(['Free (current)', 'Pro']);
+    fetchPartnerOverview.mockClear();
+    fireEvent.change(within(dialog).getByLabelText('Plan'), { target: { value: 'Pro' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save plan' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.changeCustomerPlan).toHaveBeenCalledWith('c1', 'Pro');
+    expect(fetchPartnerOverview).toHaveBeenCalled();
+  });
+
+  it('disables Plan and trial on a customer while one of its dialogs is open', async () => {
+    await renderLoaded(overview());
+    fireEvent.click(screen.getByRole('button', { name: 'Change plan and trial for Globex' }));
+    await screen.findByRole('dialog');
+    expect((screen.getByRole('button', { name: 'Change plan and trial for Globex' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps the skeleton rows spanning the new column', async () => {
+    fetchPartnerOverview.mockReturnValue(new Promise(() => {}));
+    const { container } = render(<PartnerPortal />);
+    expect(container.querySelector('tbody tr[data-skeleton] td')?.getAttribute('colspan')).toBe('7');
   });
 });

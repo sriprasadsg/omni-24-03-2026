@@ -15,6 +15,8 @@ vi.mock('../../services/partnerApi', async () => {
     fetchPartnerTeam: vi.fn(),
     createPartnerCustomer: vi.fn(),
     changeCustomerSeats: vi.fn(),
+    changeCustomerPlan: vi.fn(),
+    extendCustomerTrial: vi.fn(),
     fetchCustomerFeatures: vi.fn(),
     saveCustomerFeatures: vi.fn(),
     inviteColleague: vi.fn(),
@@ -133,7 +135,7 @@ describe('CreateCustomerModal (PART-02, D-09)', () => {
     click('Create customer');
     expect(within(dialog()).getByRole('button', { name: 'Creating...' })).toBeTruthy();
     await waitFor(() => expect(props.onClose).toHaveBeenCalled());
-    expect(createPartnerCustomer).toHaveBeenCalledWith({ name: 'Globex', seats: 5, adminName: 'Ada Lovelace', adminEmail: 'ada@globex.example' });
+    expect(createPartnerCustomer).toHaveBeenCalledWith({ name: 'Globex', seats: 5, plan: 'Free', adminName: 'Ada Lovelace', adminEmail: 'ada@globex.example' });
     expect(toast).toHaveBeenCalledWith('Globex was created. An invite was sent to ada@globex.example.', 'success');
     expect(props.onRefetch).toHaveBeenCalled();
   });
@@ -151,6 +153,51 @@ describe('CreateCustomerModal (PART-02, D-09)', () => {
     click('Create customer');
     await waitFor(() => expect(createPartnerCustomer).toHaveBeenCalled());
     expect(createPartnerCustomer.mock.calls[0][0].enabledFeatures).toEqual(['screen:digitalTwin']);
+  });
+
+  it('offers the partner\'s plans with Free selected, explains Free and sends the plan (D-23)', async () => {
+    createPartnerCustomer.mockResolvedValue({ customer: customer(), emailSent: true });
+    const props = mount({ planCeiling: ['Free', 'Pro'] });
+    const plan = within(dialog()).getByLabelText('Plan') as HTMLSelectElement;
+    expect(Array.from(plan.options).map(o => o.textContent)).toEqual(['Free', 'Pro']);
+    expect(plan.value).toBe('Free');
+    expect(within(dialog()).getByText('Free starts a free trial today. The plan decides which screens this customer can have; seats are the number you assign.')).toBeTruthy();
+    fill();
+    fireEvent.change(plan, { target: { value: 'Pro' } });
+    click('Create customer');
+    await waitFor(() => expect(props.onClose).toHaveBeenCalled());
+    expect(createPartnerCustomer.mock.calls[0][0].plan).toBe('Pro');
+  });
+
+  it('defaults the plan to Free when the overview carries no planCeiling', async () => {
+    createPartnerCustomer.mockResolvedValue({ customer: customer(), emailSent: true });
+    const props = mount();
+    expect(Array.from((within(dialog()).getByLabelText('Plan') as HTMLSelectElement).options).map(o => o.textContent)).toEqual(['Free']);
+    fill();
+    click('Create customer');
+    await waitFor(() => expect(props.onClose).toHaveBeenCalled());
+    expect(createPartnerCustomer.mock.calls[0][0].plan).toBe('Free');
+  });
+
+  it('selects the first plan of the ceiling when Free is not in it', () => {
+    mount({ planCeiling: ['Enterprise', 'Pro'] });
+    const plan = within(dialog()).getByLabelText('Plan') as HTMLSelectElement;
+    expect(Array.from(plan.options).map(o => o.textContent)).toEqual(['Pro', 'Enterprise']);
+    expect(plan.value).toBe('Pro');
+  });
+
+  it('with no plan to sell replaces the select with a message and disables Create customer', () => {
+    mount({ planCeiling: [] });
+    expect(within(dialog()).queryByLabelText('Plan')).toBeNull();
+    expect(within(dialog()).getByText("Your platform administrator hasn't chosen any plans you can sell. Ask them to set your plans.")).toBeTruthy();
+    fill();
+    expect((within(dialog()).getByRole('button', { name: 'Create customer' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('says screens outside the chosen plan are refused once Choose screens is opened', () => {
+    mount();
+    fireEvent.click(within(dialog()).getByRole('button', { name: /Choose screens/ }));
+    expect(within(dialog()).getByText('Screens outside the chosen plan are refused.')).toBeTruthy();
   });
 
   it('shows an empty ceiling message instead of a list', () => {
