@@ -30,7 +30,9 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
 
 def _request():
-    return Request({"type": "http", "method": "POST", "path": "/api/agents/register", "headers": []})
+    # a client address: with none observed a new machine is held new_network (Phase 88), not by the seat limit
+    return Request({"type": "http", "method": "POST", "path": "/api/agents/register", "headers": [],
+                    "client": ("203.0.113.7", 5555)})
 
 
 async def test_concurrent_first_enrollments_cannot_exceed_agent_limit(mongo_db):

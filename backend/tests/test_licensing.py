@@ -123,7 +123,9 @@ async def test_migration_011_backfills_and_is_idempotent(mongo_db):
 # ── enrollment (register_agent) ────────────────────────────────────────────
 
 def _request():
-    return Request({"type": "http", "method": "POST", "path": "/api/agents/register", "headers": []})
+    # a client address: with none observed a new machine is held new_network (Phase 88), and these tests are about seats
+    return Request({"type": "http", "method": "POST", "path": "/api/agents/register", "headers": [],
+                    "client": ("203.0.113.7", 5555)})
 
 
 async def _register(db, hostname, **body):

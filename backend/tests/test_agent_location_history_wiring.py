@@ -222,7 +222,8 @@ class TestRegisterFirstSeen:
              patch("agent_registry_endpoints.record_location_change", new_callable=AsyncMock) as m_record, \
              patch("finops_service.finops_service.recalculate_tenant_costs", new_callable=AsyncMock), \
              patch("admin_evidence_service.run_evidence_collection_for_asset", new_callable=AsyncMock):
-            with TestClient(_register_app()) as client:
+            # a first enrollment needs an observed address (Phase 88 network rule); TestClient's default is not one
+            with TestClient(_register_app(), client=("203.0.113.7", 50000)) as client:
                 resp = client.post("/api/agents/register", json=payload)
 
         assert resp.status_code == 200

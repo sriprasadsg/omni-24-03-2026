@@ -42,7 +42,8 @@ async def _customer(db, partner_id=None, expires=None, cid="c1"):
 
 
 async def _hold(db, cid="c1"):
-    return await license_rules.hold_reason(db, {"id": cid}, HW, "Windows")
+    # an observed address: with none, a new machine is held new_network (Phase 88), which is not what these test
+    return await license_rules.hold_reason(db, {"id": cid}, HW, "Windows", source_ip="203.0.113.7")
 
 
 async def test_a_new_agent_of_a_partner_customer_is_held_once_the_pool_expired(mongo_db):
