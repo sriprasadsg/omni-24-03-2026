@@ -463,8 +463,12 @@ export const ChooseScreensModal: React.FC<ChooseScreensModalProps> = ({ customer
             <button type="button" className={SECONDARY_BUTTON} onClick={() => { void load(false); }}>Try again</button>
           </div>
         )}
+        {features?.plan && (
+          <p className={HELPER}>{`Plan: ${features.plan}. Screens outside it can't be added; change the plan under Plan and trial.`}</p>
+        )}
         {features && (
           <PartnerScreenPicker mode="customer" ceiling={ceiling} unrestricted={features.unrestricted} kept={features.kept}
+                               planScreens={features.planScreens} planName={features.plan}
                                value={value} onChange={setValue} disabled={saving} />
         )}
         {error && <ErrorBlock>{error}</ErrorBlock>}

@@ -405,7 +405,7 @@ describe('ChooseScreensModal (PART-06, D-10, D-19)', () => {
     expect(await within(dialog()).findByText("Plan: Free. Screens outside it can't be added; change the plan under Plan and trial.")).toBeTruthy();
     expect((within(dialog()).getByLabelText('Digital Twin') as HTMLInputElement).disabled).toBe(true);
     expect(within(dialog()).getByText("Greyed-out screens are not in this customer's Free plan.")).toBeTruthy();
-    expect((within(dialog()).getByLabelText('Custom Dashboards') as HTMLInputElement).disabled).toBe(false);
+    expect((within(dialog()).getByLabelText('Dashboards') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('names the plan but greys nothing when the plan covers every screen', async () => {

@@ -11,6 +11,11 @@ import featureSwitches from '../shared/tenant-feature-switches.json';
  * already holds outside it is "kept": shown on and locked, because a partner may not add it again and the
  * server keeps it whatever is sent. The server (backend/partner_portal_service) is the real wall; this only
  * stops the UI from offering what it would refuse. Nothing but switch names is shown or sent.
+ *
+ * Phase 88 (LIC-04, D-30; 88-UI-SPEC S11): in `customer` mode `planScreens` (the customer's plan, as the features
+ * view reports it; `all` or absent means no limit) narrows what is tickable further. A screen inside the
+ * partner's ceiling but outside the plan is shown greyed and described by one shared visible note, not a title
+ * per row; one the customer already holds outside the plan is kept (on and locked), like any kept screen.
  */
 
 type FeatureSwitch = { permission: string; label: string; parent?: string };
@@ -54,24 +59,32 @@ export interface PartnerScreenPickerProps {
   value: string[];
   /** Screens the customer holds outside the ceiling (D-19), as the server reports them. */
   kept?: string[];
+  /** Phase 88: the screens the customer's plan covers (customer mode); `all` or undefined means no plan limit. */
+  planScreens?: string[];
+  /** Phase 88: the plan's name, used in the shared note only. */
+  planName?: string;
   onChange: (next: string[]) => void;
   disabled?: boolean;
 }
 
 export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
-  mode, ceiling, unrestricted, value, kept, onChange, disabled,
+  mode, ceiling, unrestricted, value, kept, planScreens, planName, onChange, disabled,
 }) => {
   const uid = useId();
   const selected = new Set(value);
   const ceilingSet = new Set(ceiling ?? []);
   const everything = mode === 'ceiling' || !!unrestricted || ceilingSet.has('all');
   const offerable = (permission: string) => everything || ceilingSet.has(permission);
+  const planSet = mode === 'customer' && planScreens && !planScreens.includes('all') ? new Set(planScreens) : null;
+  const inPlan = (permission: string) => !planSet || planSet.has(permission);
+  /** Inside the partner's ceiling and the customer's plan. */
+  const tickable = (permission: string) => offerable(permission) && inPlan(permission);
 
   // D-19: held but not sellable = kept. The caller's list is trusted, and so is the evidence in `value`.
   const keptSet = new Set<string>();
   if (mode === 'customer') {
     for (const permission of [...(kept ?? []), ...value]) {
-      if (BY_PERMISSION.has(permission) && permission !== ALWAYS_INCLUDED && !offerable(permission)) keptSet.add(permission);
+      if (BY_PERMISSION.has(permission) && permission !== ALWAYS_INCLUDED && !tickable(permission)) keptSet.add(permission);
     }
   }
   const holdsKeptChild = (permission: string) => descendantsOf(permission).some(d => keptSet.has(d));
@@ -88,10 +101,10 @@ export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
   const parentReady = (permission: string): boolean => {
     const parent = BY_PERMISSION.get(permission)?.parent;
     if (!parent || !BY_PERMISSION.has(parent)) return true;
-    return isChecked(parent) || (offerable(parent) && parentReady(parent));
+    return isChecked(parent) || (tickable(parent) && parentReady(parent));
   };
   const canToggle = (permission: string) =>
-    !disabled && lockOf(permission) === null && offerable(permission) && (isChecked(permission) || parentReady(permission));
+    !disabled && lockOf(permission) === null && tickable(permission) && (isChecked(permission) || parentReady(permission));
   const isVisible = (permission: string) =>
     mode === 'ceiling' || offerable(permission) || keptSet.has(permission) || lockOf(permission) !== null;
 
@@ -128,6 +141,10 @@ export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
     const removed = new Set(rows.filter(p => canToggle(p) && isChecked(p)).flatMap(p => [p, ...descendantsOf(p)]));
     onChange(value.filter(p => !removed.has(p)));
   };
+  const planNoteId = `${uid}-plan-note`;
+  /** Offered by the partner but blocked by the plan, and not held: greyed, pointing at the shared note. */
+  const greyedByPlan = (permission: string) => offerable(permission) && !inPlan(permission) && lockOf(permission) === null && !isChecked(permission);
+  const anyGreyed = rows.some(greyedByPlan);
   const anyToTick = rows.some(p => canToggle(p) && !isChecked(p));
   const anyToClear = rows.some(p => canToggle(p) && isChecked(p));
 
@@ -136,7 +153,7 @@ export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
     if (lock === 'always') return 'Always included';
     if (lock === 'kept') return KEPT_HINT;
     if (lock === 'needed') return 'Needed by a screen kept from before.';
-    if (!isChecked(permission) && offerable(permission) && !parentReady(permission)) {
+    if (!isChecked(permission) && tickable(permission) && !parentReady(permission)) {
       const parent = BY_PERMISSION.get(permission)?.parent;
       return `Needs ${BY_PERMISSION.get(parent ?? '')?.label ?? parent}.`;
     }
@@ -156,7 +173,7 @@ export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
             checked={isChecked(permission)}
             disabled={!canToggle(permission)}
             onChange={() => toggle(permission)}
-            aria-describedby={hint ? hintId : undefined}
+            aria-describedby={hint ? hintId : greyedByPlan(permission) ? planNoteId : undefined}
             className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
@@ -182,6 +199,11 @@ export const PartnerScreenPicker: React.FC<PartnerScreenPickerProps> = ({
           Clear all screens
         </button>
       </div>
+      {anyGreyed && (
+        <p id={planNoteId} className="text-xs text-gray-500 dark:text-gray-400">
+          {`Greyed-out screens are not in this customer's ${planName ? `${planName} ` : ''}plan.`}
+        </p>
+      )}
       {visibleGroups.map(group => {
         const present = new Set(group.features.map(f => f.permission));
         // A switch sits under its parent when that parent is in the same group; otherwise it stands alone.

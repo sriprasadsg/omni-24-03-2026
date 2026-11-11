@@ -269,7 +269,7 @@ describe('PartnerScreenPicker, the customer plan limit (88-15, LIC-04, D-30; 88-
     expect(kept.disabled).toBe(true);
     expect(screen.getByText("Kept from before. You can't add it again.")).toBeTruthy();
     fireEvent.click(box('Asset Management'));
-    expect(current()).toEqual(expect.arrayContaining(['view:tracing', 'screen:assetManagement']));
+    expect(current()).toEqual(expect.arrayContaining(['view:tracing', 'view:assets']));
   });
 
   it('keeps a held screen that is outside both the plan and the ceiling', () => {
@@ -287,10 +287,12 @@ describe('PartnerScreenPicker, the customer plan limit (88-15, LIC-04, D-30; 88-
     expect(current().sort()).toEqual([...START].sort());
   });
 
-  it('does not offer a child whose parent the plan blocks, and does not call that a missing parent', () => {
+  it('greys a child the plan blocks by the plan note, not as a missing parent', () => {
     render(<Harness mode="customer" ceiling={PLAN} planScreens={['view:assets']} planName="Free" initial={START} />);
     expect(box('Assets').disabled).toBe(true);
+    expect(box('Assets').getAttribute('aria-describedby')).toBe(screen.getByText(NOTE).id);
     expect(screen.queryByText('Needs Asset Management.')).toBeNull();
+    expect(box('Asset Management').disabled).toBe(false);
   });
 
   it('counts only visible rows, kept ones included', () => {
