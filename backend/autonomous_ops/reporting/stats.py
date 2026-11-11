@@ -14,7 +14,9 @@ from autonomous_ops import messages, views
 from autonomous_ops import settings as ao_settings
 from autonomous_ops.scope import raw
 
-from . import (DEFAULT_WINDOW, DONE_STATES, EXCLUDED_KINDS, MINUTES_PER_KIND, SHADOW_STATE, UNDONE_STATES)
+from . import (DEFAULT_WINDOW, DONE_STATES, EXCLUDED_KINDS, MINUTES_PER_KIND, REFUSED_STATES, SHADOW_STATE,
+               UNDONE_STATES)
+from .rule_names import rule_name
 
 UNKNOWN_RULE = "gate:unknown"
 HANDOFF_LABEL = "Hand a ticket to a person"
@@ -61,10 +63,18 @@ def fold(groups) -> Dict[str, Any]:
             columns.append("done")
         if state in UNDONE_STATES:
             columns.append("undone")
+        if state in REFUSED_STATES:
+            columns.append("refused")
+        if state == "denied":
+            columns.append("denied")      # approvals.deny records the approver too, so approved excludes it
+        if state == "failed":
+            columns.append("failed")
+        if group.get("approved") and state != "denied":
+            columns.append("approved")
         for column in columns:
             row[column] += n
             totals[column] += n
-    rules = [{"id": rule_id, "name": rule_id, **counts} for rule_id, counts in per_rule.items()]
+    rules = [{"id": rule_id, "name": rule_name(rule_id), **counts} for rule_id, counts in per_rule.items()]
     rules.sort(key=lambda r: (-r["fired"], r["name"], r["id"]))
     return {"rules": rules, "totals": totals}
 
