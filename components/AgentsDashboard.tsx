@@ -13,6 +13,7 @@ import { RemediationLogsModal } from './RemediationLogsModal';
 import { RemediationConfirmationModal } from './RemediationConfirmationModal';
 import { AgentUpgradeManager } from './AgentUpgradeManager';
 import { PendingAgentsPanel } from './PendingAgentsPanel';
+import { TenantPlanCard } from './TenantPlanCard';
 import { ManageAgentCapabilitiesModal } from './ManageAgentCapabilitiesModal';
 import { UpgradeModal } from './UpgradeModal';
 import { fetchKpiSummary } from '../services/apiService';
@@ -358,6 +359,8 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
           )}
         </div>
       </div>
+
+      {activeTenantId && activeTenantId !== 'platform-admin' && <TenantPlanCard tenantId={activeTenantId} />}
 
       {/* The platform tenant's own view lists every tenant's waiting agents. */}
       <PendingAgentsPanel tenantId={activeTenantId === 'platform-admin' ? null : activeTenantId} />
