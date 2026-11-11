@@ -14,7 +14,9 @@ import agent_capabilities
 from cache_service import invalidate_cache
 import license_rules
 import licensing
+import plan_notices
 import plan_service
+import plan_trial
 import screen_ceiling
 from fastapi.responses import JSONResponse
 from rate_limiter import limiter
@@ -740,6 +742,8 @@ class LicenseUpdate(BaseModel):
     allowlistMode: Optional[Literal["off", "enforce"]] = None
     subLimits: Optional[List[SubLimit]] = None
     expiresAt: Optional[datetime] = None
+    clearSeatOverride: bool = False  # D-09: back to the plan's seats
+    trialExtendDays: Optional[int] = Field(None, ge=1, le=plan_trial.MAX_EXTENSION_DAYS)  # D-15
 
 
 @router.get("/{tenant_id}/license", dependencies=[Depends(TENANT_CONTROLS_READ_GUARD)])
@@ -760,7 +764,7 @@ async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_use
     given = data.model_fields_set
     if not given:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    tenant_row = await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1, "partnerId": 1})
+    tenant_row = await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1, "partnerId": 1, "subscriptionTier": 1})
     if not tenant_row:
         raise HTTPException(status_code=404, detail="Tenant not found")
     controls: Dict[str, Any] = {}
@@ -776,7 +780,24 @@ async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_use
         at = data.expiresAt
         controls["expires_at"] = (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).astimezone(
             timezone.utc).isoformat() if at else None
+    plan_seats = None
+    if data.clearSeatOverride:
+        if tenant_row.get("partnerId"):
+            raise HTTPException(status_code=409, detail="A partner customer's seats are the partner's allotment")
+        plan_seats = (await plan_service.plans(mongodb.db))[plan_service.plan_key_of(tenant_row)].get("seats")
+        if not isinstance(plan_seats, int):
+            raise HTTPException(status_code=422, detail="Custom has no plan number; set the seats instead")
     before = await licensing.license_summary(mongodb.db, tenant_id)
+    if data.trialExtendDays is not None:
+        try:
+            await plan_trial.extend(mongodb.db, tenant_id, data.trialExtendDays, actor=current_user, via="super_admin")
+        except plan_trial.TrialError as err:
+            raise HTTPException(err.status, str(err))
+    if plan_seats is not None:
+        try:
+            await licensing.clear_seat_override(mongodb.db, tenant_id, plan_seats)
+        except ValueError as err:
+            raise HTTPException(status_code=422, detail=str(err))
     max_agents = data.maxAgents
     if tenant_row.get("partnerId") and "maxAgents" in given and max_agents is not None:
         # A partner customer's seats come from the partner's pool (D-05). Platform staff may go below the
@@ -799,4 +820,9 @@ async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_use
             tenant_id=tenant_id)
     except Exception as e:
         logger.warning("License audit write failed for %s: %s", tenant_id, e)
-    return after
+    if not tenant_row.get("partnerId") and after.get("maxAgents") != before.get("maxAgents"):
+        await plan_notices.announce(mongodb.db, tenant_id, event="seats.changed", title="Seat limit changed",
+                                    message=f"The seat limit changed from {before.get('maxAgents')} to {after.get('maxAgents')}.",
+                                    actor=current_user, before=before.get("maxAgents"), after=after.get("maxAgents"),
+                                    via="super_admin")
+    return await plan_service.licence_view(mongodb.db, tenant_id)
