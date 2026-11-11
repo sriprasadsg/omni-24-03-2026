@@ -8,7 +8,8 @@ hostname-derived ``device_id`` and are marked weak.
 Pure: standard library only, no I/O.
 """
 import re
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Iterable, List, Optional
 
 # Firmware placeholders that many OEMs and hypervisors ship instead of a serial.
 _JUNK_SERIALS = frozenset({
@@ -102,3 +103,34 @@ def hardware_match_filter(tenant_id: str, hardware: Dict[str, Any]) -> Optional[
     if not terms:
         return None
     return {"tenantId": tenant_id, "$or": terms}
+
+
+def hardware_match_other_tenants_filter(hardware: Dict[str, Any], exclude_tenant_id: str,
+                                        non_seat_statuses: Optional[Iterable[str]] = None) -> Optional[Dict[str, Any]]:
+    """Mongo filter for agents in every tenant but ``exclude_tenant_id`` whose serial or SMBIOS UUID matches,
+    limited to seat-holding agents when ``non_seat_statuses`` is given (passed in: this module stays pure and
+    cannot import licensing). None when neither identifier is known; a MAC alone never matches (D-35).
+    Run it on the raw collection: the request's tenant wrapper would scope it to the enrolling tenant."""
+    terms = []
+    if hardware.get("serialNumber"):
+        terms.append({"hardware.serialNumber": hardware["serialNumber"]})
+    if hardware.get("smbiosUuid"):
+        terms.append({"hardware.smbiosUuid": hardware["smbiosUuid"]})
+    if not terms:
+        return None
+    flt: Dict[str, Any] = {"tenantId": {"$ne": exclude_tenant_id}}
+    if non_seat_statuses is not None:
+        flt["status"] = {"$nin": sorted(non_seat_statuses)}
+    flt["$or"] = terms
+    return flt
+
+
+def seen_within(agent: Dict[str, Any], window: timedelta, now: Optional[datetime] = None) -> bool:
+    """Whether the agent's ``lastSeen`` is less than ``window`` old; an unreadable time is not recent."""
+    try:
+        last = datetime.fromisoformat(str(agent.get("lastSeen")).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (now or datetime.now(timezone.utc)) - last < window
