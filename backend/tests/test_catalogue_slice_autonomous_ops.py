@@ -29,9 +29,11 @@ def test_guard_matches_manifest_and_is_the_mount():
     assert MOUNT_GUARDS[("autonomous_ops_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
     assert MOUNT_GUARDS[("autonomous_ops_response_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
     assert MOUNT_GUARDS[("autonomous_ops_service_desk_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
+    assert MOUNT_GUARDS[("autonomous_ops_reporting_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
     assert autonomous_ops.MOUNTS == {("autonomous_ops_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
                                      ("autonomous_ops_response_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
-                                     ("autonomous_ops_service_desk_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
+                                     ("autonomous_ops_service_desk_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
+                                     ("autonomous_ops_reporting_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
 
 
 def test_every_tenant_route_carries_the_manifest_guard():
@@ -39,10 +41,11 @@ def test_every_tenant_route_carries_the_manifest_guard():
     manifest = load_manifest()
     entry = _entry()
     mine = [r for r in records if r["module"] in ("autonomous_ops_endpoints", "autonomous_ops_response_endpoints",
-                                                  "autonomous_ops_service_desk_endpoints")]
+                                                  "autonomous_ops_service_desk_endpoints",
+                                                  "autonomous_ops_reporting_endpoints")]
     assert {"/api/autonomous-ops/status", "/api/autonomous-ops/actions",
             "/api/autonomous-ops/response-settings", "/api/autonomous-ops/service-desk",
-            "/api/autonomous-ops/service-desk/restore"} <= {r["path"] for r in mine}
+            "/api/autonomous-ops/service-desk/restore", "/api/autonomous-ops/statistics"} <= {r["path"] for r in mine}
     offenders = []
     for record in mine:
         assert owner_of(record["path"], manifest)["view"] == "autonomousOps"
