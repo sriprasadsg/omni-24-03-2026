@@ -85,4 +85,6 @@ MOUNTS = {
     ("knowledge_endpoints", "router"): KNOWLEDGE_GUARD,
     ("role_endpoints", "router"): ROLE_MANAGEMENT_GUARD,
     ("api_key_endpoints", "admin_router"): API_KEYS_GUARD,
+    # Phase 88 (D-14): the Super Admin's plan table; the handlers also check the Super Admin role.
+    ("plan_endpoints", "router"): TENANT_MANAGEMENT_GUARD,
 }

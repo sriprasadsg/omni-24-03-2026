@@ -130,6 +130,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "tenant_enrollment_endpoints", "router")  # spec C4 allowlist + install keys
     _load(app, "partner_platform_endpoints", "router")  # Phase 87: Super Admin appoints partners
     _load(app, "partner_endpoints", "router")           # Phase 87: partner portal (own customers, seats only)
+    _load(app, "plan_endpoints", "router")              # Phase 88: Super Admin edits the plan table
     _load(app, "role_endpoints",           "router")
     _load(app, "authentication_endpoints",       "router")
     _load(app, "auth_password_reset_endpoints",  "router")
