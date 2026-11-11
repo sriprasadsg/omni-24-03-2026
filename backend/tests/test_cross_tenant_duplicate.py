@@ -252,3 +252,120 @@ async def test_retire_silent_copies_retires_each_silent_copy_and_no_live_one(mon
     statuses = {a["id"]: a["status"] for a in await mongo_db.agents.find({}).to_list(10)}
     assert statuses == {"agent-quiet": "Replaced", "agent-quiet-c": "Replaced"}
     assert cross_tenant.MOVED_REASONS == ("moved", "moved_silent")
+
+
+# -- enrollment through the real register route ----------------------------------------------------
+
+HOME, OTHER = "203.0.113.7", "198.51.100.9"
+WAITING = "this computer is enrolled in another organization; waiting for platform approval"
+
+
+async def _register(db, hostname, key=KEY_B, **kwargs):
+    with patch("audit_ledger.event", new=AsyncMock()) as ledger:
+        code, body = await harness.register(db, hostname, key=key, **kwargs)
+    return code, body, ledger
+
+
+async def _feed(db, tenant_id):
+    return await db.notifications.find({"tenantId": tenant_id}, {"_id": 0}).to_list(50)
+
+
+async def test_a_machine_live_in_another_organization_is_held_and_neither_name_leaks(mongo_db):
+    await _two_tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1, hostname="alpha-pc")
+    before = await mongo_db.agents.find_one({"id": "agent-a"}, {"_id": 0})
+    code, body, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"))
+    assert code == 202 and body["pendingReason"] == "cross_tenant_duplicate"
+    held = await mongo_db.agents.find_one({"id": body["agentId"]})
+    assert held["status"] == "Pending" and held["tenantId"] == "tenant-b"
+    assert held["crossTenant"] == {"agentId": "agent-a", "tenantId": "tenant-a", "tenantName": "Alpha Org",
+                                   "hostname": "alpha-pc"}
+    assert await mongo_db.agents.find_one({"id": "agent-a"}, {"_id": 0}) == before
+    assert await _feed(mongo_db, "tenant-a") == []
+    b_feed = await _feed(mongo_db, "tenant-b")
+    assert len(b_feed) == 1 and WAITING in b_feed[0]["message"]
+    leaked = json.dumps(b_feed, default=str)
+    for secret in ("Alpha", "tenant-a", "agent-a", "alpha-pc"):
+        assert secret not in leaked
+    platform = [n for n in await _feed(mongo_db, "platform-admin")
+                if n["metadata"].get("event") == "agent.cross_tenant_duplicate"]
+    assert len(platform) == 1 and "audience" not in platform[0]["metadata"]
+    assert "Alpha Org" in platform[0]["message"] and "Beta Org" in platform[0]["message"]
+    assert not (await mongo_db.tenants.find_one({"id": "tenant-b"})).get("allowedNetworks")  # nothing learned
+
+
+async def test_an_old_agent_build_is_refused_without_a_name(mongo_db):
+    await _two_tenants(mongo_db)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1, hostname="alpha-pc")
+    code, detail, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"), supportsPending=False)
+    assert code == 403 and detail.startswith("cross_tenant_duplicate:")
+    for secret in ("Alpha", "tenant-a", "alpha-pc"):
+        assert secret not in detail
+
+
+async def test_a_silent_copy_elsewhere_is_retired_by_the_new_enrollment(mongo_db):
+    await _two_tenants(mongo_db, seats_used_a=3)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=30, hostname="alpha-pc")
+    code, body, ledger = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"))
+    assert code == 200 and body.get("agentId")
+    old = await mongo_db.agents.find_one({"id": "agent-a"})
+    assert old["status"] == "Replaced" and old["replacedReason"] == "moved_silent" and "replacedBy" not in old
+    assert (await mongo_db.tenants.find_one({"id": "tenant-a"}))["license"]["seatsUsed"] == 2
+    assert (await mongo_db.agents.find_one({"id": body["agentId"]}))["status"] == "Online"
+    assert [c.args[1] for c in ledger.await_args_list if c.args[0] == "agent.moved_out"] == ["tenant-a"]
+    assert [c.args[1] for c in ledger.await_args_list if c.args[0] == "agent.moved"] == ["platform-admin"]
+    for secret in ("Beta", "tenant-b"):
+        assert secret not in repr([c for c in ledger.await_args_list if c.args[0] == "agent.moved_out"])
+    assert await _feed(mongo_db, "tenant-a") == []
+
+
+async def test_a_copy_that_holds_no_seat_does_not_hold_the_new_enrollment(mongo_db):
+    await _two_tenants(mongo_db, seats_used_a=3)
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", status="Inactive", seen_hours=1)
+    code, body, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"))
+    assert code == 200
+    assert (await mongo_db.agents.find_one({"id": "agent-a"}))["status"] == "Inactive"
+    assert (await mongo_db.tenants.find_one({"id": "tenant-a"}))["license"]["seatsUsed"] == 3
+
+
+async def test_a_mac_alone_is_never_a_cross_tenant_duplicate(mongo_db):
+    await _two_tenants(mongo_db)
+    mac = "a4:bb:6d:11:22:33"
+    await mongo_db.agents.insert_one({"id": "agent-a", "tenantId": "tenant-a", "hostname": "alpha-pc",
+                                      "status": "Online", "lastSeen": _ago(1),
+                                      "hardware": {"macAddresses": [mac]}})
+    code, body, _ = await _register(mongo_db, "beta-pc", hardware={"macAddresses": [mac], "osFamily": "windows"})
+    assert code == 200
+    assert (await mongo_db.agents.find_one({"id": "agent-a"}))["status"] == "Online"
+
+
+async def test_a_returning_agent_that_needs_a_seat_is_held_while_the_machine_is_live_elsewhere(mongo_db):
+    await _two_tenants(mongo_db)
+    code, body, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"))
+    assert code == 200
+    await mongo_db.agents.update_one({"id": body["agentId"]}, {"$set": {"status": "Inactive"}})
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1, hostname="alpha-pc")
+    code, again, _ = await _register(mongo_db, "beta-pc", hardware=harness.hw("S1"), agentSecret=body["agentSecret"])
+    assert code == 202 and again["pendingReason"] == "cross_tenant_duplicate"
+    held = await mongo_db.agents.find_one({"id": body["agentId"]})
+    assert held["status"] == "Pending" and held["crossTenant"]["tenantId"] == "tenant-a"
+    assert len([n for n in await _feed(mongo_db, "platform-admin")
+                if n["metadata"].get("event") == "agent.cross_tenant_duplicate"]) == 1
+
+
+async def test_the_duplicate_rule_runs_before_the_network_rule_and_teaches_nothing(mongo_db):
+    await _two_tenants(mongo_db)
+    assert (await _register(mongo_db, "beta-1", hardware=harness.hw("S0"), client_ip=HOME))[0] == 200
+    learned = (await mongo_db.tenants.find_one({"id": "tenant-b"}))["allowedNetworks"]
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1)
+    code, body, _ = await _register(mongo_db, "beta-2", hardware=harness.hw("S1"), client_ip=OTHER)
+    assert code == 202 and body["pendingReason"] == "cross_tenant_duplicate"
+    assert (await mongo_db.tenants.find_one({"id": "tenant-b"}))["allowedNetworks"] == learned
+
+
+async def test_the_platform_organization_is_held_too(mongo_db):
+    await _two_tenants(mongo_db)
+    await harness.tenant(mongo_db, "platform-admin", key="reg_pppppppppppppppppppp", plan=None, name="Platform")
+    await _agent(mongo_db, "tenant-a", "agent-a", serial="S1", seen_hours=1)
+    code, body, _ = await _register(mongo_db, "ops-pc", key="reg_pppppppppppppppppppp", hardware=harness.hw("S1"))
+    assert code == 202 and body["pendingReason"] == "cross_tenant_duplicate"
