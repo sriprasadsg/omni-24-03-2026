@@ -104,6 +104,71 @@ async def new_tenant_terms(db, plan: Optional[str], max_agents: Optional[int]) -
     return {"plan": key, "max_agents": seats, "seat_override": override, "trial": trial}
 
 
+async def change_plan(db, tenant_id: str, new_plan: Any, *, actor: Any, via: str,
+                      partner_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """The one function that changes a tenant's ``subscriptionTier`` (D-13, D-25; plan_writers_scan keeps it so).
+
+    A compare-and-set on the stored value, then the seat rule (D-10, D-11: only a direct tenant without an
+    override takes the new plan's seats; a move to Custom keeps the current number as the override, D-17),
+    a consumed trial when the tenant has no trial record (D-22), an audit entry and a notice for the tenant's
+    admins. The platform organization is refused (D-26). With ``partner_doc`` the tenant must be that
+    partner's customer and the plan inside ``partner.planCeiling`` (absent: Free only)."""
+    import plan_notices  # lazy: keeps this module's import graph as small as it was
+    key = normalize_plan(new_plan)
+    if key is None:
+        raise PlanError(422, "unknown_plan", f"Unknown plan {str(new_plan)[:40]!r}; use Free, Pro, Enterprise or Custom")
+    raw = _raw(db)
+    tenant = await raw.tenants.find_one({"id": tenant_id, "type": {"$ne": "partner"}}, {"_id": 0})
+    if tenant is None:
+        raise PlanError(404, "not_found", "Tenant not found")
+    if is_exempt(tenant_id):
+        raise PlanError(409, "platform_exempt", "The platform organization has no plan to change")
+    if partner_doc is not None:
+        if tenant.get("partnerId") != partner_doc.get("id"):
+            raise PlanError(404, "not_found", "Tenant not found")
+        ceiling = (partner_doc.get("partner") or {}).get("planCeiling") or ["Free"]
+        if key not in {normalize_plan(p) for p in ceiling}:
+            raise PlanError(422, "plan_outside_ceiling", f"The {key} plan is outside your plan ceiling.")
+    old = plan_key_of(tenant)
+    if key == old:
+        return {"changed": False, "plan": key}
+
+    stored = tenant.get("subscriptionTier")
+    now = datetime.now(timezone.utc)
+    update: Dict[str, Any] = {"subscriptionTier": key, "updatedAt": now.isoformat()}
+    if not isinstance(tenant.get(plan_trial.FIELD), dict):
+        update[plan_trial.FIELD] = plan_trial.consumed_trial(now)
+    won = await raw.tenants.update_one(
+        {"id": tenant_id, "subscriptionTier": stored if "subscriptionTier" in tenant else {"$exists": False}},
+        {"$set": update})
+    if won.matched_count == 0:
+        raise PlanError(409, "plan_changed", "The plan changed while you were saving. Try again.")
+
+    seats_before = licensing.license_of(tenant)["maxAgents"]
+    override = (tenant.get("license") or {}).get("seatOverride")
+    if not tenant.get("partnerId") and not (isinstance(override, int) and not isinstance(override, bool)):
+        plan_seats = (await plans(db))[key].get("seats")
+        if key == "Custom":
+            await licensing.set_seat_override(db, tenant_id, seats_before)
+        elif isinstance(plan_seats, int):
+            await licensing.set_plan_seats(db, tenant_id, plan_seats)
+    seats_after = licensing.license_of(await raw.tenants.find_one({"id": tenant_id}, {"_id": 0}))["maxAgents"]
+
+    name = tenant.get("name") or tenant_id
+    await plan_notices.announce(db, tenant_id, event="plan.changed", title="Plan changed",
+                                message=f"{name} moved from {old} to {key}", actor=actor,
+                                before=old, after=key, via=via)
+    if seats_after != seats_before:
+        await plan_notices.announce(db, tenant_id, event="seats.changed", title="Seat limit changed",
+                                    message=f"{name} now has {seats_after} seats (was {seats_before})", actor=actor,
+                                    before=seats_before, after=seats_after, via=via)
+    if partner_doc is not None:
+        import partner_store  # lazy: it imports license_rules, which imports this module
+        await partner_store.audit("partner.customer_plan_changed", actor=actor, partner_id=partner_doc["id"],
+                                  customerId=tenant_id, before=old, after=key)
+    return {"changed": True, "from": old, "to": key, "licence": await licence_view(db, tenant_id)}
+
+
 async def licence_view(db, tenant_id: str) -> Dict[str, Any]:
     """The licence route's answer (D-19): the seat summary plus plan, trial and learned networks."""
     summary = await licensing.license_summary(db, tenant_id)

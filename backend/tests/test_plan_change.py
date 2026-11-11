@@ -173,15 +173,46 @@ async def test_a_tenant_with_no_stored_plan_reads_as_free_and_can_move(wired):
     assert out["changed"] is True and out["from"] == "Free" and (await _get(wired))["subscriptionTier"] == "Pro"
 
 
+class _MeetingDb:
+    """The database with the first two tenant reads held until both have answered, so both callers have read
+    the same stored plan before either writes (real scheduling may or may not interleave that way)."""
+
+    def __init__(self, db):
+        self._real = db
+        self._barrier = asyncio.Barrier(2)
+        self._reads = 0
+        outer = self
+
+        class _Tenants:
+            def __getattr__(self, name):
+                return getattr(outer._real.tenants, name)
+
+            async def find_one(self, *args, **kwargs):
+                found = await outer._real.tenants.find_one(*args, **kwargs)
+                outer._reads += 1
+                if outer._reads <= 2:
+                    await outer._barrier.wait()
+                return found
+
+        self.tenants = _Tenants()
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def __getitem__(self, name):
+        return self.tenants if name == "tenants" else self._real[name]
+
+
 async def test_two_concurrent_changes_from_the_same_plan_end_with_one_winner(wired):
     await _tenant(wired)
+    racing = _MeetingDb(wired)
     results = await asyncio.gather(
-        plan_service.change_plan(wired, "t1", "Pro", actor=SUPER, via="super_admin"),
-        plan_service.change_plan(wired, "t1", "Enterprise", actor=SUPER, via="super_admin"),
+        plan_service.change_plan(racing, "t1", "Pro", actor=SUPER, via="super_admin"),
+        plan_service.change_plan(racing, "t1", "Enterprise", actor=SUPER, via="super_admin"),
         return_exceptions=True)
     losers = [r for r in results if isinstance(r, plan_service.PlanError)]
     winners = [r for r in results if isinstance(r, dict)]
-    assert len(winners) == 1 and len(losers) == 1
+    assert len(winners) == 1 and len(losers) == 1, results
     assert losers[0].status == 409 and losers[0].code == "plan_changed"
     assert len(_events(wired, "plan.changed")) == 1
     assert (await _get(wired))["subscriptionTier"] == winners[0]["to"]

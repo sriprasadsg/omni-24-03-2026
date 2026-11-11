@@ -15,6 +15,8 @@ from cache_service import invalidate_cache
 import license_rules
 import licensing
 import plan_service
+import screen_ceiling
+from fastapi.responses import JSONResponse
 from rate_limiter import limiter
 from catalogue_mounts_billing_identity import (
     TENANT_BRANDING_DISPLAY, TENANT_CONTROLS_READ_GUARD, TENANT_MANAGEMENT_GUARD, TENANT_PLATFORM_STAFF,
@@ -91,6 +93,18 @@ async def get_tenants(current_user = Depends(get_current_user)):
 
     return tenants
 
+async def _plan_limit(tenant_id: Optional[str], plan: str):
+    """The one limit a Super Admin's screen edit has: the tenant's plan (D-40, D-27); a partner's ceiling does
+    not apply. The platform organization and Custom allow every switch."""
+    allowed = await screen_ceiling.plan_allowed(mongodb.db, plan, exempt=plan_service.is_exempt(tenant_id))
+    return [(allowed, "{label} is not part of the {plan} plan.", "screen_outside_plan")]
+
+
+def _ceiling_answer(err: "screen_ceiling.CeilingError") -> JSONResponse:
+    return JSONResponse(status_code=422, content={"error": err.message, "code": err.code, "status_code": 422,
+                                                  **err.numbers})
+
+
 @router.post("", dependencies=[Depends(TENANT_MANAGEMENT_GUARD)])
 async def create_tenant(data: TenantCreate, current_user = Depends(get_current_user)):
     """Create a new tenant"""
@@ -111,9 +125,15 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     except plan_service.PlanError as err:
         raise HTTPException(status_code=err.status, detail=err.args[0])
 
+    try:  # screens inside the plan only (D-40); a screen outside it is a 422 and nothing is stored
+        screens = screen_ceiling.final_screens(await _plan_limit(None, terms["plan"]), data.enabledFeatures, [],
+                                               plan=terms["plan"], passthrough_prefixes=("service:",))
+    except screen_ceiling.CeilingError as err:
+        return _ceiling_answer(err)
+
     # The same builder a partner's customer comes from; no partnerId means a direct customer (D-12).
     tenant_doc = tenant_docs.build_tenant_doc(
-        data.name, max_agents=terms["max_agents"], enabled_features=data.enabledFeatures,
+        data.name, max_agents=terms["max_agents"], enabled_features=screens,
         subscription_tier=terms["plan"], notification_preferences=data.notificationPreferences,
         seat_override=terms["seat_override"], trial=terms["trial"])
     tenant_id = tenant_doc["id"]
@@ -218,10 +238,19 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
     # Build update data only with provided fields
     update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
     
-    if data.enabledFeatures is not None:
-        update_data["enabledFeatures"] = data.enabledFeatures
-    if data.subscriptionTier is not None:
-        update_data["subscriptionTier"] = data.subscriptionTier
+    new_plan = None
+    if data.subscriptionTier is not None:  # the one plan-change function applies it below (D-13)
+        new_plan = plan_service.normalize_plan(data.subscriptionTier)
+        if new_plan is None:
+            raise HTTPException(status_code=422, detail="Unknown plan; use Free, Pro, Enterprise or Custom")
+    if data.enabledFeatures is not None:  # checked against the plan the tenant will have (D-40)
+        plan = new_plan or plan_service.plan_key_of(tenant)
+        try:  # screens already on may stay (D-28); billable service: add-ons pass through
+            update_data["enabledFeatures"] = screen_ceiling.final_screens(
+                await _plan_limit(tenant_id, plan), data.enabledFeatures, tenant.get("enabledFeatures") or [],
+                plan=plan, passthrough_prefixes=("service:",))
+        except screen_ceiling.CeilingError as err:
+            return _ceiling_answer(err)
     if data.voiceBotSettings is not None:
         update_data["voiceBotSettings"] = data.voiceBotSettings
     if data.purchasedFrameworks is not None:
@@ -237,6 +266,12 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
             raise HTTPException(status_code=400, detail=str(exc))
         invalidate_cache("agents:*")  # agent lists carry each tenant's allowed capabilities
     
+    if new_plan is not None:
+        try:
+            await plan_service.change_plan(mongodb.db, tenant_id, new_plan, actor=current_user, via="super_admin")
+        except plan_service.PlanError as err:
+            raise HTTPException(status_code=err.status, detail=err.args[0])
+
     result = await mongodb.db.tenants.update_one(
         {"id": tenant_id},
         {"$set": update_data}
