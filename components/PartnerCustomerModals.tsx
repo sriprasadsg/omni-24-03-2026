@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
+  PLAN_KEYS,
   PartnerApiError,
   changeCustomerSeats,
   createPartnerCustomer,
@@ -46,6 +47,7 @@ const titleOf = (text: string) => <span className="block whitespace-normal break
  */
 export function partnerFailureText(e: unknown, action: string): string {
   if (e instanceof PartnerApiError) {
+    if (e.code === 'unknown_plan') return "That plan isn't available. Reload the page and try again.";
     if (e.status === 409 || e.status === 422) return e.message;
     return `Couldn't ${action}: ${e.message.replace(/\.+$/, '')}. Try again.`;
   }
@@ -92,18 +94,22 @@ export interface CreateCustomerModalProps {
   /** Seats the partner can still hand out; the seats field is bounded 1 to this. */
   free: number;
   ceiling: string[];
+  /** Phase 88 (D-23): the plans this partner can sell; Free alone when the overview carries none. */
+  planCeiling?: string[];
   unrestricted: boolean;
   onClose: () => void;
   /** Reload the overview: called after a success and after any answer from the server. */
   onRefetch: () => void;
 }
 
-export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, ceiling, unrestricted, onClose, onRefetch }) => {
+export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, ceiling, planCeiling = ['Free'], unrestricted, onClose, onRefetch }) => {
   const uid = useId();
   const [name, setName] = useState('');
   const [seatText, setSeatText] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const plans = PLAN_KEYS.filter(k => planCeiling.includes(k));
+  const [plan, setPlan] = useState<string>(plans.includes('Free') ? 'Free' : plans[0] ?? '');
   const [screens, setScreens] = useState<string[]>([]);
   const [showScreens, setShowScreens] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -120,7 +126,7 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, 
     adminName: adminName.trim() ? null : 'Enter a name for the administrator.',
     adminEmail: EMAIL.test(adminEmail.trim()) ? null : 'Enter a valid email address.',
   };
-  const valid = Object.values(errors).every(e => e === null);
+  const valid = plans.length > 0 && Object.values(errors).every(e => e === null);
   const chosen = screens.filter(s => s !== ALWAYS_INCLUDED);
 
   const submit = async (event?: React.FormEvent) => {
@@ -135,6 +141,7 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, 
       const result = await createPartnerCustomer({
         name: customerName,
         seats: seatNumber,
+        plan,
         ...(chosen.length > 0 ? { enabledFeatures: chosen } : {}),
         adminName: adminName.trim(),
         adminEmail: email,
@@ -147,7 +154,8 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, 
       showToast(`${customerName} was created. An invite was sent to ${email}.`, 'success');
       onClose();
     } catch (e) {
-      setError(partnerFailureText(e, 'create this customer'));
+      setError(e instanceof PartnerApiError && e.code === 'plan_outside_ceiling'
+        ? `${plan} is not one of the plans you can sell.` : partnerFailureText(e, 'create this customer'));
       if (e instanceof PartnerApiError) onRefetch();
     } finally {
       busy.current = false;
@@ -213,6 +221,15 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, 
             <input type="number" inputMode="numeric" min={1} max={free} step={1} className={INPUT} value={seatText}
                    onChange={e => setSeatText(e.target.value)} {...props} />
           ))}
+          {plans.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
+              Your platform administrator hasn't chosen any plans you can sell. Ask them to set your plans.
+            </p>
+          ) : field('plan', 'Plan', 'Free starts a free trial today. The plan decides which screens this customer can have; seats are the number you assign.', props => (
+            <select className={INPUT} value={plan} onChange={e => setPlan(e.target.value)} {...props}>
+              {plans.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          ))}
         </fieldset>
         <fieldset className="space-y-4">
           <legend className={LABEL}>First administrator</legend>
@@ -241,7 +258,8 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({ free, 
             </p>
           )}
           {showScreens && (
-            <div id={screensId}>
+            <div id={screensId} className="space-y-2">
+              <p className={HELPER}>Screens outside the chosen plan are refused.</p>
               <PartnerScreenPicker mode="customer" ceiling={ceiling} unrestricted={unrestricted} value={screens} onChange={setScreens} disabled={saving} />
             </div>
           )}

@@ -446,7 +446,7 @@ describe('PartnerPortal plans (88-15, D-13, D-15; 88-UI-SPEC S9)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
     await waitFor(() => expect(download).toHaveBeenCalled());
     const text = download.mock.calls[0][1] as string;
-    expect(text.split('\n')[0]).toBe('Customer,Seats assigned,Seats used,Agents online,Agents total,Licence expires');
+    expect(text.split('\r\n')[0]).toBe('Customer,Seats assigned,Seats used,Agents online,Agents total,Licence expires');
     expect(text).not.toMatch(/trial|Free|Pro/i);
   });
 

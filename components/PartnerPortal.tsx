@@ -7,6 +7,7 @@ import { EmptyStateCard } from './AutonomousOpsActivityList';
 import { PoolExpiryChip, daysUntil, formatDay } from './PartnerStatusChip';
 import PartnerTeamPanel from './PartnerTeamPanel';
 import { ChangeSeatsModal, ChooseScreensModal, CreateCustomerModal } from './PartnerCustomerModals';
+import PartnerPlanModal from './PartnerPlanModal';
 
 /**
  * Phase 87 (PART-02, PART-04, PART-05, PART-06, PART-08; 87-UI-SPEC section 2): the Partner portal, the only
@@ -106,6 +107,20 @@ const ExpiryCell: React.FC<{ iso: string | null | undefined }> = ({ iso }) => {
 
 const agentsText = (c: PartnerCustomerRow) => `${fmt(c.agentsOnline)} online of ${fmt(c.agentsTotal)}`;
 
+/** Phase 88 (D-13, D-15): the plan, with the end of an open Free trial or the amber words for an ended one. */
+const PlanCell: React.FC<{ customer: PartnerCustomerRow }> = ({ customer }) => {
+  const { plan, trialEndsAt } = customer;
+  if (!plan) return <span>—</span>;
+  const day = formatDay(trialEndsAt);
+  if (!trialEndsAt || !day) return <span className="break-words">{plan}</span>;
+  const ended = new Date(trialEndsAt).getTime() <= Date.now();
+  return (
+    <span className={`break-words ${ended ? 'text-amber-700 dark:text-amber-400' : ''}`}>
+      {`${plan} (trial ${ended ? 'ended' : 'ends'} ${day})`}
+    </span>
+  );
+};
+
 const Tile: React.FC<{ label: string; loading: boolean; value?: React.ReactNode; helper?: string; small?: boolean }> = ({
   label, loading, value, helper, small,
 }) => (
@@ -120,7 +135,11 @@ const Tile: React.FC<{ label: string; loading: boolean; value?: React.ReactNode;
   </div>
 );
 
-type Modal = { kind: 'create' } | { kind: 'seats'; customer: PartnerCustomerRow } | { kind: 'screens'; customer: PartnerCustomerRow };
+type Modal =
+  | { kind: 'create' }
+  | { kind: 'seats'; customer: PartnerCustomerRow }
+  | { kind: 'screens'; customer: PartnerCustomerRow }
+  | { kind: 'plan'; customer: PartnerCustomerRow };
 
 export const PartnerPortal: React.FC = () => {
   const uid = useId();
@@ -203,6 +222,9 @@ export const PartnerPortal: React.FC = () => {
         <button type="button" className={ROW_BUTTON} disabled={!!open} onClick={() => setModal({ kind: 'screens', customer: c })} aria-label={`Choose screens for ${c.name}`}>
           Choose screens
         </button>
+        <button type="button" className={ROW_BUTTON} disabled={!!open} onClick={() => setModal({ kind: 'plan', customer: c })} aria-label={`Change plan and trial for ${c.name}`}>
+          Plan and trial
+        </button>
       </div>
     );
   };
@@ -219,20 +241,21 @@ export const PartnerPortal: React.FC = () => {
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-gray-200 dark:border-white/10">
-            {/* Minimums sum to 900px so the admin's table fits 1280px with the sidebar open (922px of
-                card); the UI-SPEC's 1,048px could not, against its own no-scroll-at-1280 check. */}
-            <th scope="col" className={`${TH} min-w-[200px]`}>Customer</th>
-            <th scope="col" className={`${TH} min-w-[140px]`}>Seats used</th>
-            <th scope="col" className={`${TH} min-w-[120px]`}>Seats assigned</th>
-            <th scope="col" className={`${TH} min-w-[150px]`}>Agents</th>
-            <th scope="col" className={`${TH} min-w-[130px]`}>Licence expires</th>
-            {isAdmin && <th scope="col" className={`${TH} min-w-[160px]`}>Actions</th>}
+            {/* Minimums sum to 910px so the admin's table fits 1280px with the sidebar open (922px of
+                card; 88-UI-SPEC S9): 170 + 120 + 100 + 130 + 150 + 120 + 120. Actions wrap. */}
+            <th scope="col" className={`${TH} min-w-[170px]`}>Customer</th>
+            <th scope="col" className={`${TH} min-w-[120px]`}>Seats used</th>
+            <th scope="col" className={`${TH} min-w-[100px]`}>Seats assigned</th>
+            <th scope="col" className={`${TH} min-w-[130px]`}>Agents</th>
+            <th scope="col" className={`${TH} min-w-[150px]`}>Plan</th>
+            <th scope="col" className={`${TH} min-w-[120px]`}>Licence expires</th>
+            {isAdmin && <th scope="col" className={`${TH} min-w-[120px]`}>Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-white/10">
           {loading && [0, 1, 2, 3].map(i => (
             <tr key={i} data-skeleton>
-              <td colSpan={isAdmin ? 6 : 5} className="px-6 py-4"><div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" /></td>
+              <td colSpan={isAdmin ? 7 : 6} className="px-6 py-4"><div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" /></td>
             </tr>
           ))}
           {visible.map(c => (
@@ -241,12 +264,13 @@ export const PartnerPortal: React.FC = () => {
               <td className={TD}><UsedCell customer={c} /></td>
               <td className={`${TD} tabular-nums`}>{fmt(c.seatsAssigned)}</td>
               <td className={`${TD} tabular-nums`}>{agentsText(c)}</td>
+              <td className={TD}><PlanCell customer={c} /></td>
               <td className={TD}><ExpiryCell iso={c.licenseExpiresAt} /></td>
               {isAdmin && <td className={TD}>{rowActions(c)}</td>}
             </tr>
           ))}
           {!loading && needle && matches.length === 0 && (
-            <tr><td colSpan={isAdmin ? 6 : 5} className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{emptySearch}</td></tr>
+            <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{emptySearch}</td></tr>
           )}
         </tbody>
       </table>
@@ -265,6 +289,7 @@ export const PartnerPortal: React.FC = () => {
             <div><dt className={MUTED}>Seats used</dt><dd><UsedCell customer={c} /></dd></div>
             <div><dt className={MUTED}>Seats assigned</dt><dd className="tabular-nums">{fmt(c.seatsAssigned)}</dd></div>
             <div><dt className={MUTED}>Agents</dt><dd className="tabular-nums">{agentsText(c)}</dd></div>
+            <div><dt className={MUTED}>Plan</dt><dd><PlanCell customer={c} /></dd></div>
             <div><dt className={MUTED}>Licence expires</dt><dd><ExpiryCell iso={c.licenseExpiresAt} /></dd></div>
           </dl>
           {isAdmin && rowActions(c)}
@@ -400,6 +425,7 @@ export const PartnerPortal: React.FC = () => {
         <CreateCustomerModal
           free={pool?.free ?? 0}
           ceiling={data?.ceiling ?? []}
+          planCeiling={data?.planCeiling}
           unrestricted={!!data?.unrestricted}
           onClose={() => setModal(null)}
           onRefetch={refetch}
@@ -410,6 +436,9 @@ export const PartnerPortal: React.FC = () => {
       )}
       {modal?.kind === 'screens' && (
         <ChooseScreensModal customer={liveCustomer(modal.customer)} onClose={() => setModal(null)} onRefetch={refetch} />
+      )}
+      {modal?.kind === 'plan' && (
+        <PartnerPlanModal customer={liveCustomer(modal.customer)} planCeiling={data?.planCeiling ?? ['Free']} onClose={() => setModal(null)} onRefetch={refetch} />
       )}
     </div>
   );
