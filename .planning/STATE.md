@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
 status: executing
-stopped_at: Completed 88-02-PLAN.md
-last_updated: "2026-11-10T21:30:33.647Z"
+stopped_at: Completed 88-03-PLAN.md
+last_updated: "2026-11-11T01:15:59.485Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 88 execution started
-state_head: 7f0ef7b90892c1775dfe0bdc87279aa290b57a6e
+state_head: a350495ef9d789ecd0ba12506ab42b6d22ac355e
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 143
+  completed_plans: 144
   percent: 75
 ---
 
@@ -659,6 +659,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-42: third gap round gate green (backend 2744 passed, Vitest 1922, build 0); WR-602/WR-603/IN-604 recorded fixed, AR-85-11 superseded, D-42/D-43 recorded
 - [Phase 88]: 88-01: user committed the one-id-per-machine prerequisite as 91c85e11d (option-a) before Phase 88 enrollment code; trial ends for new machines only (>= rule), missing trial record fails open, platform-admin exempt
 - [Phase 88]: 88-02: a direct tenant's seats follow its plan unless license.seatOverride is set; every manual seat write (licence PATCH, approve-and-raise, partner-to-direct move) is an override; partner customers and platform-admin are never edited by a plan
+- [Phase 88]: 88-03: screen_ceiling.final_screens takes limits as (allowed, message, code) with the plan limit first; kept = screens outside either limit stay on (D-28); create_customer uses plan Free until 88-10
 
 ## Performance Metrics
 
@@ -957,6 +958,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P42 | 25min | 2 tasks | 4 files |
 | Phase 88 P01 | 25 min | 2 tasks | 9 files |
 | Phase 88 P02 | 20 min | 2 tasks | 7 files |
+| Phase 88 P03 | 10 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -991,8 +993,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-10T21:30:33.308Z
-**Stopped at:** Completed 88-02-PLAN.md
+**Last session:** 2026-11-11T01:15:59.171Z
+**Stopped at:** Completed 88-03-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1021,7 +1023,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
-Plan: 3 of 16
+Plan: 4 of 16
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
