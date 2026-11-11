@@ -131,7 +131,8 @@ async def change_plan(db, tenant_id: str, new_plan: Any, *, actor: Any, via: str
     if partner_doc is not None:
         if tenant.get("partnerId") != partner_doc.get("id"):
             raise PlanError(404, "not_found", "Tenant not found")
-        ceiling = (partner_doc.get("partner") or {}).get("planCeiling") or ["Free"]
+        stored_ceiling = (partner_doc.get("partner") or {}).get("planCeiling")
+        ceiling = stored_ceiling if isinstance(stored_ceiling, list) else ["Free"]  # an empty list: no plan changes
         if key not in {normalize_plan(p) for p in ceiling}:
             raise PlanError(422, "plan_outside_ceiling", f"The {key} plan is outside your plan ceiling.")
     old = plan_key_of(tenant)

@@ -161,6 +161,35 @@ async def change_seats(db, partner_doc: Dict[str, Any], customer_id: str, seats:
     return {"customer": await _row_of(db, fresh, customer_id), "pool": pool_view(fresh)}
 
 
+async def change_customer_plan(db, partner_doc: Dict[str, Any], customer_id: str, plan: str,
+                               actor: Any) -> Dict[str, Any]:
+    """Move one of this partner's customers to a plan inside the partner's plan ceiling (D-13). The ownership
+    and ceiling checks, the audit, the notice to the customer's admins and the partner ledger entry are
+    ``plan_service.change_plan``'s; the customer's seats are never touched (D-11)."""
+    try:
+        await plan_service.change_plan(db, customer_id, plan, actor=actor, via="partner", partner_doc=partner_doc)
+    except plan_service.PlanError as err:
+        raise PartnerError(err.status, err.code, str(err))
+    return {"customer": await _row_of(db, partner_doc, customer_id)}
+
+
+async def extend_customer_trial(db, partner_doc: Dict[str, Any], customer_id: str, days: int,
+                                actor: Any) -> Dict[str, Any]:
+    """Give one of this partner's Free customers more trial days (D-15); recorded on the customer's ledger
+    (``trial.extended``) and the partner's (``partner.customer_trial_extended``)."""
+    partner_id = partner_doc["id"]
+    owned = await _raw(db).tenants.find_one({"id": customer_id, "partnerId": partner_id}, {"_id": 0, "id": 1})
+    if owned is None:
+        raise PartnerError(404, "not_found", "Customer not found")
+    try:
+        await plan_trial.extend(db, customer_id, days, actor=actor, via="partner")
+    except plan_trial.TrialError as err:
+        raise PartnerError(err.status, err.code, str(err))
+    await audit("partner.customer_trial_extended", actor=actor, partner_id=partner_id, customerId=customer_id,
+                days=days)
+    return {"customer": await _row_of(db, partner_doc, customer_id)}
+
+
 async def overview(db, partner_doc: Dict[str, Any], role: str) -> Dict[str, Any]:
     """The portal's whole read: pool, ceiling and the D-01 customer rows."""
     ceiling = [s for s in (partner_doc.get("partner") or {}).get("screenCeiling") or [] if isinstance(s, str)]

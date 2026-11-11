@@ -47,6 +47,14 @@ class SeatsBody(BaseModel):
     seats: int = Field(..., ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 
+class PlanBody(BaseModel):
+    plan: str = Field(..., min_length=1, max_length=32)
+
+
+class TrialBody(BaseModel):
+    days: int = Field(..., ge=1, le=365)
+
+
 class ColleagueInvite(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., min_length=1, max_length=254)
@@ -113,6 +121,28 @@ async def put_customer_seats(customer_id: str, data: SeatsBody, ctx=Depends(curr
     _require_partner_admin(user)
     try:
         return await service.change_seats(mongodb.db, partner, customer_id, data.seats, user)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.put("/customers/{customer_id}/plan")
+async def put_customer_plan(customer_id: str, data: PlanBody, ctx=Depends(current_partner)):
+    """Move one customer to a plan inside this partner's plan ceiling (D-13); its seats stay."""
+    user, partner = ctx
+    _require_partner_admin(user, "change a customer's plan")
+    try:
+        return await service.change_customer_plan(mongodb.db, partner, customer_id, data.plan, user)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.post("/customers/{customer_id}/trial")
+async def post_customer_trial(customer_id: str, data: TrialBody, ctx=Depends(current_partner)):
+    """Give one Free customer more trial days (D-15)."""
+    user, partner = ctx
+    _require_partner_admin(user, "extend a customer's trial")
+    try:
+        return await service.extend_customer_trial(mongodb.db, partner, customer_id, data.days, user)
     except PartnerError as err:
         return error_response(err)
 
