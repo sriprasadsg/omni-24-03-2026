@@ -4,6 +4,7 @@ import {
   appointPartner,
   updatePartner,
   PartnerApiError,
+  PLAN_KEYS,
   type PartnerSummary,
   type UpdatePartnerInput,
 } from '../services/partnerApi';
@@ -50,6 +51,9 @@ const initialCeiling = (p?: PartnerSummary): string[] => {
   return p.unrestricted || list.includes(ALL_SCREENS) ? [...SWITCHES] : ticked(list);
 };
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every(x => b.includes(x));
+/** Phase 88 (D-13): a stored planCeiling, or Free alone when the partner has none (old document, fail closed). */
+const initialPlans = (p?: PartnerSummary): string[] =>
+  p && Array.isArray(p.planCeiling) ? PLAN_KEYS.filter(k => p.planCeiling!.includes(k)) : ['Free'];
 
 export interface PartnerFormModalProps {
   mode: 'appoint' | 'edit';
@@ -68,6 +72,7 @@ export const PartnerFormModal: React.FC<PartnerFormModalProps> = ({ mode, partne
   const [pool, setPool] = useState(edit ? String(partner!.poolSize) : '');
   const [expiresOn, setExpiresOn] = useState(edit ? dayOf(partner!.expiresAt) : '');
   const [ceiling, setCeiling] = useState<string[]>(() => initialCeiling(edit ? partner : undefined));
+  const [plans, setPlans] = useState<string[]>(() => initialPlans(edit ? partner : undefined));
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -102,6 +107,7 @@ export const PartnerFormModal: React.FC<PartnerFormModalProps> = ({ mode, partne
     if (poolNumber !== partner!.poolSize) changes.poolSize = poolNumber;
     if (expiresOn !== dayOf(partner!.expiresAt)) changes.expiresAt = expiresOn ? `${expiresOn}T23:59:59Z` : null;
     if (ceilingChanged) changes.screenCeiling = everything ? [ALL_SCREENS] : selected;
+    if (!sameSet(plans, initialPlans(partner))) changes.planCeiling = plans;
   }
   const dirty = Object.keys(changes).length > 0;
 
@@ -109,6 +115,7 @@ export const PartnerFormModal: React.FC<PartnerFormModalProps> = ({ mode, partne
     if (e instanceof PartnerApiError) {
       // A 409 is a named refusal (pool below handed out, name or email not available): its text is the message.
       if (e.status === 409) return e.message;
+      if (e.code === 'invalid_plan') return "That plan isn't available. Reload the page and try again.";
       return `Couldn't ${action}: ${e.message.replace(/\.+$/, '')}. Try again.`;
     }
     return `Couldn't ${action}. Check your connection and try again.`;
@@ -133,6 +140,7 @@ export const PartnerFormModal: React.FC<PartnerFormModalProps> = ({ mode, partne
         poolSize: poolNumber,
         ...(expiresOn ? { expiresAt: `${expiresOn}T23:59:59Z` } : {}),
         screenCeiling: everything ? [ALL_SCREENS] : selected,
+        planCeiling: plans,
         adminName: adminName.trim(),
         adminEmail: email,
       });
@@ -243,6 +251,26 @@ export const PartnerFormModal: React.FC<PartnerFormModalProps> = ({ mode, partne
             Leave empty for no expiry. After this date the partner can't create customers or hand out seats. Customers keep their seats: agents already enrolled keep working and new agents wait for approval.
           </p>
         </div>
+        <fieldset className="space-y-2" disabled={saving}>
+          <legend className={LABEL}>Plans this partner can sell</legend>
+          <p className={`${HELPER} break-words`}>
+            A partner can only set these plans on its customers. Customers already on another plan stay on it.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            {PLAN_KEYS.map(key => (
+              <label key={key} className="flex items-center gap-3 min-h-8 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={plans.includes(key)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                       onChange={() => setPlans(prev => (prev.includes(key) ? prev.filter(p => p !== key) : PLAN_KEYS.filter(p => p === key || prev.includes(p))))} />
+                {key}
+              </label>
+            ))}
+          </div>
+          {plans.length === 0 && (
+            <p role="status" className="text-xs text-amber-700 dark:text-amber-400 break-words">
+              No plan ticked: this partner can't create customers or change plans.
+            </p>
+          )}
+        </fieldset>
         <fieldset className="space-y-2" disabled={saving}>
           <legend className={LABEL}>Screens this partner may sell</legend>
           <p className={`${HELPER} break-words`}>

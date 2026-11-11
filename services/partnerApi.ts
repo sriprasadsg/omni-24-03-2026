@@ -1,5 +1,8 @@
 import { API_BASE, authFetch } from './apiService';
 
+// Phase 88: the plan names are the plan table's own (services/plansApi.ts); the partner screens reuse them.
+export { PLAN_KEYS, type PlanKey } from './plansApi';
+
 /**
  * Phase 87: the typed client for the three partner surfaces (the Super Admin's Partners page, the
  * Partner portal and the public accept-invite page). Every signed-in call goes through authFetch, which
@@ -19,6 +22,8 @@ export interface PartnerSummary {
   expiresAt: string | null;
   expired: boolean;
   screenCeiling: string[];
+  /** Phase 88 (D-13): the plans this partner may set on its customers; absent on an old document means Free. */
+  planCeiling?: string[];
   unrestricted: boolean;
   status: PartnerStatus;
   customerCount: number;
@@ -41,6 +46,9 @@ export interface PartnerCustomerRow {
   agentsOnline: number;
   agentsTotal: number;
   licenseExpiresAt: string | null;
+  /** Phase 88: licence facts, added to the D-01 allowlist. trialEndsAt is the stored end of a Free trial (also once ended). */
+  plan?: string;
+  trialEndsAt?: string | null;
 }
 
 export interface PartnerOverview {
@@ -48,6 +56,8 @@ export interface PartnerOverview {
   role: 'admin' | 'viewer';
   pool: PartnerPool;
   ceiling: string[];
+  /** Phase 88: the plans this partner can set on its customers. */
+  planCeiling?: string[];
   unrestricted: boolean;
   customers: PartnerCustomerRow[];
 }
@@ -64,6 +74,9 @@ export interface CustomerFeatures {
   unrestricted: boolean;
   /** Screens the customer already has that sit outside the ceiling (D-19). */
   kept: string[];
+  /** Phase 88 (D-30): the customer's plan and the screens it covers (["all"] when it covers every screen). */
+  plan?: string;
+  planScreens?: string[];
 }
 
 export type PartnerStaffRole = 'partner_admin' | 'partner_viewer';
@@ -89,6 +102,7 @@ export interface AppointPartnerInput {
   poolSize: number;
   expiresAt?: string | null;
   screenCeiling: string[];
+  planCeiling?: string[];
   adminName: string;
   adminEmail: string;
 }
@@ -99,11 +113,13 @@ export interface UpdatePartnerInput {
   poolSize?: number;
   expiresAt?: string | null;
   screenCeiling?: string[];
+  planCeiling?: string[];
 }
 
 export interface CreateCustomerInput {
   name: string;
   seats: number;
+  plan?: string;
   enabledFeatures?: string[];
   adminName: string;
   adminEmail: string;
@@ -207,6 +223,23 @@ export async function changeCustomerSeats(customerId: string, seats: number): Pr
     body: JSON.stringify({ seats }),
   });
   const data = await readJson<{ customer?: PartnerCustomerRow }>(res, 'Could not change the seats.');
+  return data.customer as PartnerCustomerRow;
+}
+
+/** Phase 88 (D-13): move a customer to another plan inside the partner's planCeiling; seats stay as assigned. */
+export async function changeCustomerPlan(customerId: string, plan: string): Promise<PartnerCustomerRow> {
+  const res = await authFetch(portalUrl(`/customers/${enc(customerId)}/plan`), {
+    method: 'PUT',
+    body: JSON.stringify({ plan }),
+  });
+  const data = await readJson<{ customer?: PartnerCustomerRow }>(res, 'Could not change the plan.');
+  return data.customer as PartnerCustomerRow;
+}
+
+/** Phase 88 (D-15): extend a Free customer's trial by a whole number of days (1 to 365). */
+export async function extendCustomerTrial(customerId: string, days: number): Promise<PartnerCustomerRow> {
+  const res = await authFetch(portalUrl(`/customers/${enc(customerId)}/trial`), jsonBody({ days }));
+  const data = await readJson<{ customer?: PartnerCustomerRow }>(res, 'Could not extend the trial.');
   return data.customer as PartnerCustomerRow;
 }
 
