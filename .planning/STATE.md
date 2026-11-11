@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
 status: executing
-stopped_at: Completed 88-14-PLAN.md
-last_updated: "2026-11-11T07:26:41.355Z"
+stopped_at: Completed 88-15-PLAN.md
+last_updated: "2026-11-11T07:40:29.053Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 88 execution started
-state_head: e44298d20249c3183f1503866d84e4ac5523693c
+state_head: a8ce332c7d7dd87517482feeef0659fc1eda82f1
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 155
+  completed_plans: 156
   percent: 75
 ---
 
@@ -675,6 +675,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 88]: 88-11: adopt_plan_seats filters through the direct-tenant filter and is guarded by a missing maxAgentsBeforePlans record, so migration 034's seat overwrite is recorded once, never touches partner customers or the platform, and a second run writes nothing
 - [Phase 88]: 88-11: a tenant whose stored plan seats are unusable is treated like Custom (keeps its number as seatOverride); check_plan_golive.py accepts plan seats or seatOverride and tests agent publicIp against allowedNetworks
 - [Phase 88]: 88-14: moved-agents list renders for deciders even when nothing waits (refreshKey from the panel); bulk approve confirms only for cross-tenant or new-network rows
+- [Phase 88]: 88-15: the partner screens follow the UI-SPEC over the plan text (Mon D, YYYY dates, one shared note on greyed picker rows, current plan always listed, 910px Plan column); unknown_plan is worded once in partnerFailureText
 
 ## Performance Metrics
 
@@ -985,6 +986,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P13 | 12 min | 2 tasks | 8 files |
 | Phase 88 P11 | 52 min | 2 tasks | 4 files |
 | Phase 88 P14 | 12 min | 2 tasks | 4 files |
+| Phase 88 P15 | 30 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1019,8 +1021,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-11T07:26:41.032Z
-**Stopped at:** Completed 88-14-PLAN.md
+**Last session:** 2026-11-11T07:40:28.737Z
+**Stopped at:** Completed 88-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1049,7 +1051,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
-Plan: 15 of 16
+Plan: 16 of 16
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
