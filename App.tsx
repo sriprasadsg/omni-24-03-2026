@@ -1276,6 +1276,8 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error('[App] Error adding tenant:', error);
       showToast(error.message || "Failed to add tenant. Please try again.", 'error');
+      // Rethrow so AddNewTenantModal stays open with the typed values and shows the refusal (UI-SPEC S3, G-18).
+      throw error;
     }
   };
 
