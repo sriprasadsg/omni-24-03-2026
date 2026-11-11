@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from authentication_endpoints import PENDING_TENANT_STATUS, PENDING_USER_STATUS
 from authentication_service import get_current_user
 from catalogue_mounts_billing_identity import TENANT_MANAGEMENT_GUARD
+import plan_trial
 from database import mongodb
 from rbac_utils import is_super_admin
 
@@ -139,6 +140,10 @@ async def approve_signup(tenant_id: str, current_user=Depends(get_current_user))
         {"$set": {"status": "active", "approvedAt": now, "approvedBy": current_user.username}})
     if getattr(approved, "matched_count", 1) == 0:
         raise HTTPException(status_code=409, detail="This sign-up was removed while it was being approved.")
+    try:  # D-23: the Free trial starts now; the hourly job and the Super Admin can still fix seats or extend
+        await plan_trial.start_for_signup(mongodb.db, tenant_id)
+    except Exception as exc:
+        logger.warning("Trial of approved sign-up %s was not started: %s", tenant_id, exc)
     await _audit(current_user, "tenant.signup_approved", tenant, f"Approved sign-up of '{tenant.get('name')}'")
     return {"approved": tenant_id, "usersActivated": getattr(users, "modified_count", 0)}
 

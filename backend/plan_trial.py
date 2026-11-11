@@ -149,3 +149,70 @@ async def extend(db, tenant_id: str, days: int, *, actor: Any, via: str) -> Dict
         message=f"The Free trial of {name} now ends on {new_end.date().isoformat()}.", actor=actor,
         before=_iso(old) if old else None, after=_iso(new_end), days=days, via=via)
     return view(await raw.tenants.find_one({"id": tenant_id}, {"_id": 0}))
+
+
+async def start_for_signup(db, tenant_id: str) -> bool:
+    """Start the trial of a self sign-up when the Super Admin approves it (D-23) and set its seats from the
+    Free plan. True when the trial started now; calling it again changes nothing. A tenant on a paid plan,
+    a partner or its customer, or one that already has a trial record keeps what it has."""
+    import licensing
+    import plan_service
+    raw = _raw(db)
+    tenant = await raw.tenants.find_one({"id": tenant_id}, {"_id": 0, "type": 1, "partnerId": 1,
+                                                          "subscriptionTier": 1, FIELD: 1})
+    if (tenant is None or plan_service.is_exempt(tenant_id) or tenant.get("type") == "partner"
+            or tenant.get("partnerId") or plan_service.plan_key_of(tenant) != "Free"):
+        return False
+    terms = await plan_service.new_tenant_terms(db, "Free", None)
+    started = False
+    if FIELD not in tenant:
+        won = await raw.tenants.update_one({"id": tenant_id, FIELD: {"$exists": False}}, {"$set": {FIELD: terms["trial"]}})
+        started = won.modified_count == 1
+    await licensing.set_plan_seats(db, tenant_id, terms["max_agents"])  # skips a tenant with an override
+    return started
+
+
+async def send_trial_reminders(db, now: Optional[datetime] = None) -> int:
+    """Remind a running Free trial's administrators 7 and 1 days before it ends, once per threshold (D-16).
+
+    The platform feed and the tenant's admins are told; a partner's customer also lands in the partner's own
+    feed (no audience tag: the partner already sees that customer). Mirrors license_rules.send_expiry_reminders:
+    the threshold is claimed by one atomic update first, so two overlapping runs never double-send.
+    Returns how many reminders went out."""
+    import pending_agents
+    import plan_service
+    raw = _raw(db)
+    now = now or datetime.now(timezone.utc)
+    sent = 0
+    running = {f"{FIELD}.endsAt": {"$type": "string"}, f"{FIELD}.consumed": {"$ne": True},
+               "type": {"$ne": "partner"}, "id": {"$ne": plan_service.PLATFORM_TENANT_ID}}
+    async for tenant in raw.tenants.find(running, {"_id": 0, "id": 1, "name": 1, "partnerId": 1,
+                                                  "subscriptionTier": 1, FIELD: 1}):
+        if plan_service.plan_key_of(tenant) != "Free" or ended(tenant, now):
+            continue
+        at = ends_at(tenant)
+        if at is None:
+            continue
+        done = set(tenant[FIELD].get("remindersSent") or [])
+        due = [d for d in TRIAL_REMINDER_DAYS if at - now <= timedelta(days=d) and d not in done]
+        if not due:
+            continue
+        threshold = min(due)  # one reminder for the closest threshold crossed
+        won = await raw.tenants.update_one(
+            {"id": tenant["id"], f"{FIELD}.remindersSent": {"$nin": [threshold]}},
+            {"$addToSet": {f"{FIELD}.remindersSent": {"$each": due}}})
+        if won.modified_count != 1:
+            continue
+        label = tenant.get("name") or tenant["id"]
+        left = max(1, math.ceil((at - now) / timedelta(days=1)))
+        title = f"Free trial of {label} ends in {left} day{'s' if left > 1 else ''}"
+        message = (f"The Free trial of {label} ends on {at.date().isoformat()}. After that, new agents are held "
+                   "for approval; running agents and every screen keep working.")
+        metadata = {"event": "trial.reminder", "tenantId": tenant["id"], "daysLeft": left,
+                    "endsAt": _iso(at), "threshold": threshold}
+        await pending_agents.post_to_recipients(raw, tenant, title, message, "warning", metadata)
+        if tenant.get("partnerId"):
+            await pending_agents._post_in_app(raw, tenant["partnerId"], title, message, "warning",
+                                              {**metadata, "customerId": tenant["id"]})
+        sent += 1
+    return sent

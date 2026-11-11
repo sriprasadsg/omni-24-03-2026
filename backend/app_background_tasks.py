@@ -351,10 +351,12 @@ async def license_seat_tick(db, runs: int) -> None:
     import license_rules
     import licensing
     import partner_pool
+    import plan_trial
 
     _log = logging.getLogger(__name__ + ".license_seats")
     steps = [licensing.reconcile_all, partner_pool.reconcile_pools] if runs % 24 == 0 else []
-    for step in steps + [licensing.reclaim_inactive_agents, license_rules.send_expiry_reminders]:
+    for step in steps + [licensing.reclaim_inactive_agents, license_rules.send_expiry_reminders,
+                         plan_trial.send_trial_reminders]:
         try:
             await step(db)
         except Exception as exc:
