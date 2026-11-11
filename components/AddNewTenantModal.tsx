@@ -1,24 +1,35 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
+import { PLAN_KEYS } from '../services/plansApi';
 
 interface AddNewTenantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (tenantData: { name: string; subscriptionTier: string }) => void;
+  onSave: (tenantData: { name: string; subscriptionTier: string; maxAgents?: number }) => void;
 }
 
 export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, onClose, onSave }) => {
   const [tenantName, setTenantName] = useState('');
-  const [subscriptionTier, setSubscriptionTier] = useState('Enterprise');
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('Free');
+  // Custom is set per tenant by contract (D-24): its seats are asked for here.
+  const [seats, setSeats] = useState('');
+  const [seatsError, setSeatsError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tenantName.trim()) {
+      const custom = subscriptionTier === 'Custom';
+      if (custom && (!/^\d+$/.test(seats.trim()) || Number(seats) > 1_000_000)) {
+        setSeatsError('Seats must be a whole number from 0 to 1,000,000.');
+        return;
+      }
+      setSeatsError('');
       setIsSubmitting(true);
       try {
-        await onSave({ name: tenantName.trim(), subscriptionTier });
+        await onSave({ name: tenantName.trim(), subscriptionTier, ...(custom ? { maxAgents: Number(seats) } : {}) });
         setTenantName('');
+        setSeats('');
         onClose();
       } catch (error) {
         console.error("Failed to add tenant:", error);
@@ -79,12 +90,28 @@ export const AddNewTenantModal: React.FC<AddNewTenantModalProps> = ({ isOpen, on
               onChange={(e) => setSubscriptionTier(e.target.value)}
               className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white transition-all"
             >
-              <option value="Free">Free</option>
-              <option value="Pro">Pro</option>
-              <option value="Enterprise">Enterprise</option>
-              <option value="Custom">Custom</option>
+              {PLAN_KEYS.map(key => <option key={key} value={key}>{key}</option>)}
             </select>
           </div>
+
+          {subscriptionTier === 'Custom' && (
+            <div>
+              <label htmlFor="tenantSeats" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Seats</label>
+              <input
+                type="number"
+                id="tenantSeats"
+                min={0}
+                max={1000000}
+                step={1}
+                value={seats}
+                onChange={(e) => setSeats(e.target.value)}
+                required
+                className="block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white transition-all"
+                placeholder="e.g., 40"
+              />
+              {seatsError && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{seatsError}</p>}
+            </div>
+          )}
         </div>
       </form>
     </Modal>

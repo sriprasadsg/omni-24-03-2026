@@ -2472,7 +2472,7 @@ export const registerNewTenant = async (payload: NewTenantPayload) => {
     return { success: true, newUser, newTenant };
 };
 
-export const addTenant = async (tenantData: { name: string; subscriptionTier?: string; enabledFeatures?: string[] }) => {
+export const addTenant = async (tenantData: { name: string; subscriptionTier?: string; enabledFeatures?: string[]; maxAgents?: number }) => {
     try {
         const response = await authFetch(`${API_BASE}/tenants`, {
             method: 'POST',
@@ -2480,7 +2480,8 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
             // until a Super Admin ticks it in Manage Tenant (spec C6).
             body: JSON.stringify({
                 name: tenantData.name,
-                subscriptionTier: tenantData.subscriptionTier || 'Enterprise',
+                subscriptionTier: tenantData.subscriptionTier || 'Free',
+                ...(typeof tenantData.maxAgents === 'number' ? { maxAgents: tenantData.maxAgents } : {}),
                 ...(tenantData.enabledFeatures ? { enabledFeatures: tenantData.enabledFeatures } : {}),
             })
         });

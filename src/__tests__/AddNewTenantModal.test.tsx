@@ -58,7 +58,7 @@ describe('AddNewTenantModal plan choice', () => {
 
 describe('apiService.addTenant (D-24)', () => {
   const stubFetch = () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 't9', name: 'X' }) });
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ id: 't9', name: 'X' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     return fetchMock;
   };

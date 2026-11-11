@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { Tenant, Permission, SubscriptionTier } from '../types';
 import { TrashIcon } from './icons';
-import { SUBSCRIPTION_TIERS } from '../constants';
+import { PLAN_KEYS, Plan, allowedScreens, fetchPlans } from '../services/plansApi';
 import { Modal } from './Modal';
 import { TenantLicensePanel } from './TenantLicensePanel';
 import { TenantEnrollmentKeysPanel } from './TenantEnrollmentKeysPanel';
@@ -27,7 +27,8 @@ const switchByPermission = new Map(permissionGroups.flatMap(g => g.features).map
 const allToggleableFeatures = [...switchByPermission.keys()];
 // "screen:<view>" switches: one sidebar item each (backend tenant_features.SCREEN_SWITCHES). A tenant
 // sees only what a Super Admin ticked: switching a feature on (or picking a tier) never switches
-// its screens on, so each screen is ticked here one by one.
+// its screens on, so each screen is ticked here one by one. A plan is a ceiling (Phase 88, D-27): the
+// chosen plan's screen list disables the boxes outside it, and choosing a plan ticks nothing.
 
 // Agent capabilities a tenant's agents may use (backend agent_capabilities.py reads the same list).
 type AgentCapabilityEntry = { id: string; label: string; description: string; alwaysOn?: boolean };
@@ -50,6 +51,8 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   const [purchased, setPurchased] = useState<Set<string>>(new Set());
   const [frameworkQuery, setFrameworkQuery] = useState('');
   const [agentCaps, setAgentCaps] = useState<Set<string>>(new Set(alwaysOnCapabilities));
+  // The plan table; if it cannot be loaded every box stays enabled (the server still refuses).
+  const [plans, setPlans] = useState<Plan[]>([]);
 
   useEffect(() => {
     if (tenant) {
@@ -76,29 +79,12 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     if (isOpen) fetchServices();
   }, [isOpen]);
 
-  // Effect to sync tier with permissions
   useEffect(() => {
-    if (!tenant) return;
-    const currentPermissions = Array.from(enabledFeatures).filter(p => !(p as string).startsWith('service:')).sort();
-
-    let matchedTier: SubscriptionTier = 'Custom';
-
-    for (const tier in SUBSCRIPTION_TIERS) {
-      const tierKey = tier as Exclude<SubscriptionTier, 'Custom'>;
-      const tierPermissions = [...SUBSCRIPTION_TIERS[tierKey].permissions].sort();
-      if (JSON.stringify(currentPermissions) === JSON.stringify(tierPermissions)) {
-        matchedTier = tierKey;
-        break;
-      }
-    }
-    // Only update if standard permissions define a tier, ignoring services for tier detecion
-    if (currentTier !== matchedTier && matchedTier !== 'Custom') {
-      // Optional: Logic to allow 'Custom' even if it matches a tier, 
-      // but here we auto-detect tier.
-      // setCurrentTier(matchedTier); 
-      // NOTE: We skip auto-switching to avoid overriding custom service selections
-    }
-  }, [enabledFeatures, tenant, currentTier]);
+    if (!isOpen) return;
+    let live = true;
+    fetchPlans().then(p => { if (live) setPlans(p); }).catch(() => { if (live) setPlans([]); });
+    return () => { live = false; };
+  }, [isOpen]);
 
   const handleFeatureToggle = (feature: string) => {
     setEnabledFeatures(prev => {
@@ -112,11 +98,13 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     });
   };
 
+  const allowed = allowedScreens(plans.find(p => p.key === currentTier));
+  const inPlan = (feature: string) => allowed === 'all' || allowed.has(feature);
+
   const handleToggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const all = new Set(allToggleableFeatures);
-      // Don't auto-select services for "Select All" to avoid massive billing
-      setEnabledFeatures(all);
+      // Ticks only what the chosen plan allows; services are never auto-selected (billing).
+      setEnabledFeatures(prev => new Set([...prev, ...allToggleableFeatures.filter(inPlan)]));
     } else {
       // Clear only standard features
       const newSet = new Set(enabledFeatures);
@@ -125,16 +113,9 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     }
   };
 
+  // D-27: the plan only limits what can be ticked; picking one changes no box.
   const handleTierChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newTier = e.target.value as SubscriptionTier;
-    setCurrentTier(newTier);
-    if (newTier !== 'Custom') {
-      const tierPermissions = SUBSCRIPTION_TIERS[newTier as Exclude<SubscriptionTier, 'Custom'>].permissions;
-      // The tier sets the features; service selections and the screens already ticked stay
-      // (a screen still needs its feature on to count).
-      const kept = Array.from(enabledFeatures).filter(f => f.startsWith('service:') || f.startsWith('screen:'));
-      setEnabledFeatures(new Set([...tierPermissions, ...kept]));
-    }
+    setCurrentTier(e.target.value as SubscriptionTier);
   };
 
   const handleSave = () => {
@@ -159,7 +140,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
 
   if (!tenant) return null;
 
-  const allSelected = allToggleableFeatures.every(f => enabledFeatures.has(f));
+  const allSelected = allToggleableFeatures.filter(inPlan).every(f => enabledFeatures.has(f));
   // Per-framework prices come from Service Pricing Configuration (entries with a frameworkId).
   const billableServices = dynamicServices.filter(service => !service.frameworkId);
   const frameworkPrices = dynamicServices.filter(service => service.frameworkId);
@@ -178,18 +159,24 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   const renderSwitch = (feature: FeatureSwitch, nested: boolean) => {
     const parentOff = !!feature.parent && !enabledFeatures.has(feature.parent);
     const parentLabel = feature.parent ? switchByPermission.get(feature.parent)?.label ?? feature.parent : '';
+    const ticked = enabledFeatures.has(feature.permission) && !parentOff;
+    // A screen the tenant already has outside the plan stays ticked and can be unticked; once off it cannot come back.
+    const outsidePlan = !inPlan(feature.permission);
+    const planOff = outsidePlan && !ticked;
+    const title = parentOff ? `Needs ${parentLabel}` : planOff ? `Not part of the ${currentTier} plan` : undefined;
     return (
-      <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff ? 'opacity-50' : ''}`}
-        title={parentOff ? `Needs ${parentLabel}` : undefined}>
+      <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff || planOff ? 'opacity-50' : ''}`}
+        title={title}>
         <input
           type="checkbox"
-          checked={enabledFeatures.has(feature.permission) && !parentOff}
-          disabled={parentOff}
+          checked={ticked}
+          disabled={parentOff || planOff}
           onChange={() => handleFeatureToggle(feature.permission)}
           className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
         />
         <span className="text-sm text-gray-600 dark:text-gray-400">
           {feature.label}
+          {outsidePlan && ticked && <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">outside plan</span>}
           {feature.parent && !nested && <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">(needs {parentLabel})</span>}
         </span>
       </label>
@@ -239,16 +226,15 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
           <TenantAllowlistPanel tenantId={tenant.id} canManage />
           <div>
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Subscription Tier</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select a base subscription tier.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              The plan limits which screens can be ticked below; choosing one ticks nothing.
+            </p>
             <select
               value={currentTier}
               onChange={handleTierChange}
               className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm dark:text-white"
             >
-              {(Object.keys(SUBSCRIPTION_TIERS) as Exclude<SubscriptionTier, 'Custom'>[]).map(tier => (
-                <option key={tier} value={tier}>{SUBSCRIPTION_TIERS[tier].name}</option>
-              ))}
-              <option value="Custom">Custom</option>
+              {PLAN_KEYS.map(key => <option key={key} value={key}>{key}</option>)}
             </select>
           </div>
 
