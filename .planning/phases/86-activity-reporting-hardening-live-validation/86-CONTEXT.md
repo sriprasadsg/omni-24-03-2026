@@ -29,6 +29,7 @@ Not in this phase: changing a tenant's level or maximum level from the UI, editi
 - **D-01:** Delivered as an in-app notice to each tenant's admins through the existing recipients path, and also by email when SMTP is configured (it is not on this VM, so in-app only here). A failed email never blocks the in-app notice.
 - **D-02:** Sent once a day at **07:00 UTC** for every tenant (after the 02:00 retention run and the 02:30 backup). Tenants have no stored time zone; no per-tenant hour setting.
 - **D-03:** **Quiet days send nothing:** no digest when nothing ran, nothing was undone and nothing is waiting for approval in the last 24 hours.
+  - **Amended 2026-11-11 (user, during UI-SPEC):** simulation items count as activity. A day whose only items are shadow-mode "would have done" entries still sends the digest (counts line `0 ran, 0 undone, 0 waiting` plus the simulation section), so admins can watch the observation week. Quiet = nothing ran, undone, waiting and no simulation items.
 - **D-04:** Content: counts for ran / undone / waiting, the first **10** items of each section, and a link to the Autonomous Ops screen. Shadow-mode "would have done" items are a **separate, labelled section** (simulation), never counted as ran.
 
 ### Statistics and time saved (ACTV-05, ACTV-07)
