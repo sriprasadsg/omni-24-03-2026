@@ -117,6 +117,7 @@ describe('PartnerFormModal, appoint mode', () => {
       poolSize: 250,
       expiresAt: '2027-01-31T23:59:59Z',
       screenCeiling: ['view:cxo_dashboard'],
+      planCeiling: ['Free'],
       adminName: 'Pat Admin',
       adminEmail: 'pat@northwind.example',
     });
@@ -214,6 +215,45 @@ describe('PartnerFormModal, appoint mode', () => {
     fireEvent.click(submitButton('Appoint partner'));
     const line = await screen.findByText(`${longName} was appointed.`);
     expect(line.className).toContain('break-words');
+  });
+
+  it('offers Plans this partner can sell with only Free ticked, and sends the plans ticked (LIC-02, D-13)', async () => {
+    appointPartner.mockResolvedValue({ partner: partner(), emailSent: true });
+    const { onClose } = open();
+    expect(screen.getByText('Plans this partner can sell')).toBeTruthy();
+    expect(screen.getByText('A partner can only set these plans on its customers. Customers already on another plan stay on it.')).toBeTruthy();
+    const box = (n: string) => screen.getByRole('checkbox', { name: n }) as HTMLInputElement;
+    expect(['Free', 'Pro', 'Enterprise', 'Custom'].map(n => box(n).checked)).toEqual([true, false, false, false]);
+    fillValid();
+    fireEvent.click(box('Pro'));
+    fireEvent.click(submitButton('Appoint partner'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(appointPartner.mock.calls[0][0].planCeiling).toEqual(['Free', 'Pro']);
+  });
+
+  it('shows an amber status, and still saves, when no plan is ticked', async () => {
+    appointPartner.mockResolvedValue({ partner: partner(), emailSent: true });
+    const { onClose } = open();
+    expect(screen.queryByText("No plan ticked: this partner can't create customers or change plans.")).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Free' }));
+    const note = screen.getByText("No plan ticked: this partner can't create customers or change plans.");
+    expect(note.closest('[role="status"]')).toBeTruthy();
+    fillValid();
+    fireEvent.click(submitButton('Appoint partner'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(appointPartner.mock.calls[0][0].planCeiling).toEqual([]);
+  });
+
+  it('shows the invalid_plan refusal as the stale-page sentence in the red block and keeps the ticks', async () => {
+    appointPartner.mockRejectedValue(new PartnerApiError('Unknown plan', 422, 'invalid_plan'));
+    const { onClose } = open();
+    fillValid();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enterprise' }));
+    fireEvent.click(submitButton('Appoint partner'));
+    const block = await screen.findByText("That plan isn't available. Reload the page and try again.");
+    expect(block.closest('[role="alert"]')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Enterprise' }) as HTMLInputElement).checked).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -325,6 +365,26 @@ describe('PartnerFormModal, edit mode', () => {
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeTruthy();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows the saved planCeiling ticked and sends only planCeiling when a plan is unticked (LIC-02, D-13)', async () => {
+    updatePartner.mockResolvedValue(partner({ planCeiling: ['Free'] }));
+    const { onClose } = open({ planCeiling: ['Free', 'Pro'] });
+    const box = (n: string) => screen.getByRole('checkbox', { name: n }) as HTMLInputElement;
+    expect(['Free', 'Pro', 'Enterprise', 'Custom'].map(n => box(n).checked)).toEqual([true, true, false, false]);
+    expect(submitButton('Save partner').disabled).toBe(true);
+    fireEvent.click(box('Pro'));
+    expect(submitButton('Save partner').disabled).toBe(false);
+    fireEvent.click(submitButton('Save partner'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(updatePartner).toHaveBeenCalledWith('p1', { planCeiling: ['Free'] });
+  });
+
+  it('reads a partner summary without planCeiling as Free ticked and unchanged', () => {
+    open();
+    const box = (n: string) => screen.getByRole('checkbox', { name: n }) as HTMLInputElement;
+    expect(['Free', 'Pro', 'Enterprise', 'Custom'].map(n => box(n).checked)).toEqual([true, false, false, false]);
+    expect(submitButton('Save partner').disabled).toBe(true);
   });
 });
 
