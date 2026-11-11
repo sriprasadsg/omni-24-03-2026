@@ -33,7 +33,7 @@ export const TenantPlanCard: React.FC<{ tenantId: string }> = ({ tenantId }) => 
     <section className="glass rounded-2xl p-5" data-testid="tenant-plan-card" aria-label="Your plan">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Your plan</h3>
-        <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{view.plan}</span>
+        <span className="text-sm font-semibold text-gray-900 dark:text-white">{view.plan}</span>
       </div>
       <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
         {view.seatsUsed} of {view.maxAgents} seats used
@@ -50,17 +50,22 @@ export const TenantPlanCard: React.FC<{ tenantId: string }> = ({ tenantId }) => 
         </p>
       )}
       <div className="mt-3">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Allowed networks</p>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Allowed networks</p>
         {view.allowedNetworks.length === 0 ? (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             No network learned yet: the first computer you enroll sets it.
           </p>
         ) : (
-          <ul className="mt-1 space-y-0.5">
-            {view.allowedNetworks.map(n => (
-              <li key={n.cidr} className="text-sm text-gray-700 dark:text-gray-300">{`${networkLabel(n.cidr)} (${n.source})`}</li>
-            ))}
-          </ul>
+          <>
+            <ul className="mt-1 space-y-1">
+              {view.allowedNetworks.map(n => (
+                <li key={n.cidr} className="text-sm text-gray-700 dark:text-gray-300 break-all">{`${networkLabel(n.cidr)} (${n.source})`}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Computers enrolling from any other network wait for approval.
+            </p>
+          </>
         )}
       </div>
     </section>

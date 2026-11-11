@@ -8,6 +8,12 @@ interface TenantLicensePanelProps {
 const OS_KEYS = ['os:windows_workstation', 'os:windows_server', 'os:linux', 'os:macos'];
 
 const dateOf = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
+/** `Mon D, YYYY` in UTC, the one date format of the plan screens (UI-SPEC S5); '' when absent or not a date. */
+const prettyDate = (iso: string | null) => {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime())
+    ? d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }) : '';
+};
 const sameLimits = (a: LicenceSubLimit[], b: LicenceSubLimit[]) =>
   a.length === b.length && a.every((s, i) => s.key === b[i].key && s.max === b[i].max);
 
@@ -30,6 +36,9 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
   const [saved, setSaved] = useState(false);
   const [extendDays, setExtendDays] = useState('7');
   const [acting, setActing] = useState(false);
+  // What "Use plan number" or "Extend" just did, so the change on screen is never silent (UI-SPEC S5).
+  const [notice, setNotice] = useState<string | null>(null);
+  const [extendPending, setExtendPending] = useState(false);
 
   const adopt = (l: LicenceView) => {
     setLicense(l);
@@ -67,6 +76,7 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
     setSaving(true);
     setError(null);
     setSaved(false);
+    setNotice(null);
     try {
       const changes: LicenceChanges = {
         maxAgents: parsedMax, inactiveReclaimDays: parsedDays, allowlistMode, subLimits: parsedLimits,
@@ -81,16 +91,19 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
     }
   };
 
-  const touch = () => setSaved(false);
+  const touch = () => { setSaved(false); setNotice(null); };
 
   // "Use plan number" and "Extend" are their own PATCH; the server answers the whole licence view.
-  const act = async (changes: LicenceChanges, reset: boolean) => {
+  const act = async (changes: LicenceChanges, reset: boolean, describe: (next: LicenceView) => string) => {
     setActing(true);
+    setExtendPending(changes.trialExtendDays !== undefined);
     setError(null);
     setSaved(false);
+    setNotice(null);
     try {
       const next = await updateLicence(tenantId, changes);
       if (reset) adopt(next); else setLicense(next);
+      setNotice(describe(next));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -129,26 +142,34 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
             <p className="text-xs text-gray-500 dark:text-gray-400">The partner's allotment sets the seats for this customer.</p>
           )}
           {canUsePlanNumber && (
-            <button type="button" disabled={acting} onClick={() => act({ clearSeatOverride: true }, true)}
-                    className="mt-1 text-xs text-primary-600 dark:text-primary-400 disabled:opacity-50">Use plan number</button>
+            <button type="button" disabled={acting} onClick={() => act({ clearSeatOverride: true }, true,
+                      next => `Seat limit is the plan's number again (${next.maxAgents}).`)}
+                    className="mt-1 min-h-8 px-2 text-sm font-semibold text-gray-900 dark:text-white underline underline-offset-2 disabled:opacity-60 disabled:no-underline">Use plan number</button>
           )}
         </div>
       )}
       {license && license.plan === 'Free' && trial && (
         <div className="mb-3 rounded-md bg-gray-50 dark:bg-gray-900/40 p-3 text-sm text-gray-700 dark:text-gray-300" data-testid="license-trial-row">
           <p>
-            {`Free trial ends ${dateOf(trial.endsAt)}: `}
+            Free trial ends <span title={dateOf(trial.endsAt)}>{prettyDate(trial.endsAt) || dateOf(trial.endsAt)}</span>{': '}
             <strong>{trial.ended ? 'ended' : `${trial.daysLeft} ${trial.daysLeft === 1 ? 'day' : 'days'} left`}</strong>
           </p>
-          <div className="mt-1 flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-2">
               Extend trial by (days)
               <input type="number" min={1} max={365} className={`${inputClass} w-24`} value={extendDays}
                      onChange={e => setExtendDays(e.target.value)} />
             </label>
-            <button type="button" disabled={!extendValid || acting} onClick={() => act({ trialExtendDays: parsedExtend }, false)}
-                    className="px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-50">Extend</button>
+            <button type="button" disabled={!extendValid || acting} aria-describedby={`extend-effect-${tenantId}`}
+                    onClick={() => act({ trialExtendDays: parsedExtend }, false,
+                      next => `Trial now ends ${prettyDate(next.trial?.endsAt ?? null) || 'on the new date'}.`)}
+                    className="min-h-10 px-4 text-sm font-semibold rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-50">
+              {acting && extendPending ? 'Extending...' : 'Extend'}
+            </button>
           </div>
+          <p id={`extend-effect-${tenantId}`} className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Counts from today if the trial has ended. Recorded in the audit log.
+          </p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -210,15 +231,16 @@ export const TenantLicensePanel: React.FC<TenantLicensePanelProps> = ({ tenantId
           <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Allowed networks</p>
           {license.allowedNetworks.length === 0
             ? <p className="text-xs text-gray-500 dark:text-gray-400">None yet: the first computer to enroll sets the network.</p>
-            : <ul className="mt-1 space-y-0.5">{license.allowedNetworks.map(n => (
+            : <ul className="mt-1 space-y-1">{license.allowedNetworks.map(n => (
                 <li key={n.cidr} className="text-sm text-gray-700 dark:text-gray-300">{`${n.cidr} (${n.source})`}</li>))}</ul>}
         </div>
       )}
 
       {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">{error}</p>}
+      {notice && <p className="mt-2 text-xs text-green-700 dark:text-green-400" role="status">{notice}</p>}
       <div className="mt-3 flex items-center gap-3">
         <button type="button" onClick={save} disabled={!valid || !dirty || saving}
-                className="px-3 py-1.5 text-sm rounded-md bg-primary-600 text-white disabled:opacity-50">
+                className="min-h-10 px-4 text-sm font-semibold rounded-md bg-primary-600 text-white disabled:opacity-50">
           {saving ? 'Saving…' : 'Save license'}
         </button>
         {saved && <span className="text-xs text-green-600 dark:text-green-400">Saved</span>}
