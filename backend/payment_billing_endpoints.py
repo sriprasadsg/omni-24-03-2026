@@ -16,6 +16,7 @@ import logging
 
 from payment_gateway_endpoints import get_tenant_gateway
 from billing_service import BillingService
+import plan_service
 from catalogue_mounts_billing_identity import INVOICES_GUARD, SUBSCRIPTION_GUARD
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class SubscriptionCreate(BaseModel):
-    plan: str
+    plan: str = Field(..., max_length=32)
     price_id: str
 
 
@@ -39,6 +40,9 @@ async def create_subscription(
     current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Create a subscription for the tenant."""
+    plan = plan_service.normalize_plan(subscription.plan)
+    if plan is None or plan == "Custom":  # Custom is set by contract, never here
+        raise HTTPException(status_code=422, detail="Unknown plan; choose Free, Pro or Enterprise")
     db = get_database()
     tenant_id = current_user.tenant_id
     gateway, gateway_config = await get_tenant_gateway(db, tenant_id)
@@ -59,11 +63,11 @@ async def create_subscription(
     sub = await gateway.create_subscription(
         customer_id=customer_doc["gatewayCustomerId"],
         price_id=subscription.price_id,
-        metadata={"tenantId": tenant_id, "plan": subscription.plan},
+        metadata={"tenantId": tenant_id, "plan": plan},
     )
     subscription_doc = {
         "tenantId": tenant_id, "gateway": gateway_config["gateway"],
-        "gatewaySubscriptionId": sub["id"], "plan": subscription.plan,
+        "gatewaySubscriptionId": sub["id"], "plan": plan,
         "status": sub["status"],
         "currentPeriodStart": datetime.fromtimestamp(sub["current_period_start"], tz=timezone.utc).isoformat(),
         "currentPeriodEnd": datetime.fromtimestamp(sub["current_period_end"], tz=timezone.utc).isoformat(),
@@ -73,7 +77,8 @@ async def create_subscription(
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
     await db.subscriptions.insert_one(subscription_doc)
-    await db.tenants.update_one({"id": tenant_id}, {"$set": {"subscriptionTier": subscription.plan}})
+    # D-39: recording a subscription does not change the tenant's plan; the Super Admin (or the partner, for its
+    # customers) applies it through plan_service.change_plan. A tenant user can never set a plan from here.
     return {"success": True, "subscription": subscription_doc}
 
 
@@ -178,7 +183,7 @@ async def cancel_subscription(current_user: TokenData = Depends(require_permissi
             {"$set": {"status": "active", "cancelRequestedAt": None}},
         )
         raise
-    await db.tenants.update_one({"id": tenant_id}, {"$set": {"subscriptionTier": "Free"}})
+    # D-39: cancelling does not change the plan either; the plan is applied through plan_service.change_plan.
     return {"success": True, "message": "Subscription canceled successfully"}
 
 

@@ -135,12 +135,10 @@ async def change_plan(db, tenant_id: str, new_plan: Any, *, actor: Any, via: str
 
     stored = tenant.get("subscriptionTier")
     now = datetime.now(timezone.utc)
-    update: Dict[str, Any] = {"subscriptionTier": key, "updatedAt": now.isoformat()}
-    if not isinstance(tenant.get(plan_trial.FIELD), dict):
-        update[plan_trial.FIELD] = plan_trial.consumed_trial(now)
+    no_trial = {} if isinstance(tenant.get(plan_trial.FIELD), dict) else {plan_trial.FIELD: plan_trial.consumed_trial(now)}
     won = await raw.tenants.update_one(
         {"id": tenant_id, "subscriptionTier": stored if "subscriptionTier" in tenant else {"$exists": False}},
-        {"$set": update})
+        {"$set": {"subscriptionTier": key, "updatedAt": now.isoformat(), **no_trial}})
     if won.matched_count == 0:
         raise PlanError(409, "plan_changed", "The plan changed while you were saving. Try again.")
 
