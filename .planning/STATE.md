@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
 status: executing
-stopped_at: Completed 88-05-PLAN.md
-last_updated: "2026-11-11T01:52:54.686Z"
+stopped_at: Completed 88-06-PLAN.md
+last_updated: "2026-11-11T02:06:48.804Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 88 execution started
-state_head: c3dfc7cdb26f0489ddd093f8840370c1252bb99e
+state_head: 74a5146f4079e136188a71783c7e67788c26b5f5
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 146
+  completed_plans: 147
   percent: 75
 ---
 
@@ -665,6 +665,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 88]: Phase 88-05: the new_network hold decides only on request.client.host (server-observed); uvicorn trusts only 127.0.0.1 and ::1, pinned by test_proxy_headers. Start script flags handed to the user in 88-16
 - [Phase 88]: Phase 88-05: a missing or unparsable observed address holds a new machine new_network and teaches nothing; the first machine that passes earlier rules teaches a /32 atomically (learn_first)
 - [Phase 88]: Phase 88-05: approving a new_network hold allows the observed address or a validated widenTo (at most /24 or /48, contains the address); validated before any write, added after admission
+- [Phase 88]: 88-06: a trial extension sets trial.consumed false (and startedAt) so a tenant returned to Free after a paid plan is reminded once extended
 
 ## Performance Metrics
 
@@ -966,6 +967,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P03 | 10 min | 2 tasks | 6 files |
 | Phase 88 P04 | 25 min | 2 tasks | 6 files |
 | Phase 88 P05 | 25 min | 3 tasks | 13 files |
+| Phase 88 P06 | 25 min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1000,8 +1002,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-11T01:52:54.385Z
-**Stopped at:** Completed 88-05-PLAN.md
+**Last session:** 2026-11-11T02:06:48.471Z
+**Stopped at:** Completed 88-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1030,7 +1032,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
-Plan: 6 of 16
+Plan: 7 of 16
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)

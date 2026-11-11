@@ -712,7 +712,7 @@ Plans:
 **Goal:** A tenant's subscription plan (Free / Pro / Enterprise / Custom, the tiers already in `tenants.subscriptionTier` and `billing_service.SUBSCRIPTION_LIMITS`) decides what it may enroll and use: its agent seat limit (today `license.maxAgents` is set by hand), how many allowed public networks (sites) it may register and whether the network rule is available, which OS/server classes it may enroll (the existing C4 OS-class sub-limits), and which features it unlocks (the `minTier` already in `feature_catalog.py`, never checked today). Network rule (decided 2026-11-10): a tenant lists its allowed public networks (IPs or CIDR ranges); a NEW machine enrolling from outside them is held Pending for approval, like the C4 hardware allowlist, and machines already enrolled are never cut off, so roaming laptops keep working. Cross-tenant duplicate hold (added 2026-11-10): a machine whose hardware (serial or SMBIOS UUID) belongs to a live seat-holding agent in another tenant is held Pending for platform approval instead of enrolling a second time, so one licence cannot cover the same computer in two organizations (today each tenant gives it its own agent id and nothing checks across tenants). Builds on hardware-bound seats (`seat_identity`), `asset_identity`, `machine_identity` (one agent id per machine), `license_rules.hold_reason`, `pending_agents` and the Phase 87 partner seat pools.
 **Requirements**: LIC-01, LIC-02, LIC-03, LIC-04, LIC-05, LIC-06, LIC-07
 **Depends on:** Phase 87
-**Plans:** 5/16 plans executed
+**Plans:** 6/16 plans executed
 
 Plans:
 **Wave 1**
@@ -727,7 +727,7 @@ Plans:
 - [x] 88-05-PLAN.md — allowed networks on the server-observed IP: learn first, hold new networks, approve with bounded range
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 88-06-PLAN.md — trial extension and override clear in the licence PATCH; sign-up trial; 7/1-day reminders
+- [x] 88-06-PLAN.md — trial extension and override clear in the licence PATCH; sign-up trial; 7/1-day reminders
 - [ ] 88-07-PLAN.md — cross-tenant duplicate hold and silent-copy retirement at enrollment, without name leaks
 - [ ] 88-08-PLAN.md — Super Admin Plans API, seat edits applied at once
 
