@@ -368,3 +368,63 @@ async def test_create_with_screens_inside_the_plan_stores_them(wired):
     out = await te.create_tenant(te.TenantCreate(name="Y", subscriptionTier="Pro", enabledFeatures=["view:reporting"]),
                                  current_user=SUPER)
     assert "view:reporting" in out["enabledFeatures"] and out["subscriptionTier"] == "Pro"
+
+
+# -- the payment route records a subscription and never changes the plan (D-39) ---------------------
+
+import payment_billing_endpoints as pay
+
+TENANT_USER = TokenData(username="admin@t1.io", role="Tenant Admin", tenant_id="t1", mfa_verified=True)
+
+
+def _gateway():
+    gw = MagicMock()
+    gw.create_customer = AsyncMock(return_value={"id": "cus_1"})
+    gw.create_subscription = AsyncMock(return_value={
+        "id": "sub_1", "status": "active", "current_period_start": 1_700_000_000, "current_period_end": 1_702_600_000,
+        "plan": {"amount": 4900, "currency": "usd", "interval": "month"}})
+    gw.cancel_subscription = AsyncMock(return_value={"canceled_at": 1_701_000_000})
+    return gw
+
+
+@pytest.fixture
+def paying(mongo_db):
+    gw = _gateway()
+    with patch.object(pay, "get_database", return_value=mongo_db), \
+            patch.object(pay, "get_tenant_gateway", new=AsyncMock(return_value=(gw, {"gateway": "stripe"}))) as get_gw:
+        mongo_db.gw = gw
+        mongo_db.get_gw = get_gw
+        yield mongo_db
+
+
+async def test_subscribing_records_the_canonical_plan_and_leaves_the_tenants_plan_alone(paying):
+    await _tenant(paying)
+    out = await pay.create_subscription(pay.SubscriptionCreate(plan="pro", price_id="price_1"), current_user=TENANT_USER)
+    assert out["subscription"]["plan"] == "Pro"
+    stored = await paying.subscriptions.find_one({"tenantId": "t1"})
+    assert stored["plan"] == "Pro"
+    assert (await _get(paying))["subscriptionTier"] == "Free"
+    assert paying.gw.create_subscription.await_args.kwargs["metadata"]["plan"] == "Pro"
+
+
+@pytest.mark.parametrize("name", ["Custom", "Gold", "", "x" * 40])
+async def test_an_unknown_plan_or_custom_is_a_422_before_the_gateway_is_called(paying, name):
+    from pydantic import ValidationError
+    await _tenant(paying)
+    with pytest.raises((HTTPException, ValidationError)) as err:
+        await pay.create_subscription(pay.SubscriptionCreate(plan=name, price_id="price_1"), current_user=TENANT_USER)
+    if isinstance(err.value, HTTPException):
+        assert err.value.status_code == 422
+    assert paying.get_gw.await_count == 0 and paying.gw.create_subscription.await_count == 0
+    assert await paying.subscriptions.count_documents({}) == 0
+    assert (await _get(paying))["subscriptionTier"] == "Free"
+
+
+async def test_cancelling_a_subscription_leaves_the_plan_unchanged(paying):
+    await _tenant(paying, plan="Pro", seats=50)
+    await paying.subscriptions.insert_one({"tenantId": "t1", "status": "active", "gatewaySubscriptionId": "sub_1",
+                                           "plan": "Pro"})
+    out = await pay.cancel_subscription(current_user=TENANT_USER)
+    assert out["success"] is True
+    assert (await paying.subscriptions.find_one({"tenantId": "t1"}))["status"] == "canceled"
+    assert (await _get(paying))["subscriptionTier"] == "Pro"
