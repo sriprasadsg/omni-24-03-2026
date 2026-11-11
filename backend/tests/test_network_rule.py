@@ -9,15 +9,20 @@ or an allow adds a duplicate; no_claim=the enrollment route and the approval (la
 the proxy trust (test_proxy_headers.py).
 """
 import asyncio
+import json
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import network_rules as nr
+import pending_agent_endpoints as pae
 import pending_agents
+from auth_types import TokenData
 from tests import _enrollment_harness as harness
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
@@ -229,3 +234,110 @@ def test_the_reason_texts_live_in_one_module_and_name_the_address():
     assert hold_reasons.refusal_text("new_network", 5).startswith("new_network:")
     assert hold_reasons.refusal_text("seat_limit", 5).startswith("Agent limit reached (5)")
     assert pending_agents.reason_text("seat_limit") == hold_reasons.reason_text("seat_limit")
+
+
+# -- approval: the Super Admin allows a held network, optionally widened ----------------------------------
+
+SUPER = TokenData(username="root@example.com", role="Super Admin", tenant_id="platform-admin", mfa_verified=True)
+ADMIN = TokenData(username="admin@t1.example", role="Tenant Admin", tenant_id="t1", mfa_verified=True)
+
+
+async def _held_from_other(db, **tenant_kwargs):
+    """Tenant t1 with M1 enrolled from HOME and M2 held new_network from OTHER; returns M2's agent id."""
+    await harness.tenant(db, "t1", **tenant_kwargs)
+    assert (await harness.register(db, "M1", hardware=harness.hw("S1"), client_ip=HOME))[0] == 200
+    code, body = await harness.register(db, "M2", hardware=harness.hw("S2"), client_ip=OTHER)
+    assert code == 202
+    return body["agentId"]
+
+
+async def _approve(db, agent_id, user=SUPER, **body):
+    with patch.object(pae, "get_database", return_value=db), patch.object(pae, "invalidate_cache"), \
+            patch("audit_ledger.event", new=AsyncMock()):
+        return await pae.approve_pending_agent(agent_id, pae.ApproveBody(**body), user)
+
+
+def _error(response):
+    return response.status_code, json.loads(response.body)["error"]
+
+
+async def test_approving_a_new_network_allows_its_address_and_later_machines_enroll(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    out = await _approve(mongo_db, m2)
+    assert out["status"] == "Offline" and out["networkAllowed"] is True
+    stored = await _networks(mongo_db)
+    assert [(e["cidr"], e["source"], e["addedBy"]) for e in stored] == [
+        (f"{HOME}/32", "learned", None), (f"{OTHER}/32", "approved", "root@example.com")]
+    assert (await harness.register(mongo_db, "M4", hardware=harness.hw("S4"), client_ip=OTHER))[0] == 200
+
+
+async def test_widening_to_a_24_lets_a_neighbour_in(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    await _approve(mongo_db, m2, widenTo="198.51.100.0/24")
+    assert (await _networks(mongo_db))[-1]["cidr"] == "198.51.100.0/24"
+    assert (await harness.register(mongo_db, "M5", hardware=harness.hw("S5"), client_ip="198.51.100.200"))[0] == 200
+
+
+@pytest.mark.parametrize("widen", ["198.51.100.0/16", "203.0.113.0/24", "2001:db8::/48", "nonsense"])
+async def test_a_wide_or_foreign_range_answers_422_and_changes_nothing(mongo_db, widen):
+    m2 = await _held_from_other(mongo_db)
+    code, error = _error(await _approve(mongo_db, m2, widenTo=widen))
+    assert code == 422 and error
+    assert (await _agent(mongo_db, "M2"))["status"] == "Pending"
+    assert len(await _networks(mongo_db)) == 1
+    assert (await mongo_db.tenants.find_one({"id": "t1"}))["license"]["seatsUsed"] == 1
+
+
+async def test_a_hold_without_an_observed_address_cannot_be_approved(mongo_db):
+    await harness.tenant(mongo_db, "t1")
+    await mongo_db.agents.insert_one({"id": "A1", "tenantId": "t1", "hostname": "H", "status": "Pending",
+                                      "pendingReason": "new_network"})
+    code, error = _error(await _approve(mongo_db, "A1"))
+    assert code == 422 and error.startswith("no_observed_address")
+    assert (await mongo_db.agents.find_one({"id": "A1"}))["status"] == "Pending"
+    assert await _networks(mongo_db) == []
+
+
+async def test_a_range_is_refused_for_any_other_hold(mongo_db):
+    await harness.tenant(mongo_db, "t1", max_agents=1)
+    assert (await harness.register(mongo_db, "M1", hardware=harness.hw("S1"), client_ip=HOME))[0] == 200
+    code, body = await harness.register(mongo_db, "M2", hardware=harness.hw("S2"), client_ip=HOME)
+    assert code == 202 and body["pendingReason"] == "seat_limit"
+    code, error = _error(await _approve(mongo_db, body["agentId"], widenTo="203.0.113.0/24"))
+    assert code == 422 and error.startswith("widen_only_for_new_network")
+    assert (await _agent(mongo_db, "M2"))["status"] == "Pending"
+
+
+async def test_no_free_seat_adds_no_network_and_the_raised_approval_adds_it_once(mongo_db):
+    m2 = await _held_from_other(mongo_db, max_agents=1)
+    code, error = _error(await _approve(mongo_db, m2))
+    assert code == 409 and error.startswith("no_free_seat")
+    assert len(await _networks(mongo_db)) == 1
+    out = await _approve(mongo_db, m2, raiseLimitBy=1)
+    assert out["networkAllowed"] is True
+    assert [e["cidr"] for e in await _networks(mongo_db)] == [f"{HOME}/32", f"{OTHER}/32"]
+
+
+async def test_a_tenant_admin_cannot_approve_and_the_list_is_unchanged(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    with pytest.raises(HTTPException) as exc:
+        await _approve(mongo_db, m2, user=ADMIN, widenTo="198.51.100.0/24")
+    assert exc.value.status_code == 403
+    assert len(await _networks(mongo_db)) == 1 and (await _agent(mongo_db, "M2"))["status"] == "Pending"
+
+
+async def test_bulk_approve_allows_the_exact_address(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    with patch.object(pae, "get_database", return_value=mongo_db), patch.object(pae, "invalidate_cache"), \
+            patch("audit_ledger.event", new=AsyncMock()):
+        out = await pae.bulk_decide(pae.BulkBody(action="approve", agentIds=[m2]), SUPER)
+    assert out["succeeded"] == 1
+    assert (await _networks(mongo_db))[-1]["cidr"] == f"{OTHER}/32"
+
+
+async def test_approving_an_already_listed_network_adds_nothing_and_still_admits(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    await nr.allow(mongo_db, "t1", f"{OTHER}/32", source="approved", actor="root")
+    out = await _approve(mongo_db, m2)
+    assert out["status"] == "Offline" and out["networkAllowed"] is False
+    assert len(await _networks(mongo_db)) == 2
