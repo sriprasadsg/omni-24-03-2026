@@ -101,7 +101,7 @@
 - [ ] **LIC-03**: Free is a 14-day trial held in one persistent per-tenant record (one trial per tenant; today's Free tenants start at go-live, new ones at creation or sign-up approval): when it ends, new machines are held with the reason `trial_ended` while running agents and screens carry on; the Super Admin or the partner can extend it (audited); tenant admins, and the partner, are reminded 7 and 1 day before.
 - [ ] **LIC-04**: Each plan is a screen ceiling, seeded from `feature_catalog.py` minTier and editable by the Super Admin; the server refuses a screen outside it at every write path (for a partner, also outside the partner's ceiling; the Super Admin is limited by the plan only); screens already on stay on after a downgrade.
 - [ ] **LIC-05**: Every tenant has allowed networks: its first agent's server-observed public IP is learned automatically and at go-live every IP in use is allowed; a NEW machine from another network is held for the Super Admin, who allows that network (optionally widened to at most an IPv4 /24 or IPv6 /48) or refuses it; the tenant admin sees the reason but cannot approve; enrolled agents are never re-checked.
-- [ ] **LIC-06**: A machine whose BIOS serial or SMBIOS UUID belongs to a seat-holding agent seen in the last 24 hours in another tenant is held for the Super Admin without either organization seeing the other's name; approval moves it (the other copy Replaced, its seat freed, its tokens revoked); a silent copy elsewhere is retired by the new enrollment, with a platform alert and a Super Admin restore.
+- [x] **LIC-06**: A machine whose BIOS serial or SMBIOS UUID belongs to a seat-holding agent seen in the last 24 hours in another tenant is held for the Super Admin without either organization seeing the other's name; approval moves it (the other copy Replaced, its seat freed, its tokens revoked); a silent copy elsewhere is retired by the new enrollment, with a platform alert and a Super Admin restore.
 - [ ] **LIC-07**: A Super Admin Plans screen edits each plan's seats, trial days and screen list, applying at once to direct tenants without an override; tenant admins see their plan, seat limit (override marked), allowed networks and trial days left on their licence panel.
 
 ## v2 Requirements (v4.3 deferred)
@@ -270,7 +270,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | LIC-03 | Phase 88 | Pending |
 | LIC-04 | Phase 88 | Pending |
 | LIC-05 | Phase 88 | Pending |
-| LIC-06 | Phase 88 | Pending |
+| LIC-06 | Phase 88 | Complete |
 | LIC-07 | Phase 88 | Pending |
 
 **Coverage:**
