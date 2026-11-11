@@ -179,3 +179,12 @@ Ready for the rest of wave 5/6. 88-16 hands the push, restart and UI publish to 
 
 - FOUND: services/licenceApi.ts, components/TenantPlanCard.tsx, src/__tests__/TenantPlanCard.test.tsx, src/__tests__/TenantLicensePanel.test.tsx
 - FOUND commits: 80b9725e4, 222d75ceb, 0cc8d2ddb, 353b9887b
+
+## Post-UI-SPEC conformance fixes (2026-11-11)
+
+Fixed against `88-UI-SPEC.md` "Conformance gaps in built UI". RED `4ea7db082` (tests), GREEN `175230c9a`:
+
+- TenantPlanCard: G-06 (neutral plan name), G-19 (network explanation line under a non-empty list); ridden along G-02, G-05.
+- TenantLicensePanel: G-07 (`Use plan number` as a neutral underlined 14/600 `min-h-8` text button); ridden along G-20 (`role="status"` lines after Use plan number and Extend), G-21 (`Mon D, YYYY`, ISO in `title`), G-22 (Extend `aria-describedby` its effect line, now visible), G-04 (`min-h-10` Extend and Save license), G-02, G-05, `Extending...` pending label.
+
+Tests: TenantPlanCard +2, TenantLicensePanel +3 (19 in the two files); full suite 1980 passed, typecheck clean, build green.

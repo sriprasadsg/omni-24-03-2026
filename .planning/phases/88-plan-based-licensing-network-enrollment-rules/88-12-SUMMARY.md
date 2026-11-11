@@ -154,3 +154,16 @@ None. No new endpoint or trust boundary; the UI only shapes input and the server
 ## Self-Check: PASSED
 
 Files exist (plansApi.ts, PlansPanel.tsx, PlansPanel.test.tsx, AddNewTenantModal.test.tsx); commits 6d66c95e0, 7c1d787f8, fb1a371d5, 33a1da607 are on HEAD's history; full suite and build green.
+
+## Post-UI-SPEC conformance fixes (2026-11-11)
+
+Fixed against `88-UI-SPEC.md` "Conformance gaps in built UI" (user decision 2026-11-11: severity A now, B and C on the same lines ride along). RED `eb762d858` (tests), then GREEN per component:
+
+- `281c41818` PlansPanel: G-09 (plan screen lists use `PartnerScreenPicker mode="ceiling"`: parent rule, Overview always included, select/clear all), G-10 (`closeOnBackdrop={false}`), G-23 (`Save {plan} plan`, `Saving...`); ridden along G-01, G-02, G-03, G-04, G-11 (live effect lines), G-12 (red block, `Try again`, empty state), Custom helper line, fields disabled while a section saves.
+- `9b7628e5b` ManageTenantModal: G-08 (`text-amber-700`), G-15 (one visible shared note + `aria-describedby`); ridden along G-13 (Plan heading), G-14, G-16.
+- `5de68c159` AddNewTenantModal: G-18 modal side (a rejected `onSave` keeps the modal open and shows the server sentence), G-13, G-17.
+- `7b55d96d5` App.tsx: G-18 one-hunk rethrow in `handleAddNewTenant`, committed alone with `git apply --cached`; the user's other App.tsx hunks stay uncommitted.
+
+Tests: PlansPanel 14, ManageTenantModal 18, AddNewTenantModal 9 (existing queries for a bare `Save` and `Subscription Tier` updated); full suite 1980 passed (was 1962), typecheck clean, build green.
+
+Finding: `AddNewTenantModal` is imported in `App.tsx` and `SettingsDashboard.tsx` but rendered nowhere; the live "Add New Tenant" is `TenantOnboardingWizard` (still labelled `Subscription Tier`, no plan-specific seats). S3 and G-13/G-17/G-18 fixes are therefore not reachable in the product until the modal is wired in or the wizard is brought to the same contract (needs a decision; not done here).

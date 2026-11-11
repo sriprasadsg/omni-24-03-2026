@@ -478,33 +478,33 @@ Applicable state considerations resolved: 70 covered, 5 backstop, 3 dismissed, 0
 
 ## Conformance gaps in built UI (88-12, 88-13; nothing was edited)
 
-Severity: **A** = fix before the UI is published (88-16), **B** = fix with the next touch, **C** = low.
+Severity: **A** = fix before the UI is published (88-16). **Update 2026-11-11: G-01..G-23 are all fixed (commit hashes in the Surface column); the Built and File:line columns describe the code as it was.**, **B** = fix with the next touch, **C** = low.
 
 | ID | Sev | File:line | Built | Contract | Surface |
 |----|-----|-----------|-------|----------|---------|
-| G-01 | B | `components/PlansPanel.tsx:78` | plan name `text-base` (16px) | 18/600 `text-lg font-semibold` | S1 |
-| G-02 | B | `components/PlansPanel.tsx:100`, `:124`, `:159`; `components/TenantPlanCard.tsx:53`; `components/TenantLicensePanel.tsx:144` | `font-medium` (weight 500) | only 400 and 600 | S1, S4, S5 |
-| G-03 | B | `components/PlansPanel.tsx:106` | `uppercase tracking-wide` group headings | 12/600 sentence case (superseded when G-09 is applied) | S1 |
-| G-04 | B | `components/PlansPanel.tsx:16`, `:124`; `components/TenantLicensePanel.tsx:150` | `py-1.5` (6px), `py-1` | no half-steps; `min-h-10` consequential, `min-h-8` row/inline | S1, S5 |
-| G-05 | C | `components/TenantPlanCard.tsx:59`; `components/TenantLicensePanel.tsx:213` | `space-y-0.5` (2px) | `space-y-1` (4px) | S4, S5 |
-| G-06 | A | `components/TenantPlanCard.tsx:36` | plan name in accent (`text-primary-600`) | neutral 14/600; accent is not for plan names | S4 |
-| G-07 | A | `components/TenantLicensePanel.tsx:133` | `Use plan number` in accent, `text-xs`, no height | 14/600 gray-900 underlined text button, `min-h-8` | S5 |
-| G-08 | A | `components/ManageTenantModal.tsx:179` | marker `text-amber-600` (3.2:1 on white) | `text-amber-700 dark:text-amber-400` | S2 |
-| G-09 | A | `components/PlansPanel.tsx:104-120` | hand-rolled checklist: no parent rule, Overview can be unticked, no select-all | `PartnerScreenPicker mode="ceiling"` (same groups, parent rule, Overview always included, count, select/clear all) | S1 |
-| G-10 | A | `components/PlansPanel.tsx:165` | `Modal` closes on backdrop click, dirty edits lost | `closeOnBackdrop={false}` | S1 |
-| G-11 | B | `components/PlansPanel.tsx:167-170`, `:88-96` | one global note only | live effect lines under Seats, Trial days and the screen disclosure when changed (D-14 is costly) | S1 |
-| G-12 | B | `components/PlansPanel.tsx:171-172` | raw server error, no retry | red block, `Try again`, empty state | S1 |
-| G-13 | B | `components/ManageTenantModal.tsx:228`; `components/AddNewTenantModal.tsx:154` | `Subscription Tier` | `Plan` (tests may assert the old labels) | S2, S3 |
-| G-14 | B | `components/ManageTenantModal.tsx:229-231` | helper says nothing about seats | seat consequence in the helper (S2) | S2 |
-| G-15 | A | `components/ManageTenantModal.tsx:164-166`, `:173` | reason only in `title` | shared visible note + `aria-describedby` | S2 |
-| G-16 | C | `components/ManageTenantModal.tsx:85` | a failed plan-table load is silent | muted line `Couldn't load the plan limits. The server still enforces them.` | S2 |
-| G-17 | C | `components/AddNewTenantModal.tsx:153-182` | no per-plan helper, no Seats helper | helpers in S3 | S3 |
-| G-18 | A | `components/AddNewTenantModal.tsx:97-104` with `App.tsx:1271-1278` | a refused create closes the modal and drops the input (only a toast shows) | modal stays open with the server sentence and the values (needs the App handler to rethrow after its toast: one hunk in a user-work file; Pending review 3) | S3 |
-| G-19 | C | `components/TenantPlanCard.tsx:52-65` | no explanation of what a network does | one muted line under the list | S4 |
-| G-20 | B | `components/TenantLicensePanel.tsx:87-99` | `Use plan number` and `Extend` change the screen silently | status lines in S5 | S5 |
-| G-21 | C | `components/TenantLicensePanel.tsx:140` | ISO `YYYY-MM-DD` | `Mon D, YYYY` (ISO in `title`) | S5 |
-| G-23 | A | `components/PlansPanel.tsx:123-126` | visible label is the bare `Save` on each of the three plan sections (no aria-label either) | visible `Save {plan} plan`, pending `Saving...` (verb plus noun, unique per section; update the 88-12 PlansPanel tests that query `Save`) | S1 |
-| G-22 | C | `components/TenantLicensePanel.tsx:149-150` | `Extend` with no effect line | `aria-describedby` to the effect line (visible label unchanged) | S5 |
+| G-01 | B | `components/PlansPanel.tsx:78` | plan name `text-base` (16px) | 18/600 `text-lg font-semibold` | S1 — fixed 281c41818 |
+| G-02 | B | `components/PlansPanel.tsx:100`, `:124`, `:159`; `components/TenantPlanCard.tsx:53`; `components/TenantLicensePanel.tsx:144` | `font-medium` (weight 500) | only 400 and 600 | S1, S4, S5 — fixed 281c41818, 175230c9a |
+| G-03 | B | `components/PlansPanel.tsx:106` | `uppercase tracking-wide` group headings | 12/600 sentence case (superseded when G-09 is applied) | S1 — fixed 281c41818 |
+| G-04 | B | `components/PlansPanel.tsx:16`, `:124`; `components/TenantLicensePanel.tsx:150` | `py-1.5` (6px), `py-1` | no half-steps; `min-h-10` consequential, `min-h-8` row/inline | S1, S5 — fixed 281c41818, 175230c9a |
+| G-05 | C | `components/TenantPlanCard.tsx:59`; `components/TenantLicensePanel.tsx:213` | `space-y-0.5` (2px) | `space-y-1` (4px) | S4, S5 — fixed 175230c9a |
+| G-06 | A | `components/TenantPlanCard.tsx:36` | plan name in accent (`text-primary-600`) | neutral 14/600; accent is not for plan names | S4 — fixed 175230c9a |
+| G-07 | A | `components/TenantLicensePanel.tsx:133` | `Use plan number` in accent, `text-xs`, no height | 14/600 gray-900 underlined text button, `min-h-8` | S5 — fixed 175230c9a |
+| G-08 | A | `components/ManageTenantModal.tsx:179` | marker `text-amber-600` (3.2:1 on white) | `text-amber-700 dark:text-amber-400` | S2 — fixed 9b7628e5b |
+| G-09 | A | `components/PlansPanel.tsx:104-120` | hand-rolled checklist: no parent rule, Overview can be unticked, no select-all | `PartnerScreenPicker mode="ceiling"` (same groups, parent rule, Overview always included, count, select/clear all) | S1 — fixed 281c41818 |
+| G-10 | A | `components/PlansPanel.tsx:165` | `Modal` closes on backdrop click, dirty edits lost | `closeOnBackdrop={false}` | S1 — fixed 281c41818 |
+| G-11 | B | `components/PlansPanel.tsx:167-170`, `:88-96` | one global note only | live effect lines under Seats, Trial days and the screen disclosure when changed (D-14 is costly) | S1 — fixed 281c41818 |
+| G-12 | B | `components/PlansPanel.tsx:171-172` | raw server error, no retry | red block, `Try again`, empty state | S1 — fixed 281c41818 |
+| G-13 | B | `components/ManageTenantModal.tsx:228`; `components/AddNewTenantModal.tsx:154` | `Subscription Tier` | `Plan` (tests may assert the old labels) | S2, S3 — fixed 9b7628e5b, 5de68c159 |
+| G-14 | B | `components/ManageTenantModal.tsx:229-231` | helper says nothing about seats | seat consequence in the helper (S2) | S2 — fixed 9b7628e5b |
+| G-15 | A | `components/ManageTenantModal.tsx:164-166`, `:173` | reason only in `title` | shared visible note + `aria-describedby` | S2 — fixed 9b7628e5b |
+| G-16 | C | `components/ManageTenantModal.tsx:85` | a failed plan-table load is silent | muted line `Couldn't load the plan limits. The server still enforces them.` | S2 — fixed 9b7628e5b |
+| G-17 | C | `components/AddNewTenantModal.tsx:153-182` | no per-plan helper, no Seats helper | helpers in S3 | S3 — fixed 5de68c159 |
+| G-18 | A | `components/AddNewTenantModal.tsx:97-104` with `App.tsx:1271-1278` | a refused create closes the modal and drops the input (only a toast shows) | modal stays open with the server sentence and the values (needs the App handler to rethrow after its toast: one hunk in a user-work file; Pending review 3) | S3 — fixed 5de68c159 (modal), 7b55d96d5 (App.tsx rethrow) |
+| G-19 | C | `components/TenantPlanCard.tsx:52-65` | no explanation of what a network does | one muted line under the list | S4 — fixed 175230c9a |
+| G-20 | B | `components/TenantLicensePanel.tsx:87-99` | `Use plan number` and `Extend` change the screen silently | status lines in S5 | S5 — fixed 175230c9a |
+| G-21 | C | `components/TenantLicensePanel.tsx:140` | ISO `YYYY-MM-DD` | `Mon D, YYYY` (ISO in `title`) | S5 — fixed 175230c9a |
+| G-23 | A | `components/PlansPanel.tsx:123-126` | visible label is the bare `Save` on each of the three plan sections (no aria-label either) | visible `Save {plan} plan`, pending `Saving...` (verb plus noun, unique per section; update the 88-12 PlansPanel tests that query `Save`) | S1 — fixed 281c41818 |
+| G-22 | C | `components/TenantLicensePanel.tsx:149-150` | `Extend` with no effect line | `aria-describedby` to the effect line (visible label unchanged) | S5 — fixed 175230c9a |
 
 Adjacent, pre-existing and not Phase 88 work (not counted): the `Upgrade to add more` button in `AgentsDashboard.tsx` (self-service upgrades are out of scope, D-39); the legacy `bg-green-600` `Approve` (3.3:1); and the Agents list does not render the `Replaced` status that D-37 and D-38 give tenant A (no plan in 88-12..88-15 covers it).
 
