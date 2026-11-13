@@ -4,6 +4,7 @@ import type { GoLiveOverview } from '../../services/autonomousOpsGoLive';
 import { HEALTH_SKELETON, HealthNotice } from '../AutonomousOpsHealthChips';
 import { ChevronRightIcon, ClipboardCheckIcon } from '../icons';
 import { GoLiveChecklist } from './GoLiveChecklist';
+import { GoLiveOrganizations } from './GoLiveOrganizations';
 import {
     CHECK_TOTAL, GOLIVE_INTRO, GOLIVE_LOAD_ERROR, GOLIVE_LOAD_FAILED_SUMMARY, GOLIVE_TITLE, TRY_AGAIN, goLiveSummary,
 } from './goLiveCopy';
@@ -97,6 +98,7 @@ export const GoLiveCard: React.FC = () => {
                     )}
 
                     {data && <GoLiveChecklist checks={data.checks} onRecorded={load} />}
+                    {data && <GoLiveOrganizations organizations={data.organizations} masterShadow={!!data.masterShadow} onChanged={load} />}
                 </div>
             )}
         </section>

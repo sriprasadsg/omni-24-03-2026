@@ -88,3 +88,75 @@ export const RECORD_FORBIDDEN = 'Only a platform administrator can record these 
 export const RECORD_FALLBACK = "Couldn't record the check. Check your connection and try again.";
 export const recordFailed = (message: string): string => `Couldn't record the check: ${message}. Try again.`;
 export const recordedToast = (title: string): string => `Check recorded: ${title}.`;
+
+// ── Organizations (86-UI-SPEC section 6c, E10) ─────────────────────────────────────────────────────
+
+export const SHADOW_DAYS = 7;
+export const ORG_HEADING = 'Organizations';
+export const ORG_HELPER = 'Only organizations with Autonomous Ops switched on are listed. Turning shadow mode back on is always allowed.';
+export const MASTER_NOTICE =
+    "The deployment-wide shadow switch is also on. It forces shadow mode on for every organization until it is removed on the server. Lifting an organization's own setting here takes effect once that switch is removed.";
+export const ORG_CAPTION = 'Shadow mode by organization';
+export const COL_ORGANIZATION = 'Organization';
+export const COL_SHADOW = 'Shadow mode';
+export const COL_DAYS = 'Days observed';
+export const COL_SIMULATION = 'Would have done (simulation)';
+export const COL_ACTION = 'Action';
+export const CHIP_SHADOW_ON = 'Shadow mode on';
+export const CHIP_SHADOW_LIFTED = 'Shadow mode lifted';
+export const NO_VALUE = '—';
+export const ORG_EMPTY_HEADING = 'No organization has Autonomous Ops switched on';
+export const ORG_EMPTY_BODY = 'Switch it on for an organization in Tenants. It starts in shadow mode and appears here.';
+export const LIFT_BUTTON = 'Lift shadow mode';
+export const RESTORE_BUTTON = 'Turn shadow mode back on';
+
+export const daysLabel = (days: number | null): string => (days === null ? NO_VALUE : `${days} of ${SHADOW_DAYS} days`);
+
+/** One unmet lift condition as a sentence. The wording matches the server's own sentences (golive.blocker_sentence). */
+export function reasonSentence(reason: { code: string; recorded?: number; days?: number }): string {
+    switch (reason.code) {
+        case 'checks_missing':
+            return `Record all ${CHECK_TOTAL} go-live checks first (${reason.recorded ?? 0} of ${CHECK_TOTAL} recorded).`;
+        case 'no_shadow_records':
+            return `No shadow records yet. Needs ${SHADOW_DAYS} days.`;
+        case 'days_short': {
+            const days = reason.days ?? 0;
+            return `Needs ${SHADOW_DAYS} days of shadow records. ${days} ${days === 1 ? 'day' : 'days'} so far.`;
+        }
+        case 'unreadable':
+            return "Shadow records couldn't be read, so lifting is blocked.";
+        default:
+            return 'Not ready to lift yet.';
+    }
+}
+
+// ── The two dialogs (86-UI-SPEC section 6d, E11 and E12) ──────────────────────────────────────────
+
+const count = (n: number, one: string, many: string): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+
+export const liftTitle = (name: string): string => `Lift shadow mode for ${name}?`;
+export const liftBody = (name: string): string =>
+    `From now on, automatic actions in ${name} are carried out for real, within the level and limits already set. Until now they were simulations. Anything that needs approval still waits for a person.`;
+export const liftEvidence = (days: number, wouldHaveDone: number): string =>
+    `${count(days, 'day', 'days')} of shadow records. ${count(wouldHaveDone, 'action', 'actions')} would have been done. All ${CHECK_TOTAL} go-live checks are recorded.`;
+export const LIFT_REASSURANCE = 'You can turn shadow mode back on at any time. Actions already done stay done, and each can be undone where undo is supported.';
+export const TYPE_NAME_LABEL = 'Type the organization name to confirm';
+export const typeNameHelper = (name: string): string => `Type ${name} exactly as shown.`;
+export const TYPE_NAME_REASON = 'Type the name to continue.';
+export const KEEP_SHADOW_ON = 'Keep shadow mode on';
+export const LIFTING = 'Lifting...';
+export const LIFT_FORBIDDEN = 'Only a platform administrator can lift shadow mode.';
+export const LIFT_FALLBACK = "Couldn't lift shadow mode. Check your connection and try again.";
+export const liftRefused = (message: string): string => (message ? `Shadow mode can't be lifted yet: ${message}.` : "Shadow mode can't be lifted yet.");
+export const liftedToast = (name: string): string => `Shadow mode lifted for ${name}.`;
+
+export const restoreTitle = (name: string): string => `Turn shadow mode back on for ${name}?`;
+export const restoreBody = (name: string): string =>
+    `Automatic actions in ${name} become simulations again and nothing new is carried out. Actions already done stay done, and each can be undone where undo is supported.`;
+export const KEEP_LIFTED = 'Keep it lifted';
+export const TURN_ON = 'Turn shadow mode on';
+export const SAVING = 'Saving...';
+export const RESTORE_FORBIDDEN = 'Only a platform administrator can change shadow mode.';
+export const RESTORE_FALLBACK = "Couldn't turn shadow mode back on. Check your connection and try again.";
+export const restoreFailed = (message: string): string => `Couldn't turn shadow mode back on: ${message}. Try again.`;
+export const restoredToast = (name: string): string => `Shadow mode is on again for ${name}.`;
