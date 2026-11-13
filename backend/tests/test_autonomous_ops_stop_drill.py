@@ -161,6 +161,7 @@ async def _press(db, scope, tenant="t1"):
 
 
 async def _lift(db, scope, tenant="t1"):
+    """Turn a stop off through stop.clear (the only code that does), a reason typed, as the Super Admin."""
     out = await stop.clear(db, scope=scope, tenant_id=tenant if scope == "tenant" else None, actor=SUPER,
                            reason="drill over", actor_is_super_admin=True, actor_has_manage=True,
                            now=NOW + timedelta(minutes=30))
@@ -369,3 +370,91 @@ async def test_platform_stop_reaches_the_watchdog_through_the_database_source_an
     assert (effective, source) == (False, "database")
     restarted, kinds = decide(effective, source)
     assert restarted and "restart_skipped" not in kinds
+
+
+# ------------------------------------------------------------------ Task 2: a tenant stop; the other tenant carries on
+
+async def test_tenant_stop_the_sweep_stops_for_t1_while_t2_decides_its_block(db, worlds):
+    await _press(db, "tenant")
+    await _sweep_check(db, worlds, *TENANT_T1)
+
+
+async def test_tenant_stop_t1_is_held_back_and_t2_is_delivered_but_undo_flows_for_both(db, worlds):
+    pressed = await _press(db, "tenant")
+    assert pressed["cancelled"] >= 2
+    await _delivery_check(db, worlds, *TENANT_T1)
+    assert await _status(db, worlds["t1"]["undo"]) == "sent" and await _status(db, worlds["t2"]["block"]) == "sent"
+
+
+async def test_tenant_stop_t1_approve_answers_stopped_deny_works_and_t2_can_approve(db, worlds):
+    await _press(db, "tenant")
+    await _approval_check(db, worlds, *TENANT_T1)
+
+
+async def test_tenant_stop_t1_rollout_is_frozen_while_t2_rollout_advances(db, worlds):
+    await _press(db, "tenant")
+    await _rollout_check(db, worlds, *TENANT_T1)
+
+
+async def test_tenant_stop_t1_ticket_goes_to_a_person_while_t2_still_gets_its_reply(db, worlds):
+    await _press(db, "tenant")
+    await _desk_check(db, worlds, *TENANT_T1)
+
+
+# ------------------------------------------------------------------ resume, per scope
+
+async def _resume_check(db, w, scope, stopped):
+    """Press, let every actor see the stop, clear it, and check the work comes back once and as new attempts."""
+    await _press(db, scope)
+    fresh = {t: await _ticket(db, t, f"n-{t}", 2) for t in stopped}
+    for t in stopped:
+        assert await intake.on_ticket_created(db, fresh[t], via="portal", now=NOW) is None
+    await _online(db, NOW + timedelta(minutes=1))
+    await rollout_loop.run_once(db, now=NOW + timedelta(minutes=1))
+    cancelled = {t: {i["id"] async for i in db.agent_instructions.find(
+        {"tenantId": t, "agent_id": w[t]["canary"], "status": "cancelled_by_stop"})} for t in stopped}
+    assert all(len(ids) == 1 for ids in cancelled.values())
+    await _lift(db, scope)
+
+    later = NOW + timedelta(minutes=40)
+    await _online(db, later)
+    for _ in range(2):                                   # the next pass decides once; a second pass repeats nothing
+        await sweep.tick(db, now=later)
+        for t in stopped:
+            assert await _decisions(db, t, command="block_ip", **{"params.ip_address": SWEEP_IP}) == 1, t
+    await rollout_loop.run_once(db, now=later)
+    for t in stopped:
+        rollout = await db.patch_rollouts.find_one({"id": w[t]["rollout"]})
+        assert rollout["status"] == "running" and rollout.get("stoppedSince") is None, t
+        again = await db.autonomy_actions.find({"tenantId": t, "dispatcher": "patch_rollout",
+                                                "state": "dispatching"}).to_list(10)
+        assert [(r["targets"], r["reason"]["inputs"]["attempt"]) for r in again] == [([w[t]["canary"]], 2)], t
+        pending = {i["id"] async for i in db.agent_instructions.find(
+            {"tenantId": t, "agent_id": w[t]["canary"], "status": "pending"})}
+        assert len(pending) == 1 and not pending & cancelled[t], t        # a new attempt, never the cancelled one
+        card = await ledger.get(db, t, w[t]["card"])
+        assert card["state"] == "awaiting_approval" and not (card.get("approval") or {}).get("approver"), t
+        assert await intake.on_ticket_created(db, fresh[t], via="portal", now=later), t      # the desk queues it now
+
+
+async def test_resume_after_the_platform_stop_clears_decides_again_and_offers_the_rollout_as_a_new_attempt(db, worlds):
+    await _resume_check(db, worlds, "platform", TENANTS)
+
+
+async def test_resume_after_a_tenant_stop_clears_t1_the_same_way_and_t2_is_unaffected(db, worlds):
+    await _resume_check(db, worlds, "tenant", ("t1",))
+    assert await _decisions(db, "t2", command="block_ip", **{"params.ip_address": SWEEP_IP}) == 1   # t2 never paused
+
+
+async def test_a_stop_that_cannot_be_read_counts_as_stopped_for_every_gate(db, worlds):
+    unreadable = AsyncMock(side_effect=RuntimeError("db down"))
+    with patch.object(settings, "platform_stop", unreadable):
+        assert await gate._stopped(db, "t1") is True and await gate._stopped(db, "t2") is True
+        out = await approvals.approve(db, "t1", worlds["t1"]["card"], approver=APPROVER, now=NOW)
+        assert out == {"status": "stopped"}
+        before = await _decisions(db, "t1") + await _decisions(db, "t2")
+        await sweep.tick(db, now=NOW)
+        assert await _decisions(db, "t1") + await _decisions(db, "t2") == before
+        assert await _poll(db, "t1") == {worlds["t1"]["undo"]}           # withheld and left as it was, undo exempt
+        assert await _status(db, worlds["t1"]["block"]) == "pending"
+    assert await gate._stopped(db, "t1") is False                        # readable again: nothing is stopped
