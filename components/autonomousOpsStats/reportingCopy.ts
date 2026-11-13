@@ -65,3 +65,39 @@ export const MINUTES_HEADERS = { kind: 'Kind of action', counted: 'Counted', eac
 export const MINUTES_TOTAL = 'Total';
 /** A plain minutes figure for the table cells; the estimate wording ("About ...") belongs to the headline only. */
 export const plainMinutes = (minutes: number): string => `${Number.isFinite(minutes) ? minutes : 0} min`;
+
+// ── By rule (86-UI-SPEC section 2e) ─────────────────────────────────────────────────────────────────────
+
+export const RULES_HEADING = 'By rule';
+export const rulesCaption = (days: number): string => `Decisions by rule, last ${days} days`;
+export const RULE_HEADER = 'Rule';
+/** The seven real count columns, in table order. Simulation is never one of them. */
+export const RULE_COUNT_COLUMNS = [
+    { key: 'fired', label: 'Fired' },
+    { key: 'done', label: 'Done' },
+    { key: 'approved', label: 'Approved' },
+    { key: 'denied', label: 'Denied' },
+    { key: 'undone', label: 'Undone' },
+    { key: 'failed', label: 'Failed' },
+    { key: 'refused', label: 'Refused' },
+] as const;
+export const SIMULATION_HEADER = 'Would have done (simulation)';
+export const simulationCard = (n: string | number): string => `${SIMULATION_HEADER}: ${n}`;
+export const ALL_RULES = 'All rules';
+export const MISSING_COUNT = '—';
+export const RULES_VISIBLE = 15;
+export const showAllRules = (n: number): string => `Show all ${n} rules`;
+export const SHOW_FEWER_RULES = 'Show fewer rules';
+export const GLOSSARY_SHOW = 'What the columns mean';
+export const GLOSSARY_HIDE = 'Hide what the columns mean';
+/** Refused is widened from the UI-SPEC wording (flagged assumption A-86-A2): it also covers expired and stopped approvals. */
+export const GLOSSARY: ReadonlyArray<{ term: string; meaning: string }> = [
+    { term: 'Fired', meaning: 'times the rule made a decision' },
+    { term: 'Done', meaning: 'carried out and still in place' },
+    { term: 'Approved', meaning: 'a person approved it' },
+    { term: 'Denied', meaning: 'a person said no' },
+    { term: 'Undone', meaning: 'carried out, then undone' },
+    { term: 'Failed', meaning: "tried, and it didn't work" },
+    { term: 'Refused', meaning: 'blocked by a limit, a never-touch entry or a stop, or nobody answered the approval in time' },
+    { term: 'Would have done', meaning: 'simulation only; shadow mode was on and nothing was carried out' },
+];

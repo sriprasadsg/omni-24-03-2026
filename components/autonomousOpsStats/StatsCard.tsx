@@ -4,10 +4,11 @@ import type { AutonomousOpsStatistics, StatsWindow } from '../../services/autono
 import { HEALTH_SKELETON, HealthNotice, clockOrDash } from '../AutonomousOpsHealthChips';
 import { EmptyStateCard } from '../AutonomousOpsActivityList';
 import { BarChart3Icon, ChevronRightIcon, FlaskConicalIcon, InfoIcon } from '../icons';
+import { StatsRuleTable } from './StatsRuleTable';
 import { TimeSavedBlock } from './TimeSavedBlock';
 import {
     EMPTY_BODY, ESTIMATE_CHIP, READOUT_DECISIONS, READOUT_DONE, READOUT_TIME_SAVED, READOUT_UNDONE, STATS_LOAD_ERROR,
-    STATS_LOAD_FAILED_SUMMARY, STATS_PERIOD_GROUP, STATS_PERIOD_LABEL, STATS_TITLE, TRY_AGAIN, emptyHeading, formatMinutes,
+    RULES_HEADING, STATS_LOAD_FAILED_SUMMARY, STATS_PERIOD_GROUP, STATS_PERIOD_LABEL, STATS_TITLE, TRY_AGAIN, emptyHeading, formatMinutes,
     periodLabel, periodPillLabel, simulationLine, summaryLine, updatedLine,
 } from './reportingCopy';
 
@@ -164,6 +165,12 @@ export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChan
                                         </div>
                                     )}
                                     <TimeSavedBlock timeSaved={stats.timeSaved} shadowOnly={stats.shadowOnly} />
+                                    {stats.rules.length > 0 && (
+                                        <section className="flex flex-col gap-2">
+                                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{RULES_HEADING}</h3>
+                                            <StatsRuleTable rules={stats.rules} totals={stats.totals} days={stats.days} />
+                                        </section>
+                                    )}
                                 </>
                             )}
                         </>
