@@ -22,7 +22,7 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import { authFetch } from '../../services/apiService';
 import {
-  fetchAutonomousOpsStatistics, downloadAutonomousOpsExport,
+  fetchAutonomousOpsStatistics, downloadAutonomousOpsExport, downloadAutonomousOpsReport,
 } from '../../services/autonomousOpsReporting';
 import { showToast } from '../../utils/toast';
 import { UserContext } from '../../contexts/UserContext';
@@ -31,10 +31,12 @@ import { AutonomousOpsActivity } from '../../components/AutonomousOpsActivity';
 import { ExportDialog } from '../../components/autonomousOpsStats/ExportDialog';
 import { EmptyStateCard as FromList } from '../../components/AutonomousOpsActivityList';
 import { EmptyStateCard as FromOwnFile } from '../../components/AutonomousOpsEmptyStateCard';
+import { ReportExportCard } from '../../components/autonomousOpsStats/ReportExportCard';
 
 const mockAuthFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
 const fetchStats = fetchAutonomousOpsStatistics as unknown as ReturnType<typeof vi.fn>;
 const download = downloadAutonomousOpsExport as unknown as ReturnType<typeof vi.fn>;
+const downloadReport = downloadAutonomousOpsReport as unknown as ReturnType<typeof vi.fn>;
 const toast = showToast as unknown as ReturnType<typeof vi.fn>;
 
 const ZERO = { fired: 0, done: 0, approved: 0, denied: 0, undone: 0, failed: 0, refused: 0, wouldHaveDone: 0 };
@@ -88,6 +90,7 @@ beforeEach(() => {
   mockAuthFetch.mockReset();
   fetchStats.mockReset();
   download.mockReset();
+  downloadReport.mockReset();
   toast.mockReset();
 });
 
@@ -243,5 +246,91 @@ describe('the moved EmptyStateCard', () => {
   it('leaves the list file under 500 lines', () => {
     const text = readFileSync(resolve(__dirname, '../../components/AutonomousOpsActivityList.tsx'), 'utf8');
     expect(text.split('\n').length).toBeLessThan(500);
+  });
+});
+
+// ── Task 2: the Reporting screen card ─────────────────────────────────────────────────────────────────
+
+function cardFor(role: string, granted: string[]) {
+  return render(
+    <UserContext.Provider value={{
+      currentUser: { id: 'u1', name: 'Pat', email: 'pat@example.com', role, tenantId: 'tenant-a', permissions: granted } as any,
+      login: async () => false, logout: () => {}, signup: async () => false,
+      registerTenant: async () => false, hasPermission: (p: string) => granted.includes(p),
+      enabledFeatures: [], serverLockedFeatures: {},
+    }}>
+      <ReportExportCard />
+    </UserContext.Provider>,
+  );
+}
+
+const BOTH = ['export:reports', 'view:autonomous_ops'];
+
+describe('the Autonomous Ops Activity card on the Reporting screen', () => {
+  it('shows the title, the note and no reason line for a tenant admin with both rights', () => {
+    cardFor('Tenant Admin', BOTH);
+    expect(screen.getByText('Autonomous Ops Activity')).toBeInTheDocument();
+    expect(screen.getByText('All states, last 30 days, newest 5,000 rows.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CSV' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'PDF' })).toBeEnabled();
+    expect(screen.queryByText(/^Needs permission/)).toBeNull();
+  });
+
+  it('downloads CSV and spins on that button only', async () => {
+    let finish: (v: unknown) => void = () => {};
+    downloadReport.mockReturnValue(new Promise(res => { finish = res; }));
+    cardFor('Tenant Admin', BOTH);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
+    expect(downloadReport).toHaveBeenCalledWith('csv');
+    expect(screen.getByRole('button', { name: 'CSV' }).querySelector('svg.animate-spin')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'PDF' }).querySelector('svg.animate-spin')).toBeNull();
+    await act(async () => { finish({ fileName: 'a.csv', rows: 2, truncated: false }); });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'CSV' }).querySelector('svg.animate-spin')).toBeNull());
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('says only the newest 5,000 rows are included when the download was cut', async () => {
+    downloadReport.mockResolvedValue({ fileName: 'a.pdf', rows: 5000, truncated: true });
+    cardFor('Tenant Admin', BOTH);
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Export downloaded. Only the newest 5,000 rows are included.', 'success'));
+    expect(downloadReport).toHaveBeenCalledWith('pdf');
+  });
+
+  it('shows the failure toast when the download is rejected', async () => {
+    downloadReport.mockRejectedValue(new Error('nope'));
+    cardFor('Tenant Admin', BOTH);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Failed to export Autonomous Ops Activity.', 'error'));
+  });
+
+  it.each([
+    ['without export:reports', 'Tenant Admin', ['view:autonomous_ops'], 'Needs permission to export reports.'],
+    ['without view:autonomous_ops', 'Tenant Admin', ['export:reports'], 'Needs permission to view Autonomous Ops.'],
+    ['for a Super Admin', 'Super Admin', BOTH, 'Open an organization in Tenants, then export from its Autonomous Ops screen.'],
+    ['for Platform Support with no rights', 'Platform Support', [], 'Open an organization in Tenants, then export from its Autonomous Ops screen.'],
+  ])('disables both buttons with a visible, described reason %s', (_label, role, granted, reason) => {
+    cardFor(role, granted);
+    const csv = screen.getByRole('button', { name: 'CSV' });
+    const pdf = screen.getByRole('button', { name: 'PDF' });
+    expect(csv).toBeDisabled();
+    expect(pdf).toBeDisabled();
+    const line = screen.getByText(reason);
+    expect(line.id).not.toBe('');
+    expect(csv.getAttribute('aria-describedby')).toBe(line.id);
+    expect(pdf.getAttribute('aria-describedby')).toBe(line.id);
+    fireEvent.click(csv);
+    expect(downloadReport).not.toHaveBeenCalled();
+  });
+
+  it('sits in the IT Operations group right after Agent Health on the Reporting screen', () => {
+    const text = readFileSync(resolve(__dirname, '../../components/ReportingDashboard.tsx'), 'utf8');
+    const agent = text.indexOf('<ExportCard title="Agent Health"');
+    const mine = text.indexOf('<ReportExportCard />');
+    const next = text.indexOf('Chat & Support');
+    expect(agent).toBeGreaterThan(0);
+    expect(mine).toBeGreaterThan(agent);
+    expect(mine).toBeLessThan(next);
+    expect(text.match(/ReportExportCard/g)).toHaveLength(2);
   });
 });
