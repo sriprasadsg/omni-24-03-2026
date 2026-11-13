@@ -30,6 +30,7 @@ EXPORT_PATHS = re.compile(
     r"|soa/[^/]+/export"
     r"|mitre/navigator-export"
     r"|governance/documents/[^/]+/export-signed-pdf"
+    r"|autonomous-ops/export"
     r")$"
 )
 DAILY_EXPORTS = int(os.getenv("EXPORT_DAILY_LIMIT_PER_USER", "200"))

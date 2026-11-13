@@ -288,6 +288,8 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
             "X-RateLimit-Remaining",
             "X-RateLimit-Reset",
             "X-Export-Truncated",
+            "X-Export-Rows",
+            "X-Export-Total",
         ],
     )
 

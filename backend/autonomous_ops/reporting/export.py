@@ -8,6 +8,8 @@ rows are kept and the file says so (``cap_sentence``). Zero rows gives no file (
 Every text cell of the CSV passes through ``sanitize_csv_cell`` so a target, host or rule id that starts with a
 formula character cannot run in a spreadsheet. The PDF is built by ``export_pdf`` (its own escaping).
 
+``deliver`` is the shared tail of both entry points: DLP scan, audit event, response headers.
+
 Read only; the raw handle and an explicit tenantId are used and the ambient tenant context is never read.
 """
 import csv
@@ -17,6 +19,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException, Response
+
+import audit_ledger
+import dlp_service
 from autonomous_ops import ledger, views
 from autonomous_ops.scope import raw
 from itam_data_service import sanitize_csv_cell
@@ -29,6 +35,8 @@ STATE_WORDS = {"pending": "Pending", "done": "Done", "undone": "Undone", "failed
                "suggested": "Suggested", "simulation": "Simulation", "control": "Control"}
 PERIODS = ("7", "30", "90", "all")
 MEDIA_TYPES = {"csv": "text/csv", "pdf": "application/pdf"}
+EXPORT_DENIED = ("You don't have permission to export this. "
+                 "It needs the right to export reports and to view Autonomous Ops.")
 PERIOD_WORDS = {"7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days", "all": "All time"}
 
 
@@ -130,3 +138,26 @@ async def _pdf_bytes(db, tenant_id: str, *, bucket: str, days: str, now: datetim
         filter_line=f"Activity: {state}. Period: {PERIOD_WORDS[days]}. Newest first, up to {EXPORT_ROW_CAP:,} rows.",
         summary=folded["totals"], rules=folded["rules"], time_saved=stats.time_saved(groups), rows=rows,
         cap_note=cap_note)
+
+
+async def deliver(result: ExportResult, *, user, tenant_id: str, fmt: str, bucket: str, days: str, entry: str,
+                  ip: Optional[str]) -> Response:
+    """Scan the rows of a built export, audit it and answer with the file (D-10, D-12).
+
+    A blocking DLP finding records the incident and answers 403 before anything is audited or sent.
+    ``entry`` is "screen" (the Activity header) or "registry" (the Reporting screen)."""
+    blocking, alerting = await dlp_service.scan_export(result.rows, tenant_id)
+    if blocking or alerting:
+        await dlp_service.record_export_incident(user.username, tenant_id, f"autonomous_ops.{fmt}",
+                                                 blocking + alerting, blocked=bool(blocking))
+    if blocking:
+        names = ", ".join(sorted({f["name"] for f in blocking}))
+        raise HTTPException(status_code=403, detail=f"Export blocked by DLP policy: {names}")
+    await audit_ledger.event(
+        "autonomous_ops.export", tenant_id,
+        actor={"email": user.username, "role": user.role, "tenantId": user.tenant_id}, outcome="success", ip=ip,
+        format=fmt, bucket=bucket, days=days, rows=result.shown, total=result.total, truncated=result.truncated,
+        entry=entry)
+    return Response(content=result.content, media_type=result.media_type, headers={
+        "Content-Disposition": f'attachment; filename="{result.filename}"', "X-Export-Rows": str(result.shown),
+        "X-Export-Total": str(result.total), "X-Export-Truncated": "true" if result.truncated else "false"})
