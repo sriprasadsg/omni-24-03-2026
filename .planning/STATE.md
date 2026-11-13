@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 86
 current_phase_name: Activity Reporting, Hardening & Live Validation
 status: executing
-stopped_at: Completed 86-01-PLAN.md
-last_updated: "2026-11-11T12:09:36.923Z"
-last_activity: 2026-11-11
+stopped_at: Completed 86-02-PLAN.md
+last_updated: "2026-11-13T19:27:35.942Z"
+last_activity: 2026-11-13
 last_activity_desc: Phase 86 execution started
-state_head: fb6e8dd7f8322bff106e3c10342ffa87e3d53a62
+state_head: b621d4e8bd643f1b905e78790447971a485b553b
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 170
-  completed_plans: 157
+  completed_plans: 158
   percent: 75
 ---
 
@@ -678,6 +678,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 88]: 88-15: the partner screens follow the UI-SPEC over the plan text (Mon D, YYYY dates, one shared note on greyed picker rows, current plan always listed, 910px Plan column); unknown_plan is worded once in partnerFailureText
 - [Phase 86]: 86-01: Refused counts refused, expired and cancelled_by_stop; denied stays its own column and is never counted as approved (D-07, A-86-A2)
 - [Phase 86]: 86-01: reporting router is loaded by router_registry but not in _REQUIRED_ROUTERS; losing it only degrades reporting
+- [Phase 86]: 86-02: the stop drill needed no production change; every actor already halted under the platform and tenant stop
+- [Phase 86]: 86-02: the watchdog is drilled through the real backend sync answer (selfheal.sync_response) fed to the watchdog's resolve_stop and restart.decide
 
 ## Performance Metrics
 
@@ -990,6 +992,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P14 | 12 min | 2 tasks | 4 files |
 | Phase 88 P15 | 30 min | 3 tasks | 11 files |
 | Phase 86 P01 | 20min | 3 tasks | 16 files |
+| Phase 86 P02 | 40 min | 2 tasks | 1 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1024,8 +1027,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-11T12:09:36.561Z
-**Stopped at:** Completed 86-01-PLAN.md
+**Last session:** 2026-11-13T19:27:35.587Z
+**Stopped at:** Completed 86-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1056,7 +1059,7 @@ Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged an
 Phase: 86 (Activity Reporting, Hardening & Live Validation) — EXECUTING
 Plan: 2 of 13
 Status: Ready to execute
-Last activity: 2026-11-11 — Phase 86 execution started
+Last activity: 2026-11-13 — Phase 86 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 
 ## Deferred Items
