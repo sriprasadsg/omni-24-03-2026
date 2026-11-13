@@ -62,6 +62,7 @@ const EXPECTED_FILES = [
   'backend/autonomous_ops_reporting_endpoints.py',
   'services/autonomousOpsReporting.ts',
   'backend/autonomous_ops_golive_endpoints.py',
+  'docs/autonomous-ops-go-live.md',
 ];
 
 // Whole directories are walked recursively, so a file added later is covered without a list edit (UI-SPEC DEV-4).
@@ -148,7 +149,7 @@ describe('ACTV-08 real copy', () => {
   });
 
   it('scans at least the status card, dialog, banner, activity screen, client and poller', () => {
-    expect(FRONTEND_FILES).toHaveLength(22);
+    expect(FRONTEND_FILES).toHaveLength(23);
   });
 });
 
