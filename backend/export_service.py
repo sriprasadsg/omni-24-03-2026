@@ -8,7 +8,13 @@ from export_service_pdf import ExportServicePDFMixin
 
 class ExportService(ExportServicePDFMixin):
     async def generate_report(self, report_type: str, fmt: str, tenant_id: str = None):
-        data = await self._fetch_data(report_type, tenant_id)
+        return self.render(report_type, fmt, await self.fetch_rows(report_type, tenant_id))
+
+    async def fetch_rows(self, report_type: str, tenant_id: str = None) -> list:
+        """The formatted rows of one report, before rendering (the export route DLP-scans them)."""
+        return await self._fetch_data(report_type, tenant_id)
+
+    def render(self, report_type: str, fmt: str, data: list):
         filename = f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}"
 
         if fmt == 'csv':

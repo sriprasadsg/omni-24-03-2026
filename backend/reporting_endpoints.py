@@ -43,7 +43,7 @@ def _resolve_tenant_id(user: TokenData, requested_tenant_id: str | None) -> str 
 
 # ── Reports ──────────────────────────────────────────────────────────────────
 
-@router.get("/api/reports/sla-compliance")
+@router.get("/api/reports/sla-compliance", dependencies=[Depends(require_permission("view:reporting"))])
 async def get_sla_compliance_report(
     tenant_id: str = None,
     framework: str = "SOC2",
@@ -68,7 +68,7 @@ async def get_sla_compliance_report(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/api/reports/vulnerability-exposure")
+@router.get("/api/reports/vulnerability-exposure", dependencies=[Depends(require_permission("view:reporting"))])
 async def get_vulnerability_exposure_report(
     tenant_id: str = None,
     current_user: TokenData = Depends(get_current_user),
@@ -85,7 +85,7 @@ async def get_vulnerability_exposure_report(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/api/reports/change-management")
+@router.get("/api/reports/change-management", dependencies=[Depends(require_permission("view:reporting"))])
 async def get_change_management_log(
     tenant_id: str = None,
     start_date: str = None,
@@ -110,7 +110,7 @@ async def get_change_management_log(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/api/reports/executive-summary")
+@router.get("/api/reports/executive-summary", dependencies=[Depends(require_permission("view:reporting"))])
 async def get_executive_summary(
     tenant_id: str = None,
     current_user: TokenData = Depends(get_current_user),
@@ -153,7 +153,7 @@ async def schedule_report(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/api/reports/schedules")
+@router.get("/api/reports/schedules", dependencies=[Depends(require_permission("view:reporting"))])
 async def get_report_schedules(
     current_user: TokenData = Depends(get_current_user),
 ):

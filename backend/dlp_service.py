@@ -4,12 +4,23 @@ DLP Service — Data Loss Prevention
 Detects PII, bulk data exports, and sensitive data patterns.
 """
 
+import asyncio
+import json
+import logging
+import os
 import re
 import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from database import get_database
+
+try:  # admin-written policy patterns run with a timeout when the regex module is present
+    import regex as _policy_re
+except ImportError:  # pragma: no cover - the backend venv ships it
+    _policy_re = None
+
+logger = logging.getLogger(__name__)
 
 # ─── PII Pattern Definitions ──────────────────────────────────────────────────
 
@@ -119,29 +130,119 @@ async def scan_file_bytes(content: bytes, filename: str, user_id: str, tenant_id
     return {"success": True, **incident_doc}
 
 
-# ─── Bulk Export Detection ────────────────────────────────────────────────────
+# ─── Export DLP: bulk exports and policies on exported rows ───────────────────
+# Export events and incidents are written through the raw handle with explicit tenant
+# fields: the export middleware runs outside the route's tenant context.
 
-async def check_bulk_export(user_id: str, tenant_id: str, record_count: int) -> bool:
-    """
-    Flag if a user has exported >500 records in the past 10 minutes.
-    Returns True if this constitutes a bulk export anomaly.
-    """
-    db = get_database()
-    from datetime import timedelta
-    window_start = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
-    recent_exports = await db.dlp_export_events.count_documents({
-        "user_id": user_id,
-        "tenant_id": tenant_id,
-        "timestamp": {"$gte": window_start},
+BULK_EXPORT_WINDOW = timedelta(minutes=10)
+BULK_EXPORT_ROWS = int(os.getenv("DLP_BULK_EXPORT_ROWS", "5000"))
+BULK_EXPORT_BYTES = int(float(os.getenv("DLP_BULK_EXPORT_MB", "50")) * 1024 * 1024)
+# Built-in patterns precise enough to apply to every export (the SSN/phone/date ones match
+# ordinary numbers in audit logs and inventories, so they stay on the file scanner only).
+_EXPORT_BUILTIN_TYPES = frozenset({"AWS_KEY", "PRIVATE_KEY"})
+_EXPORT_SCAN_MAX_CHARS = 2_000_000
+_POLICY_TIMEOUT_S = 0.5
+_export_index_ready = False
+
+
+async def check_bulk_export(user_id: str, tenant_id: Optional[str], record_count: int,
+                            byte_count: int = 0, path: Optional[str] = None) -> bool:
+    """Record one export; True when the user's exports in the last 10 minutes add up to a
+    bulk export (more than DLP_BULK_EXPORT_ROWS rows or DLP_BULK_EXPORT_MB megabytes)."""
+    global _export_index_ready
+    raw = get_database()._db
+    if not _export_index_ready:
+        await raw.dlp_export_events.create_index("at", expireAfterSeconds=86400)
+        _export_index_ready = True
+    now = datetime.now(timezone.utc)
+    await raw.dlp_export_events.insert_one({
+        "user_id": user_id, "tenant_id": tenant_id, "record_count": int(record_count or 0),
+        "byte_count": int(byte_count or 0), "path": path, "at": now,
     })
-    await db.dlp_export_events.insert_one({
-        "user_id": user_id,
-        "tenant_id": tenant_id,
-        "record_count": record_count,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+    totals = await raw.dlp_export_events.aggregate([
+        {"$match": {"user_id": user_id, "tenant_id": tenant_id, "at": {"$gte": now - BULK_EXPORT_WINDOW}}},
+        {"$group": {"_id": None, "rows": {"$sum": "$record_count"}, "bytes": {"$sum": "$byte_count"}}},
+    ]).to_list(1)
+    rows = totals[0]["rows"] if totals else 0
+    size = totals[0]["bytes"] if totals else 0
+    return rows > BULK_EXPORT_ROWS or size > BULK_EXPORT_BYTES
+
+
+def _policy_hits(pattern: Optional[str], text: str) -> Optional[bool]:
+    """Whether an admin-written pattern matches; None when it is invalid or runs too long."""
+    if not pattern:
+        return None
+    try:
+        if _policy_re is not None:
+            return _policy_re.search(pattern, text, timeout=_POLICY_TIMEOUT_S) is not None
+        return re.search(pattern, text) is not None
+    except (TimeoutError, re.error, Exception):
+        return None
+
+
+def validate_policy_pattern(pattern: str) -> None:
+    """Raise ValueError unless ``pattern`` compiles (an invalid block policy would block every export)."""
+    try:
+        (_policy_re or re).compile(pattern)
+    except Exception as exc:
+        raise ValueError(f"Invalid pattern: {exc}") from exc
+
+
+def _scan_export_text(text: str, policies: list) -> tuple:
+    blocking, alerting = [], []
+    for policy in policies:
+        hit = _policy_hits(policy.get("pattern"), text)
+        if not hit and not (hit is None and policy.get("action") == "block"):
+            continue
+        finding = {"type": "POLICY", "name": policy.get("name") or "DLP policy",
+                   "severity": policy.get("severity", "medium"), "policy_id": policy.get("policy_id")}
+        if hit is None:  # a block policy that cannot be evaluated blocks (fail closed)
+            finding["type"], finding["name"] = "POLICY_UNEVALUATED", f"{finding['name']} (could not be evaluated)"
+        (blocking if policy.get("action") == "block" else alerting).append(finding)
+    alerting += [f for f in scan_text_for_pii(text) if f["type"] in _EXPORT_BUILTIN_TYPES]
+    return blocking, alerting
+
+
+async def scan_export(rows: list, tenant_id: Optional[str]) -> tuple:
+    """(blocking, alerting) findings for exported rows: the tenant's enabled DLP policies plus
+    the precise built-in patterns. Runs off the event loop; admin patterns have a timeout."""
+    text = "\n".join(json.dumps(r, default=str) for r in rows)[:_EXPORT_SCAN_MAX_CHARS]
+    policies = []
+    if tenant_id:
+        policies = await get_database()._db.dlp_policies.find(
+            {"tenant_id": tenant_id, "enabled": True}, {"_id": 0}).to_list(100)
+    return await asyncio.to_thread(_scan_export_text, text, policies)
+
+
+async def record_export_incident(user_id: str, tenant_id: Optional[str], source: str,
+                                 findings: list, *, blocked: bool, kind: str = "export") -> str:
+    """Open a DLP incident for an export (policy hit or bulk export); returns its scan_id."""
+    scan_id = str(uuid.uuid4())
+    await get_database()._db.dlp_incidents.insert_one({
+        "scan_id": scan_id, "kind": kind, "filename": source, "user_id": user_id,
+        "tenant_id": tenant_id, "tenantId": tenant_id, "findings": findings,
+        "finding_count": len(findings), "sensitivity": "restricted" if blocked else "confidential",
+        "action": "blocked" if blocked else "alerted", "status": "open",
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
     })
-    total = recent_exports * 100 + record_count  # Approximate
-    return total > 500
+    logger.warning("DLP export incident %s (%s) for %s in tenant %s: %s", scan_id,
+                   "blocked" if blocked else "alert", user_id, tenant_id, [f.get("name") for f in findings])
+    return scan_id
+
+
+async def open_bulk_export_incident(user_id: str, tenant_id: Optional[str], path: Optional[str]) -> bool:
+    """One open bulk-export incident per user per window; False when one is already open."""
+    raw = get_database()._db
+    since = (datetime.now(timezone.utc) - BULK_EXPORT_WINDOW).isoformat()
+    if await raw.dlp_incidents.find_one({"kind": "bulk_export", "user_id": user_id, "tenant_id": tenant_id,
+                                         "status": "open", "scanned_at": {"$gte": since}}):
+        return False
+    await record_export_incident(user_id, tenant_id, path or "export", [{
+        "type": "BULK_EXPORT", "name": "Bulk data export", "severity": "high",
+        "detail": f"More than {BULK_EXPORT_ROWS} rows or {BULK_EXPORT_BYTES // (1024 * 1024)} MB exported "
+                  f"in {int(BULK_EXPORT_WINDOW.total_seconds() // 60)} minutes",
+    }], blocked=False, kind="bulk_export")
+    return True
 
 
 # ─── Policy Management ────────────────────────────────────────────────────────

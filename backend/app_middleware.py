@@ -1,8 +1,11 @@
 """Application middleware classes and registration helper."""
+import json
 import os
 import socket
 import logging
 import uuid as _uuid
+import zlib
+from urllib.parse import parse_qsl, urlencode
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,6 +119,86 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+async def _send_json(send, status: int, detail: str) -> None:
+    body = json.dumps({"detail": detail}).encode()
+    await send({"type": "http.response.start", "status": status,
+                "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+    await send({"type": "http.response.body", "body": body})
+
+
+class GzipRequestMiddleware:
+    """Inflate request bodies sent with Content-Encoding: gzip (agents compress heartbeats).
+
+    The compressed size is already capped by MaxBodySizeMiddleware (and nginx); the inflated
+    body is capped at the same limit, so a small gzip bomb is refused with 413.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = scope.get("headers") or []
+        encoding = next((v for k, v in headers if k == b"content-encoding"), b"").strip().lower()
+        if encoding != b"gzip":
+            return await self.app(scope, receive, send)
+
+        body, more = b"", True
+        while more:
+            message = await receive()
+            if message["type"] != "http.request":
+                return
+            body += message.get("body") or b""
+            more = message.get("more_body", False)
+            if len(body) > _MAX_BODY_BYTES:
+                return await _send_json(send, 413, "Request body too large")
+        inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        try:
+            inflated = inflater.decompress(body, _MAX_BODY_BYTES + 1)
+        except zlib.error:
+            return await _send_json(send, 400, "Invalid gzip request body")
+        if len(inflated) > _MAX_BODY_BYTES or inflater.unconsumed_tail:
+            return await _send_json(send, 413, "Request body too large")
+        if not inflater.eof:
+            return await _send_json(send, 400, "Invalid gzip request body")
+
+        new_headers = [(k, v) for k, v in headers if k not in (b"content-encoding", b"content-length")]
+        new_headers.append((b"content-length", str(len(inflated)).encode()))
+        delivered = False
+
+        async def inflated_receive():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": inflated, "more_body": False}
+            return await receive()
+
+        await self.app(dict(scope, headers=new_headers), inflated_receive, send)
+
+
+_PAGE_SIZE_PARAMS = frozenset({"limit", "page_size", "per_page", "pageSize", "max_results"})
+MAX_PAGE_SIZE = int(os.getenv("API_MAX_PAGE_SIZE", "2000"))
+
+
+class PageSizeCapMiddleware:
+    """Clamp page-size query parameters to MAX_PAGE_SIZE: no list endpoint hands out more rows
+    than that per request, including the ones whose own parameter declares no upper bound."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        query = scope.get("query_string") or b""
+        if scope["type"] == "http" and query:
+            pairs = parse_qsl(query.decode("latin-1"), keep_blank_values=True)
+            capped = [(k, str(MAX_PAGE_SIZE) if k in _PAGE_SIZE_PARAMS and v.strip().isdigit()
+                       and int(v) > MAX_PAGE_SIZE else v) for k, v in pairs]
+            if capped != pairs:
+                scope = dict(scope, query_string=urlencode(capped).encode("latin-1"))
+        await self.app(scope, receive, send)
+
+
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Attach a unique request ID to every request for log correlation."""
 
@@ -212,6 +295,9 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
     from partner_middleware import PartnerScopeMiddleware
     from usage_middleware import UsageTrackingMiddleware
     from audit_middleware import AuditMiddleware
+    from export_controls import ExportControlMiddleware
+    # Innermost: the daily export allowance and export records (export_controls).
+    app.add_middleware(ExportControlMiddleware)
     # Innermost of the three, so a write refused to Platform Support/Billing is still audited (spec C1).
     app.add_middleware(PlatformReadOnlyMiddleware)
     # D-01: a partner token reaches only the portal and its own sign-in; inside Audit/Tenant so refusals are audited.
@@ -222,6 +308,9 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
     app.add_middleware(AuditMiddleware)
     app.add_middleware(TenantMiddleware)
     app.add_middleware(UsageTrackingMiddleware)
+    # Outside everything that reads the body or query, inside the body-size check below.
+    app.add_middleware(PageSizeCapMiddleware)
+    app.add_middleware(GzipRequestMiddleware)
 
     # Rate limiting / body-size rejection — added late (outer) so they run
     # before the more expensive middleware above; see the docstring note.
