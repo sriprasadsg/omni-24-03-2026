@@ -1,0 +1,221 @@
+"""Autonomous Ops activity export builder (Phase 86, plan 86-06, ACTV-06, D-09, D-10, D-11).
+Real MongoDB (skips without one) through the throwaway database of tests/_mongo_test_db.py.
+
+Value: protects=the export holds exactly the rows the Activity list shows for a state and period, newest
+first, capped at 5,000 with an honest note, with spreadsheet formulas and PDF markup neutralised and a
+platform administrator's name kept from tenant viewers; fails_when=the file shows a row the screen would not
+(another tenant, a platform health row), the cap or its note is off by one, a cell can run as a formula,
+markup changes the page, or a tenant file names platform staff; no_claim=the routes, the audit event and the
+dialog (86-08, 86-11).
+"""
+import csv
+import io
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from autonomous_ops import PLATFORM_TENANT_ID, protected, views
+from autonomous_ops.reporting import EXPORT_ROW_CAP, export
+from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.autonomy_support import seed_agent, seed_tenant
+
+NOW = datetime(2026, 11, 12, 12, 0, 0, tzinfo=timezone.utc)
+HEADER = ["When (UTC)", "State", "Action", "Target", "Host", "Rule", "Rule id", "Approved by", "Result"]
+CAP_SENTENCE = ("the newest 5,000 of 5,001 rows. Rows older than that were left out. "
+                "Pick a shorter period or a single state to get the rest.")
+
+
+@pytest.fixture(autouse=True)
+def _env(monkeypatch):
+    monkeypatch.setenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "false")
+    protected.cache_clear()
+
+
+def _doc(row_id, tenant, state, created, *, command="block_ip", target="203.0.113.7", targets=("a1",),
+         kind="action", rule="playbook:contain-ip", approver=None, **extra):
+    doc = {"id": row_id, "tenantId": tenant, "kind": kind, "origin": "playbook", "dispatcher": "instruction",
+           "command": command, "actions": [command], "targets": list(targets), "target": target, "params": {},
+           "state": state, "level": "undoable_auto", "shadow": state == "shadow",
+           "reason": {"ruleId": rule, "inputs": {}}, "reasonCode": "class_auto",
+           "reasonText": "This action is allowed to run on its own within the limits you set.",
+           "approval": {"requiredBy": None, "expiresAt": None, "approver": approver, "decidedAt": None},
+           "undo": {"available": False, "action": None, "params": {}, "undoneAt": None, "undoneBy": None},
+           "createdAt": created, "updatedAt": created, "finishedAt": created}
+    doc.update(extra)
+    return doc
+
+
+async def _put(db, *docs):
+    await db.autonomy_actions.insert_many(list(docs))
+
+
+async def _build(db, tenant="t1", *, bucket="all", days="30", staff=False, fmt="csv"):
+    return await export.build(db, tenant, bucket=bucket, days=days, fmt=fmt, viewer_is_platform_staff=staff, now=NOW)
+
+
+def _table(result):
+    return list(csv.reader(io.StringIO(result.content.decode("utf-8"))))
+
+
+# ------------------------------------------------------------------ the shared filter
+
+async def test_activity_filter_gives_the_rows_the_list_shows(mongo_db):
+    """protects=the export and the list read one filter; fails_when=they drift apart."""
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db,
+               _doc("AO-1", "t1", "executed", NOW - timedelta(minutes=1)),
+               _doc("AO-2", "t1", "shadow", NOW - timedelta(minutes=2)),
+               _doc("AO-3", "t1", "refused", NOW - timedelta(minutes=3)),
+               _doc("AO-4", "t2", "executed", NOW - timedelta(minutes=4)),
+               _doc("AO-5", "t1", "executed", NOW - timedelta(minutes=5), kind="platform_health"),
+               _doc("AO-6", PLATFORM_TENANT_ID, "executed", NOW - timedelta(minutes=6), kind="control", scope="platform",
+                    controlEvent="stop_pressed"))
+    for bucket in ("all", "done", "simulation", "refused"):
+        page = await views.list_page(db, "t1", bucket=bucket, limit=100, cursor=None, viewer_is_platform_staff=False)
+        found = db.autonomy_actions.find(views.activity_filter("t1", bucket), {"_id": 0, "id": 1})
+        assert {row["id"] async for row in found} == {item["id"] for item in page["items"]}, bucket
+
+
+def test_activity_filter_refuses_an_unknown_bucket():
+    with pytest.raises(ValueError):
+        views.activity_filter("t1", "everything")
+
+
+# ------------------------------------------------------------------ the CSV
+
+async def test_csv_header_rows_newest_first_and_only_the_tenants_own(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await seed_agent(db, "t1", "a1", hostname="web-01")
+    await _put(db,
+               _doc("AO-old", "t1", "executed", NOW - timedelta(days=3)),
+               _doc("AO-mid", "t1", "executed", NOW - timedelta(days=2)),
+               _doc("AO-new", "t1", "executed", NOW - timedelta(days=1)),
+               _doc("AO-undone", "t1", "undone", NOW - timedelta(days=1, hours=1)),
+               _doc("AO-t2", "t2", "executed", NOW - timedelta(days=1), target="198.51.100.9", targets=("b1",)))
+    result = await _build(db, bucket="done")
+    assert (result.shown, result.total, result.truncated) == (3, 3, False)
+    assert result.media_type == "text/csv"
+    table = _table(result)
+    assert table[0] == HEADER
+    assert len(table) == 4
+    assert [row[0] for row in table[1:]] == ["2026-11-11 12:00:00", "2026-11-10 12:00:00", "2026-11-09 12:00:00"]
+    first = table[1]
+    assert first[1] == "Done" and first[2] == "Block IP address" and first[4] == "web-01"
+    assert first[6] == "playbook:contain-ip" and first[5] and first[5] != first[6]
+    assert all("198.51.100.9" not in cell for row in table for cell in row)
+
+
+async def test_simulation_reads_simulation_and_all_has_the_platform_stop_but_no_health_rows(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db,
+               _doc("AO-shadow", "t1", "shadow", NOW - timedelta(hours=1), wouldHave="allow_auto"),
+               _doc("AO-health", PLATFORM_TENANT_ID, "executed", NOW - timedelta(hours=2), kind="platform_health",
+                    healthEvent="watchdog_restart"),
+               _doc("AO-health-t1", "t1", "executed", NOW - timedelta(hours=2), kind="platform_health"),
+               _doc("AO-stop", PLATFORM_TENANT_ID, "executed", NOW - timedelta(hours=3), kind="control", scope="platform",
+                    controlEvent="stop_pressed", actor={"username": "root", "display": "Root", "tier": "platform"}))
+    sim = _table(await _build(db, bucket="simulation"))
+    assert [row[1] for row in sim[1:]] == ["Simulation"]
+    everything = _table(await _build(db, bucket="all"))
+    assert [row[1] for row in everything[1:]] == ["Simulation", "Control"]
+
+
+async def test_period_edges_seven_days_excludes_eight_and_all_time_includes_four_hundred(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db,
+               _doc("AO-recent", "t1", "executed", NOW - timedelta(days=6)),
+               _doc("AO-8d", "t1", "executed", NOW - timedelta(days=8)),
+               _doc("AO-400d", "t1", "executed", NOW - timedelta(days=400)))
+    assert [r[0] for r in _table(await _build(db, days="7"))[1:]] == ["2026-11-06 12:00:00"]
+    assert (await _build(db, days="30")).total == 1
+    assert (await _build(db, days="90")).total == 2
+    everything = await _build(db, days="all")
+    assert everything.total == 3 and everything.shown == 3
+
+
+async def test_a_period_outside_the_menu_is_refused(mongo_db):
+    with pytest.raises(ValueError):
+        await _build(mongo_db, days="14")
+    with pytest.raises(ValueError):
+        await _build(mongo_db, fmt="xml")
+
+
+async def test_cap_keeps_the_newest_five_thousand_and_says_so(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db, *[_doc(f"AO-{i:05d}", "t1", "executed", NOW - timedelta(seconds=i + 1))
+                     for i in range(EXPORT_ROW_CAP + 1)])
+    result = await _build(db, days="all")
+    assert (result.shown, result.total, result.truncated) == (5000, 5001, True)
+    table = _table(result)
+    assert len(table) == 1 + 5000 + 1
+    assert table[1][0] == "2026-11-12 11:59:59"
+    assert table[-1] == ["Note", CAP_SENTENCE]
+    assert table[-2][0] != "Note"
+    assert export.cap_sentence(5000, 5001) == CAP_SENTENCE
+
+
+async def test_exactly_the_cap_is_not_truncated_and_has_no_note(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db, *[_doc(f"AO-{i:05d}", "t1", "executed", NOW - timedelta(seconds=i + 1)) for i in range(EXPORT_ROW_CAP)])
+    result = await _build(db, days="all")
+    assert (result.shown, result.total, result.truncated) == (5000, 5000, False)
+    table = _table(result)
+    assert len(table) == 1 + 5000
+    assert all(row[0] != "Note" for row in table)
+
+
+async def test_no_matching_rows_gives_no_file(mongo_db):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db, _doc("AO-other", "t2", "executed", NOW - timedelta(hours=1)))
+    result = await _build(db, bucket="done")
+    assert result.content is None and result.total == 0 and result.shown == 0 and result.truncated is False
+
+
+@pytest.mark.parametrize("lead", ["=", "+", "-", "@", "\t", "\r"])
+async def test_a_cell_starting_like_a_formula_cannot_run_as_one(mongo_db, lead):
+    """protects=T-86-11 (CWE-1236); fails_when=a target, host or rule id can start a formula in a spreadsheet."""
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await seed_agent(db, "t1", "a1", hostname=f"{lead}cmd-host")
+    await _put(db,
+               _doc("AO-evil", "t1", "executed", NOW - timedelta(hours=1), target=f'{lead}HYPERLINK("http://x")',
+                    targets=("a9",), rule=f"{lead}rule"),
+               _doc("AO-host", "t1", "executed", NOW - timedelta(hours=2)))
+    table = _table(await _build(db, bucket="done"))
+    evil, host = table[1], table[2]
+    assert evil[3] == f"'{lead}HYPERLINK(\"http://x\")" and evil[6] == f"'{lead}rule"
+    assert host[4] == f"'{lead}cmd-host"
+    for row in table:
+        assert not any(cell and cell[0] in "=+-@\t\r" for cell in row), row
+
+
+@pytest.mark.parametrize("staff,expected", [(False, "Platform administrator"), (True, "Pat")])
+async def test_a_platform_approver_is_named_only_to_platform_staff(mongo_db, staff, expected):
+    db = mongo_db
+    await seed_tenant(db, "t1")
+    await _put(db,
+               _doc("AO-plat", "t1", "executed", NOW - timedelta(hours=1),
+                    approver={"username": "pat", "display": "Pat", "tier": "platform"}),
+               _doc("AO-own", "t1", "executed", NOW - timedelta(hours=2),
+                    approver={"username": "tess", "display": "Tess", "tier": "tenant"}),
+               _doc("AO-auto", "t1", "executed", NOW - timedelta(hours=3)))
+    table = _table(await _build(db, bucket="done", staff=staff))
+    assert [row[7] for row in table[1:]] == [expected, "Tess", ""]
+    assert (("Pat" in " ".join(" ".join(row) for row in table)) is staff)
+
+
+def test_file_name_carries_the_tenant_and_the_day():
+    assert export.file_name("t1", "csv", NOW) == "autonomous-ops-activity-t1-20261112.csv"
+    assert export.file_name("t1", "pdf", NOW) == "autonomous-ops-activity-t1-20261112.pdf"
+    assert export.file_name("acme corp/../x", "csv", NOW) == "autonomous-ops-activity-acme-corp-----x-20261112.csv"
