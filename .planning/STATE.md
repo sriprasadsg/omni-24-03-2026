@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 86
 current_phase_name: Activity Reporting, Hardening & Live Validation
 status: executing
-stopped_at: Completed 86-14-PLAN.md
-last_updated: "2026-11-13T21:24:18.762Z"
+stopped_at: Completed 86-15-PLAN.md
+last_updated: "2026-11-13T21:37:05.910Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 86 execution started
-state_head: bcd51236e5aba75ee127a36a1d115496acd4ab0c
+state_head: bb43a90bcc118f7b08a2bc114cbeee9913a37e10
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 172
-  completed_plans: 169
+  completed_plans: 170
   percent: 75
 ---
 
@@ -693,6 +693,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 86]: 86-11: export result replaces the dialog choices (cut or empty file); canExport is remembered per organization key
 - [Phase 86]: 86-12: the Going live card reads the lift decision from the server's canLift and reasons; a 409 shows the server sentence and refetches, no client-side gate
 - [Phase 86]: 86-14: the go-live test organization is one fixed-id platform document; lift_blockers returns no reasons for the marked organization and reads the mark fail closed; clear needs the organization's own shadow flag on
+- [Phase 86]: 86-15: for the go-live test organization the Lift dialog replaces the evidence line (which claims five recorded checks) with the exemption note; other organizations unchanged
 
 ## Performance Metrics
 
@@ -1017,6 +1018,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 86 P11 | 25 min | 2 tasks | 10 files |
 | Phase 86 P12 | 21 min | 2 tasks | 11 files |
 | Phase 86 P14 | 25 min | 2 tasks | 9 files |
+| Phase 86 P15 | 15 min | 2 tasks | 10 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1051,8 +1053,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-13T21:24:18.411Z
-**Stopped at:** Completed 86-14-PLAN.md
+**Last session:** 2026-11-13T21:37:05.550Z
+**Stopped at:** Completed 86-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
