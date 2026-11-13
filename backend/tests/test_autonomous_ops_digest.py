@@ -76,7 +76,7 @@ def test_a_target_with_line_breaks_stays_on_one_line():
 
 
 def test_the_simulation_section_is_introduced_and_its_items_say_would_have():
-    lines = text.section_lines("Simulation: would have done", [item(1), item(2, command="isolate_host", target="WS-014")],
+    lines = text.section_lines("Simulation: would have done", [item(1), item(2, command="isolate_host", target="WS-014", at=datetime(2026, 11, 12, 5, 0, tzinfo=UTC))],
                                simulation=True)
     assert lines[0] == "Simulation: would have done (2)"
     assert lines[1] == "Shadow mode is on. Nothing below was carried out."
