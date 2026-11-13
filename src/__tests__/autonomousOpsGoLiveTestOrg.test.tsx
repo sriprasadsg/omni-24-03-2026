@@ -276,3 +276,59 @@ describe('the Clear test mark dialog', () => {
     expect(clear).not.toHaveBeenCalled();
   });
 });
+
+const TEST_ORG_NOTE =
+  'Test organization: the five checks and the seven days are not required. The lift is recorded as a test-organization lift.';
+const ACME_READY = { ...ACME, daysObserved: 7, canLift: true, reasons: [] };
+
+const openLift = async (name: string, organizations: unknown[], testOrganization: Mark | null) => {
+  await renderExpanded(organizations, testOrganization);
+  fireEvent.click(within(orgRow(name)).getByRole('button', { name: 'Lift shadow mode' }));
+  const dialog = await screen.findByRole('dialog', { name: `Lift shadow mode for ${name}?` });
+  const input = within(dialog).getByLabelText('Type the organization name to confirm');
+  return { dialog, input, confirm: within(dialog).getByRole('button', { name: 'Lift shadow mode' }) };
+};
+
+describe('the Lift dialog for the test organization', () => {
+  it('says the checks and the seven days are not required, above the typed-name confirmation', async () => {
+    const { dialog, input } = await openLift('Sandbox', [ACME, SANDBOX_ON], SANDBOX_MARK);
+    const note = within(dialog).getByText(TEST_ORG_NOTE);
+    expect(note.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('does not claim the five checks are recorded, because they are not required for it', async () => {
+    const { dialog } = await openLift('Sandbox', [SANDBOX_ON], SANDBOX_MARK);
+    expect(within(dialog).queryByText(/All 5 go-live checks are recorded\./)).toBeNull();
+  });
+
+  it('keeps the typed-name confirmation: disabled until the exact name, then lifts once through the server', async () => {
+    const { dialog, input, confirm } = await openLift('Sandbox', [SANDBOX_ON], SANDBOX_MARK);
+    expect(confirm).toBeDisabled();
+    expect(within(dialog).getByText('Type the name to continue.')).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'sandbox' } });
+    expect(confirm).toBeDisabled();
+    setShadow.mockResolvedValueOnce({});
+    fireEvent.change(input, { target: { value: 'Sandbox' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(setShadow).toHaveBeenCalledWith('sandbox-id', false));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(setShadow).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the server sentence for a refused lift and refetches', async () => {
+    const { dialog, input, confirm } = await openLift('Sandbox', [SANDBOX_ON], SANDBOX_MARK);
+    setShadow.mockRejectedValueOnce(apiError(409, 'Record all 5 go-live checks first (0 of 5 recorded).'));
+    fireEvent.change(input, { target: { value: 'Sandbox' } });
+    const before = fetchOverview.mock.calls.length;
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("Shadow mode can't be lifted yet: Record all 5 go-live checks first (0 of 5 recorded).");
+    await waitFor(() => expect(fetchOverview.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('leaves the dialog unchanged for any other organization: evidence line, no test-organization note', async () => {
+    const { dialog } = await openLift('Acme', [ACME_READY, SANDBOX_ON], SANDBOX_MARK);
+    expect(within(dialog).queryByText(TEST_ORG_NOTE)).toBeNull();
+    expect(within(dialog).getByText('7 days of shadow records. 18 actions would have been done. All 5 go-live checks are recorded.')).toBeInTheDocument();
+  });
+});
