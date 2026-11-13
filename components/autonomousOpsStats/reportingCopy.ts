@@ -30,3 +30,38 @@ export function summaryLine(stats: AutonomousOpsStatistics): string {
     if (totals.fired === 0) return `${label} · No decisions yet`;
     return `${label} · ${totals.done} done · ${totals.undone} undone · ${formatMinutes(timeSaved.minutes)} saved (estimate)`;
 }
+
+// ── Expanded card (86-UI-SPEC sections 2a to 2d) ────────────────────────────────────────────────────────
+
+export const STATS_PERIOD_LABEL = 'Period';
+export const STATS_PERIOD_GROUP = 'Statistics period';
+export const periodPillLabel = (days: number): string => `${days} days`;
+export const updatedLine = (clock: string): string => `Updated ${clock}`;
+
+export const READOUT_DECISIONS = 'Decisions';
+export const READOUT_DONE = 'Done';
+export const READOUT_UNDONE = 'Undone';
+export const READOUT_TIME_SAVED = 'Time saved';
+export const ESTIMATE_CHIP = 'Estimate';
+export const TRY_AGAIN = 'Try again';
+
+/** Section c: the dashed simulation line. Simulation is never part of the real counts above it. */
+export function simulationLine(wouldHaveDone: number): string {
+    return wouldHaveDone > 0
+        ? `Simulation: ${wouldHaveDone} would have been done in this period. Nothing was carried out, and none of it is counted above.`
+        : 'Simulation: nothing would have been done in this period.';
+}
+
+export const emptyHeading = (days: number): string => `No decisions in the last ${days} days`;
+export const EMPTY_BODY = "Autonomous Ops hasn't made a decision in this period. Pick a longer period, or see Activity below for older entries.";
+
+/** Section d: the method, always visible next to the figure (D-08). */
+export const TIME_SAVED_METHOD = "This is an estimate, not a measurement. Each action that really ran and was not undone counts a fixed number of minutes for its kind, for example 15 minutes to isolate a host or 8 minutes to answer a ticket. Simulated and undone actions are not counted. These minutes are fixed in the product and can't be changed.";
+export const TIME_SAVED_SHADOW_SENTENCE = 'Shadow mode is on, so nothing has been carried out and no time is counted.';
+export const SHOW_MINUTES = 'Show minutes per kind of action';
+export const HIDE_MINUTES = 'Hide minutes per kind of action';
+export const MINUTES_TABLE_CAPTION = 'Minutes per kind of action';
+export const MINUTES_HEADERS = { kind: 'Kind of action', counted: 'Counted', each: 'Minutes each', subtotal: 'Subtotal' } as const;
+export const MINUTES_TOTAL = 'Total';
+/** A plain minutes figure for the table cells; the estimate wording ("About ...") belongs to the headline only. */
+export const plainMinutes = (minutes: number): string => `${Number.isFinite(minutes) ? minutes : 0} min`;

@@ -104,7 +104,7 @@ const Harness: React.FC = () => {
 };
 
 async function expandCard() {
-  await screen.findByText(/Last \d+ days/);
+  await screen.findByText(/Last \d+ days|couldn't be loaded/);
   const toggle = screen.getByRole('button', { name: /Statistics/ });
   fireEvent.click(toggle);
   return toggle;
@@ -184,9 +184,10 @@ describe('the empty and error states', () => {
   });
 
   it('shows the red notice with Try again when the load fails, and Try again refetches', async () => {
-    fetchStats
-      .mockImplementationOnce(() => Promise.reject(new Error('down')))
-      .mockImplementation(() => Promise.resolve(withKinds({ fired: 3, done: 2, undone: 1 }, 30)));
+    let up = false;
+    fetchStats.mockImplementation(() => (up
+      ? Promise.resolve(withKinds({ fired: 3, done: 2, undone: 1 }, 30))
+      : Promise.reject(new Error('down'))));
     renderCard();
     await expandCard();
     const alert = await screen.findByRole('alert');
@@ -194,6 +195,7 @@ describe('the empty and error states', () => {
     expect(screen.getByText("Statistics couldn't be loaded")).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
     const calls = fetchStats.mock.calls.length;
+    up = true;
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetchStats.mock.calls.length).toBeGreaterThan(calls));
     expect(await screen.findByText('Last 30 days · 2 done · 1 undone · About 30 min saved (estimate)')).toBeInTheDocument();

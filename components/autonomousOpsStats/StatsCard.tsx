@@ -2,9 +2,13 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { fetchAutonomousOpsStatistics } from '../../services/autonomousOpsReporting';
 import type { AutonomousOpsStatistics, StatsWindow } from '../../services/autonomousOpsReporting';
 import { HEALTH_SKELETON, HealthNotice, clockOrDash } from '../AutonomousOpsHealthChips';
-import { BarChart3Icon, ChevronRightIcon, InfoIcon } from '../icons';
+import { EmptyStateCard } from '../AutonomousOpsActivityList';
+import { BarChart3Icon, ChevronRightIcon, FlaskConicalIcon, InfoIcon } from '../icons';
+import { TimeSavedBlock } from './TimeSavedBlock';
 import {
-    STATS_LOAD_ERROR, STATS_LOAD_FAILED_SUMMARY, STATS_TITLE, formatMinutes, periodLabel, summaryLine,
+    EMPTY_BODY, ESTIMATE_CHIP, READOUT_DECISIONS, READOUT_DONE, READOUT_TIME_SAVED, READOUT_UNDONE, STATS_LOAD_ERROR,
+    STATS_LOAD_FAILED_SUMMARY, STATS_PERIOD_GROUP, STATS_PERIOD_LABEL, STATS_TITLE, TRY_AGAIN, emptyHeading, formatMinutes,
+    periodLabel, periodPillLabel, simulationLine, summaryLine, updatedLine,
 } from './reportingCopy';
 
 interface StatsCardProps {
@@ -30,11 +34,18 @@ const Readout: React.FC<{ label: string; children: React.ReactNode }> = ({ label
     </div>
 );
 
+const SIMULATION_BLOCK = 'flex items-start gap-2 rounded-lg border border-dashed border-gray-400 p-4 dark:border-gray-500';
+
+/** A period with no decision of any kind (a simulation counts as one): the card shows the empty state instead of c, d and e. */
+const hasNothing = (stats: AutonomousOpsStatistics): boolean =>
+    !stats.shadowOnly && stats.totals.fired === 0 && stats.totals.wouldHaveDone === 0 && stats.rules.length === 0;
+
 /**
- * The collapsed Statistics card (86-UI-SPEC section 2, ACTV-05, ACTV-07): one summary line that always
- * carries the headline and the word "estimate", and a body with the period and the four headline cells.
+ * The Statistics card (86-UI-SPEC section 2, ACTV-05, ACTV-07): one summary line that always carries the
+ * headline and the word "estimate", and an expanded body with the period, the four headline cells, the
+ * separate simulation line and the Time saved block. Simulation is never added to a real count.
  * One fetch on mount; refetch on expand, on a period change and on the screen's Refresh. No polling.
- * Server text renders as React text only.
+ * Read-only: nothing here writes. Server text renders as React text only.
  */
 export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChange, refreshSignal }) => {
     const uid = useId();
@@ -45,17 +56,23 @@ export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChan
     const [loading, setLoading] = useState(true);
     const [expandTick, setExpandTick] = useState(0);
     const latest = useRef(0);
+    const shownFor = useRef('');
 
     const load = useCallback(async () => {
         const mine = ++latest.current;
+        const key = `${days}|${tenantId ?? ''}`;
+        // A new period or organization shows skeletons in place instead of the previous numbers.
+        if (shownFor.current !== key) setStats(null);
         setLoading(true);
         try {
             const next = await fetchAutonomousOpsStatistics(days, tenantId);
             if (mine !== latest.current) return;
+            shownFor.current = key;
             setStats(next);
             setFailed(false);
         } catch {
             if (mine !== latest.current) return;
+            shownFor.current = '';
             setStats(null);
             setFailed(true);
         } finally {
@@ -89,46 +106,67 @@ export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChan
                 <div id={bodyId} aria-busy={loading} className="mt-6 flex flex-col gap-6 border-t border-gray-200 pt-6 dark:border-white/10">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Period</span>
-                            <div role="group" aria-label="Statistics period" className="flex flex-wrap gap-2">
+                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{STATS_PERIOD_LABEL}</span>
+                            <div role="group" aria-label={STATS_PERIOD_GROUP} className="flex flex-wrap gap-2">
                                 {WINDOWS.map(w => (
                                     <button
                                         key={w} type="button" aria-pressed={w === days} onClick={() => onDaysChange(w)}
                                         className={`${PILL_BASE} ${w === days ? PILL_ACTIVE : PILL_IDLE}`}
                                     >
-                                        {w} days
+                                        {periodPillLabel(w)}
                                     </button>
                                 ))}
                             </div>
                         </div>
-                        {stats && <span className="text-xs text-gray-500 dark:text-gray-400">Updated {clockOrDash(stats.generatedAt)}</span>}
+                        {stats && <span className="text-xs text-gray-500 dark:text-gray-400">{updatedLine(clockOrDash(stats.generatedAt))}</span>}
                     </div>
 
                     {failed && !stats && (
                         <HealthNotice tone="red" role="alert">
                             <p>{STATS_LOAD_ERROR}</p>
                             <p>
-                                <button type="button" onClick={() => void load()} className="text-sm font-semibold underline underline-offset-2">Try again</button>
+                                <button type="button" onClick={() => void load()} className="text-sm font-semibold underline underline-offset-2">{TRY_AGAIN}</button>
                             </p>
                         </HealthNotice>
                     )}
 
                     {loading && !stats && !failed && (
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            {[0, 1, 2, 3].map(i => <div key={i} className={`h-20 ${HEALTH_SKELETON}`} />)}
-                        </div>
+                        <>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                {[0, 1, 2, 3].map(i => <div key={i} className={`h-20 ${HEALTH_SKELETON}`} />)}
+                            </div>
+                            <div className={`h-40 ${HEALTH_SKELETON}`} />
+                        </>
                     )}
 
                     {stats && (
-                        <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label={periodLabel(stats.days)}>
-                            <Readout label="Decisions">{stats.totals.fired}</Readout>
-                            <Readout label="Done">{stats.totals.done}</Readout>
-                            <Readout label="Undone">{stats.totals.undone}</Readout>
-                            <Readout label="Time saved">
-                                <span>{formatMinutes(stats.timeSaved.minutes)}</span>
-                                <span className={OUTLINE_CHIP}><InfoIcon size={12} aria-hidden="true" />Estimate</span>
-                            </Readout>
-                        </dl>
+                        <>
+                            <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label={periodLabel(stats.days)}>
+                                <Readout label={READOUT_DECISIONS}>{stats.totals.fired}</Readout>
+                                <Readout label={READOUT_DONE}>{stats.totals.done}</Readout>
+                                <Readout label={READOUT_UNDONE}>{stats.totals.undone}</Readout>
+                                <Readout label={READOUT_TIME_SAVED}>
+                                    <span>{formatMinutes(stats.timeSaved.minutes)}</span>
+                                    <span className={OUTLINE_CHIP}><InfoIcon size={12} aria-hidden="true" />{ESTIMATE_CHIP}</span>
+                                </Readout>
+                            </dl>
+
+                            {hasNothing(stats) ? (
+                                <EmptyStateCard icon={BarChart3Icon} heading={emptyHeading(stats.days)}>
+                                    <p className="max-w-prose break-words text-sm text-gray-600 dark:text-gray-400">{EMPTY_BODY}</p>
+                                </EmptyStateCard>
+                            ) : (
+                                <>
+                                    {(stats.shadowOnly || stats.totals.wouldHaveDone > 0) && (
+                                        <div className={SIMULATION_BLOCK}>
+                                            <FlaskConicalIcon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+                                            <p className="min-w-0 break-words text-sm text-gray-700 dark:text-gray-200">{simulationLine(stats.totals.wouldHaveDone)}</p>
+                                        </div>
+                                    )}
+                                    <TimeSavedBlock timeSaved={stats.timeSaved} shadowOnly={stats.shadowOnly} />
+                                </>
+                            )}
+                        </>
                     )}
                 </div>
             )}
