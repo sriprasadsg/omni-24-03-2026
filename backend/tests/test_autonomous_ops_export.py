@@ -95,7 +95,7 @@ async def test_csv_header_rows_newest_first_and_only_the_tenants_own(mongo_db):
     await _put(db,
                _doc("AO-old", "t1", "executed", NOW - timedelta(days=3)),
                _doc("AO-mid", "t1", "executed", NOW - timedelta(days=2)),
-               _doc("AO-new", "t1", "executed", NOW - timedelta(days=1)),
+               _doc("AO-new", "t1", "executed", NOW - timedelta(days=1), rule="sweep:block_ip"),
                _doc("AO-undone", "t1", "undone", NOW - timedelta(days=1, hours=1)),
                _doc("AO-t2", "t2", "executed", NOW - timedelta(days=1), target="198.51.100.9", targets=("b1",)))
     result = await _build(db, bucket="done")
@@ -107,7 +107,7 @@ async def test_csv_header_rows_newest_first_and_only_the_tenants_own(mongo_db):
     assert [row[0] for row in table[1:]] == ["2026-11-11 12:00:00", "2026-11-10 12:00:00", "2026-11-09 12:00:00"]
     first = table[1]
     assert first[1] == "Done" and first[2] == "Block IP address" and first[4] == "web-01"
-    assert first[6] == "playbook:contain-ip" and first[5] and first[5] != first[6]
+    assert first[6] == "sweep:block_ip" and first[5] == "Block an address two sources agree on"
     assert all("198.51.100.9" not in cell for row in table for cell in row)
 
 
@@ -135,7 +135,7 @@ async def test_period_edges_seven_days_excludes_eight_and_all_time_includes_four
                _doc("AO-8d", "t1", "executed", NOW - timedelta(days=8)),
                _doc("AO-400d", "t1", "executed", NOW - timedelta(days=400)))
     assert [r[0] for r in _table(await _build(db, days="7"))[1:]] == ["2026-11-06 12:00:00"]
-    assert (await _build(db, days="30")).total == 1
+    assert (await _build(db, days="30")).total == 2
     assert (await _build(db, days="90")).total == 2
     everything = await _build(db, days="all")
     assert everything.total == 3 and everything.shown == 3
@@ -218,4 +218,4 @@ async def test_a_platform_approver_is_named_only_to_platform_staff(mongo_db, sta
 def test_file_name_carries_the_tenant_and_the_day():
     assert export.file_name("t1", "csv", NOW) == "autonomous-ops-activity-t1-20261112.csv"
     assert export.file_name("t1", "pdf", NOW) == "autonomous-ops-activity-t1-20261112.pdf"
-    assert export.file_name("acme corp/../x", "csv", NOW) == "autonomous-ops-activity-acme-corp-----x-20261112.csv"
+    assert export.file_name("acme corp/../x", "csv", NOW) == "autonomous-ops-activity-acme-corp----x-20261112.csv"

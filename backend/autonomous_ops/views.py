@@ -294,16 +294,8 @@ async def _host_names(db, tenant_id: str, rows: List[Dict[str, Any]]) -> Dict[st
     return {a["id"]: a["hostname"] async for a in found if a.get("hostname")}
 
 
-async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Optional[str],
-                    viewer_is_platform_staff: bool, include_platform_health: bool = False,
-                    can_act: bool = False) -> Dict[str, Any]:
-    """A page of the tenant's activity, newest first (createdAt then id, both descending). A real
-    tenant's list also carries the platform-scope control rows (stop pressed or cleared for every
-    organization). Counts and the total are added to the first page only.
-
-    Platform-health rows (watchdog events) are excluded for every tenant id, the platform tenant
-    included, unless ``include_platform_health`` is True; only the Super Admin's platform route
-    sets it (D-23, PROH-82-06)."""
+def activity_filter(tenant_id: str, bucket: str, *, include_platform_health: bool = False) -> Dict[str, Any]:
+    """The ledger filter behind the Activity list for one bucket; the export uses it too (what the screen shows)."""
     include_health = include_platform_health and tenant_id == PLATFORM_TENANT_ID
     own: Dict[str, Any] = {"tenantId": tenant_id}
     if tenant_id != PLATFORM_TENANT_ID:
@@ -321,6 +313,21 @@ async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Opti
         if bucket not in BUCKET_STATES:
             raise ValueError(f"unknown bucket {bucket!r}")
         flt = {"$and": [scope, {"state": {"$in": list(BUCKET_STATES[bucket])}}]}
+    return flt
+
+
+async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Optional[str],
+                    viewer_is_platform_staff: bool, include_platform_health: bool = False,
+                    can_act: bool = False) -> Dict[str, Any]:
+    """A page of the tenant's activity, newest first (createdAt then id, both descending). A real
+    tenant's list also carries the platform-scope control rows (stop pressed or cleared for every
+    organization). Counts and the total are added to the first page only.
+
+    Platform-health rows (watchdog events) are excluded for every tenant id, the platform tenant
+    included, unless ``include_platform_health`` is True; only the Super Admin's platform route
+    sets it (D-23, PROH-82-06)."""
+    include_health = include_platform_health and tenant_id == PLATFORM_TENANT_ID
+    flt = activity_filter(tenant_id, bucket, include_platform_health=include_platform_health)
     paged = flt
     if cursor:
         created, row_id = ledger._decode_cursor(cursor)
