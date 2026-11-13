@@ -644,8 +644,6 @@ Plans:
 **Plans:** 12/15 plans executed
 
 Plans:
-- [ ] 86-14-PLAN.md
-- [ ] 86-15-PLAN.md
 
 **Wave 1**
 - [x] 86-01-PLAN.md — tracer: Statistics card fed by GET /api/autonomous-ops/statistics, full column map, rule names, minutes table, copy gate
@@ -669,7 +667,13 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 - [x] 86-12-PLAN.md — Going live card: checks, organizations, lift and turn-back-on dialogs
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6** *(blocked on Wave 5 completion; added 2026-11-13 for D-23)*
+- [ ] 86-14-PLAN.md — test-organization exemption on the server: mark/clear routes, gate exemption, audit, runbook update
+
+**Wave 7** *(blocked on Wave 6 completion; added 2026-11-13 for D-23)*
+- [ ] 86-15-PLAN.md — Going live card: test-organization label, mark and clear dialogs, Lift dialog note
+
+**Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 86-13-PLAN.md — phase gate on a git archive snapshot, then the user's restart, publish and push, read-only live checks
 
 **UI hint**: yes
