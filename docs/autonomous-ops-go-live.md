@@ -26,15 +26,24 @@ host name in one.
    - The deployment-wide switch, the environment variable AUTONOMOUS_REMEDIATION_DRY_RUN. Only the
      values 0, false, no or off turn it off. Changing it and restarting the backend is the platform
      owner's step, not the app's.
-   - The organization's own shadow flag. The **Lift shadow mode** button refuses every organization,
-     the test one included, until all five checks are recorded and seven whole days of shadow records
-     exist. That order cannot be followed for the checks that need real actions. **Open decision:**
-     until the project decides how a test organization is lifted early, the platform owner turns the
-     test organization's own flag off directly on the server (the shadow field of that organization's
-     document in the autonomy_settings collection) and says so in the note of every check recorded
-     that way. Do this for the test organization only.
-3. **Turn shadow back on afterwards.** When the walk is finished, put the organization's flag back on
-   (**Turn shadow mode back on**, never gated) and, if you changed it, the deployment-wide switch.
+   - The organization's own shadow flag. The **Lift shadow mode** button refuses every organization
+     until all five checks are recorded and seven whole days of shadow records exist, and that order
+     cannot be followed for the checks that need real actions. So the platform owner marks the one
+     test organization first:
+     1. Mark it as the test organization: type its name exactly to confirm, on the Going live card
+        where it offers that, or with POST /api/platform/autonomous-ops/golive/test-organization
+        (body: tenantId and confirmName). Only one organization can be the test organization at a
+        time. A customer organization, the platform organization and an organization without the
+        Autonomous Ops screen are refused.
+     2. Lift it with **Lift shadow mode**. The five checks and the seven days are not required for
+        the test organization, and the lift is written to the audit log as a test-organization lift.
+        Every other organization keeps the full gate.
+     3. Walk checks 1, 2 and 5 below.
+3. **Turn shadow back on afterwards.** When the walk is finished, put the test organization's flag
+   back on (**Turn shadow mode back on**, never gated) and then clear the test mark (DELETE
+   /api/platform/autonomous-ops/golive/test-organization with the tenantId). The mark cannot be
+   cleared while that organization is out of shadow mode. Put the deployment-wide switch back too,
+   if you changed it.
 4. Everything below is done by a person on the live server. Nothing here is run by the platform.
 
 ## 1. Firewall round-trip
@@ -209,7 +218,8 @@ all continued. Tenant-only stop repeated with the same result."
 
 ## After the checks: lifting one organization
 
-An organization leaves shadow mode only when all of these hold:
+An organization leaves shadow mode only when all of these hold (the one marked test organization is
+the exception, see "Before you start"):
 - All five checks above are recorded (the card shows how many of the five are done).
 - At least 7 whole days have passed since the organization's first shadow record. The control shows
   the days observed and how many actions would have been done.
