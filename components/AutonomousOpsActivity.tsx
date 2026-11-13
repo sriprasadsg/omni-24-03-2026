@@ -13,9 +13,12 @@ import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
 import { DeskSettingsCard } from './serviceDesk/DeskSettingsCard';
 import { StatsCard } from './autonomousOpsStats/StatsCard';
+import { ExportDialog } from './autonomousOpsStats/ExportDialog';
+import { EXPORT_OPEN } from './autonomousOpsStats/reportingCopy';
 import type { StatsWindow } from '../services/autonomousOpsReporting';
+import type { AutonomousOpsBucket } from '../services/autonomousOpsApi';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
-import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
+import { DownloadIcon, EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
 interface AutonomousOpsActivityProps {
     /** viewingTenantId: the organization platform staff entered from Tenants, else null. */
@@ -42,6 +45,10 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     const [decidedCount, setDecidedCount] = useState(0);
     // The Statistics period; the Export dialog reuses it as its default (86-11).
     const [statsDays, setStatsDays] = useState<StatsWindow>(30);
+    // Export activity (86-11): the right comes from the statistics payload for one organization; the bucket is the list's active pill.
+    const [exportRight, setExportRight] = useState<{ key: string; can: boolean }>({ key: '', can: false });
+    const [exportOpen, setExportOpen] = useState(false);
+    const [bucket, setBucket] = useState<AutonomousOpsBucket>('all');
 
     const scope = resolveAutonomousOpsScope(currentUser?.role, tenantId);
     const readOnly = platformTier(currentUser?.role) === 'support';
@@ -69,6 +76,9 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     const showDecisions = scope.kind === 'tenant' && !!status && !status.platformTenant;
     const showResponseSettings = scope.kind === 'tenant' && !readOnly && !!status && !status.platformTenant
         && hasPermission('manage:autonomous_ops');
+
+    const statsKey = scope.kind === 'tenant' ? scope.tenantId ?? 'own' : '';
+    const showExport = showDecisions && exportRight.key === statsKey && exportRight.can;
 
     const scopeLabel = scope.kind === 'platform'
         ? 'Platform'
@@ -149,15 +159,34 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                             days={statsDays}
                             onDaysChange={setStatsDays}
                             refreshSignal={refreshSignal}
+                            onStats={stats => setExportRight({ key: statsKey, can: stats.canExport })}
                         />
                     )}
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
+                            <div className="flex items-center gap-4">
+                                {showExport && (
+                                    <button type="button" className={SECONDARY_BUTTON} onClick={() => setExportOpen(true)}>
+                                        <DownloadIcon size={16} aria-hidden="true" />
+                                        {EXPORT_OPEN}
+                                    </button>
+                                )}
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
+                            </div>
                         </div>
-                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal + decidedCount} decisionIds={decisionIds} onOpenView={openers} />
+                        <AutonomousOpsActivityList
+                            scope={scope} refreshSignal={refreshSignal + decidedCount} decisionIds={decisionIds}
+                            onOpenView={openers} onBucketChange={setBucket}
+                        />
                     </section>
+                    {exportOpen && showExport && (
+                        <ExportDialog
+                            bucket={bucket} defaultDays={statsDays}
+                            tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
+                            onClose={() => setExportOpen(false)}
+                        />
+                    )}
                 </>
             )}
         </div>

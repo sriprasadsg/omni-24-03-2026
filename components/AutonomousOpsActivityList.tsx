@@ -5,6 +5,7 @@ import {
 } from '../services/autonomousOpsApi';
 import { STATUS_POLL_MS, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { HealthChip } from './AutonomousOpsHealthChips';
+import { EmptyStateCard } from './AutonomousOpsEmptyStateCard';
 import {
     OpenViewHandlers, ResultCell, ResultContext, TargetSummary, fillBlockTimes, isGroupedSuggestion,
 } from './AutonomousOpsRowActions';
@@ -12,6 +13,9 @@ import {
     AlertTriangleIcon, CheckCircleIcon, ClockIcon, FlaskConicalIcon, HistoryIcon, InfoIcon, PauseCircleIcon,
     PlayCircleIcon, RefreshCcwIcon, ShieldLockIcon, SlidersHorizontalIcon, XCircleIcon,
 } from './icons';
+
+/** Still exported here so every existing importer keeps working unchanged (86-11 moved it to keep this file under 500 lines). */
+export { EmptyStateCard } from './AutonomousOpsEmptyStateCard';
 
 export const PAGE_SIZE = 25;
 
@@ -237,25 +241,6 @@ const SECONDARY_BUTTON =
     'px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60';
 const TEXT_BUTTON = 'text-sm font-semibold text-gray-900 dark:text-white underline underline-offset-2';
 
-/** Centred card body used for "no activity" and "Select an organization" (UI-SPEC 3d, 3f). */
-export const EmptyStateCard: React.FC<{
-    icon: React.FC<any>;
-    heading: string;
-    headingLevel?: 'h2' | 'h3';
-    children?: React.ReactNode;
-}> = ({ icon: Icon, heading, headingLevel = 'h3', children }) => {
-    const Heading = headingLevel;
-    return (
-        <div className="flex flex-col items-center gap-4 px-8 py-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-white/[0.06]">
-                <Icon size={24} aria-hidden="true" className="text-gray-500 dark:text-gray-400" />
-            </div>
-            <Heading className="max-w-prose break-words text-lg font-semibold leading-tight text-gray-900 dark:text-white">{heading}</Heading>
-            {children}
-        </div>
-    );
-};
-
 const FILTERS: { key: AutonomousOpsBucket; label: string; empty: string }[] = [
     { key: 'all', label: 'All', empty: '' },
     { key: 'pending', label: 'Pending', empty: 'No pending actions.' },
@@ -298,9 +283,11 @@ export interface ActivityListProps {
     decisionIds?: ReadonlySet<string>;
     /** The screens a suggestion may open; a target is present only when the viewer may open it. */
     onOpenView?: OpenViewHandlers;
+    /** Reports the state pill the list is showing, so the Export dialog exports what the operator sees (86-11). */
+    onBucketChange?: (bucket: AutonomousOpsBucket) => void;
 }
 
-export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, refreshSignal = 0, decisionIds, onOpenView }) => {
+export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, refreshSignal = 0, decisionIds, onOpenView, onBucketChange }) => {
     const { status, platformStatus } = useAutonomousOpsStatus();
     const platform = scope.kind === 'platform';
     const tenantId = scope.kind === 'tenant' ? scope.tenantId : null;
@@ -308,6 +295,7 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
     const [picked, setBucket] = useState<AutonomousOpsBucket>('all');
     // The Platform health filter exists in platform scope only; elsewhere a leftover pick reads as All.
     const bucket: AutonomousOpsBucket = !platform && picked === 'platform_health' ? 'all' : picked;
+    useEffect(() => { onBucketChange?.(bucket); }, [bucket, onBucketChange]);
     const [rows, setRows] = useState<AutonomousOpsRow[]>([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [counts, setCounts] = useState<AutonomousOpsCounts | null>(null);

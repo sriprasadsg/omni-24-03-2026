@@ -19,6 +19,8 @@ interface StatsCardProps {
     onDaysChange: (days: StatsWindow) => void;
     /** Bumped by the screen's Refresh button. */
     refreshSignal: number;
+    /** Called after each successful load; the screen reads canExport from it (86-11). */
+    onStats?: (stats: AutonomousOpsStatistics) => void;
 }
 
 const WINDOWS: StatsWindow[] = [7, 30, 90];
@@ -48,7 +50,7 @@ const hasNothing = (stats: AutonomousOpsStatistics): boolean =>
  * One fetch on mount; refetch on expand, on a period change and on the screen's Refresh. No polling.
  * Read-only: nothing here writes. Server text renders as React text only.
  */
-export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChange, refreshSignal }) => {
+export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChange, refreshSignal, onStats }) => {
     const uid = useId();
     const bodyId = `${uid}-body`;
     const [expanded, setExpanded] = useState(false);
@@ -58,6 +60,8 @@ export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChan
     const [expandTick, setExpandTick] = useState(0);
     const latest = useRef(0);
     const shownFor = useRef('');
+    const onStatsRef = useRef(onStats);
+    onStatsRef.current = onStats;
 
     const load = useCallback(async () => {
         const mine = ++latest.current;
@@ -71,6 +75,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({ tenantId, days, onDaysChan
             shownFor.current = key;
             setStats(next);
             setFailed(false);
+            onStatsRef.current?.(next);
         } catch {
             if (mine !== latest.current) return;
             shownFor.current = '';

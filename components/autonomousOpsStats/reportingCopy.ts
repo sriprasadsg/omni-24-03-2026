@@ -101,3 +101,42 @@ export const GLOSSARY: ReadonlyArray<{ term: string; meaning: string }> = [
     { term: 'Refused', meaning: 'blocked by a limit, a never-touch entry or a stop, or nobody answered the approval in time' },
     { term: 'Would have done', meaning: 'simulation only; shadow mode was on and nothing was carried out' },
 ];
+
+// ── Export activity dialog (86-UI-SPEC section 3, D-09, D-10, D-12) ───────────────────────────────────
+
+export const EXPORT_OPEN = 'Export activity';
+export const EXPORT_TITLE = 'Export activity';
+export const EXPORT_ROW_LIMIT = 5000;
+export const EXPORT_LIMIT_TEXT = '5,000';
+export const FORMAT_LEGEND = 'Format';
+export const PERIOD_LEGEND = 'Period';
+export const FORMAT_OPTIONS = [
+    { value: 'csv', label: 'CSV', helper: 'One row per decision. Opens in a spreadsheet.' },
+    { value: 'pdf', label: 'PDF', helper: 'A summary page with the per-rule table and the time-saved estimate, then the rows.' },
+] as const;
+export const PERIOD_OPTIONS = [
+    { value: '7', label: 'Last 7 days' },
+    { value: '30', label: 'Last 30 days' },
+    { value: '90', label: 'Last 90 days' },
+    { value: 'all', label: 'All time' },
+] as const;
+/** The state names of the list's filter pills, in the words the pills use. */
+export const BUCKET_LABELS: Record<string, string> = {
+    all: 'All', pending: 'Pending', done: 'Done', undone: 'Undone', failed: 'Failed', refused: 'Refused',
+    suggested: 'Suggested', simulation: 'Simulation', platform_health: 'Platform health',
+};
+export const periodOptionLabel = (days: string): string => PERIOD_OPTIONS.find(o => o.value === days)?.label ?? 'Last 30 days';
+export const includedLine = (bucket: string, days: string): string =>
+    `Activity: ${BUCKET_LABELS[bucket] ?? 'All'}. Period: ${periodOptionLabel(days)}. Newest first, up to ${EXPORT_LIMIT_TEXT} rows.`;
+export const EXPORT_AUDIT_SENTENCE = 'Each export is recorded in the audit log with who exported, the filter, the number of rows and the format.';
+export const EXPORT_CLOSE = 'Close';
+export const exportButton = (format: string): string => `Download ${format.toUpperCase()}`;
+export const EXPORT_PREPARING = 'Preparing...';
+export const EXPORT_ERROR = "Couldn't create the export. Check your connection and try again.";
+export const EXPORT_FORBIDDEN = "You don't have permission to export this. It needs the right to export reports and to view Autonomous Ops.";
+export const EXPORT_EMPTY = 'There are no rows for this filter, so nothing was downloaded.';
+const rowsWord = (n: number): string => `${n.toLocaleString('en-US')} ${n === 1 ? 'row' : 'rows'}`;
+export const exportToast = (rows: number): string => `Export downloaded. ${rowsWord(rows)}.`;
+/** The cap note (D-10): the true total comes from X-Export-Total; the same sentence is written into the file. */
+export const capNote = (fileName: string, total: number): string =>
+    `Downloaded ${fileName}: the newest ${EXPORT_LIMIT_TEXT} of ${total.toLocaleString('en-US')} rows. Rows older than that were left out. Pick a shorter period or a single state to get the rest.`;
