@@ -14,13 +14,23 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+from fastapi import FastAPI
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import audit_ledger
+import dlp_service
+import export_controls
+import rbac_utils
+from api_key_auth import get_current_user_or_api_key
+from auth_types import TokenData
 from autonomous_ops import PLATFORM_TENANT_ID, protected, views
 from autonomous_ops.reporting import EXPORT_ROW_CAP, export, export_pdf
+from catalogue_mounts import mount_dependencies
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_agent, seed_tenant
 
@@ -324,3 +334,146 @@ async def test_build_pdf_with_no_rows_gives_no_file(mongo_db):
     await seed_tenant(mongo_db, "t1")
     result = await _build(mongo_db, fmt="pdf")
     assert result.content is None and result.total == 0
+
+
+# ------------------------------------------------------------------ the screen's export route (86-08, D-09, D-10, D-12)
+
+EXPORT = "/api/autonomous-ops/export"
+DENIED = ("You don't have permission to export this. "
+          "It needs the right to export reports and to view Autonomous Ops.")
+PLATFORM = "platform-admin"
+
+
+class ExportApi:
+    """The reporting router behind its catalogue guard; the caller's identity is chosen per request."""
+
+    def __init__(self, db, monkeypatch):
+        import autonomous_ops_endpoints
+        import autonomous_ops_reporting_endpoints as reporting
+        self.db, self.user = db, None
+        self.audit = AsyncMock()
+        self.incident = AsyncMock()
+        for module in (autonomous_ops_endpoints, reporting, rbac_utils):
+            monkeypatch.setattr(module, "get_database", lambda: db)
+        monkeypatch.setattr(audit_ledger, "event", self.audit)
+        monkeypatch.setattr(dlp_service, "scan_export", AsyncMock(return_value=([], [])))
+        monkeypatch.setattr(dlp_service, "record_export_incident", self.incident)
+        self.app = FastAPI()
+        self.app.include_router(reporting.router,
+                                dependencies=mount_dependencies("autonomous_ops_reporting_endpoints", "router"))
+        self.app.dependency_overrides[get_current_user_or_api_key] = lambda: self.user
+
+    async def get(self, path, *, role="tenant_admin", tenant="t1"):
+        platform = role in ("super_admin", "platform_support", "platform_billing")
+        self.user = TokenData(username=f"{role}@example.test", role=role,
+                              tenant_id=PLATFORM if platform else tenant, scopes=None, auth_source="session")
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.get(path)
+
+
+@pytest.fixture
+async def api(mongo_db, monkeypatch):
+    for tenant in ("t1", "t2"):
+        await seed_tenant(mongo_db, tenant)
+        await mongo_db.tenants.update_one({"id": tenant}, {"$addToSet": {"enabledFeatures": "export:reports"}})
+    return ExportApi(mongo_db, monkeypatch)
+
+
+def _recent(count, tenant="t1", state="executed", prefix="AO"):
+    now = datetime.now(timezone.utc)
+    return [_doc(f"{prefix}-{i:05d}", tenant, state, now - timedelta(seconds=i + 1)) for i in range(count)]
+
+
+async def test_screen_export_csv_follows_bucket_and_period_and_audits_it(api):
+    await _put(api.db, *_recent(3), *_recent(2, state="failed", prefix="FA"), *_recent(2, "t2", prefix="T2"))
+    got = await api.get(f"{EXPORT}?format=csv&bucket=done&days=30")
+    assert got.status_code == 200
+    assert got.headers["content-type"].startswith("text/csv")
+    assert re.fullmatch(r'attachment; filename="autonomous-ops-activity-t1-\d{8}\.csv"',
+                        got.headers["content-disposition"])
+    assert (got.headers["x-export-rows"], got.headers["x-export-total"], got.headers["x-export-truncated"]) == \
+        ("3", "3", "false")
+    table = list(csv.reader(io.StringIO(got.text)))
+    assert table[0] == HEADER and len(table) == 4 and {row[1] for row in table[1:]} == {"Done"}
+    api.audit.assert_awaited_once()
+    args, fields = api.audit.await_args.args, api.audit.await_args.kwargs
+    assert args == ("autonomous_ops.export", "t1")
+    assert (fields["outcome"], fields["format"], fields["bucket"], fields["days"]) == ("success", "csv", "done", "30")
+    assert (fields["rows"], fields["total"], fields["truncated"], fields["entry"]) == (3, 3, False, "screen")
+    assert fields["actor"] == {"email": "tenant_admin@example.test", "role": "tenant_admin", "tenantId": "t1"}
+
+
+async def test_screen_export_pdf_is_a_pdf(api):
+    await _put(api.db, *_recent(2))
+    got = await api.get(f"{EXPORT}?format=pdf&bucket=all&days=7")
+    assert got.status_code == 200 and got.headers["content-type"] == "application/pdf"
+    assert got.content.startswith(b"%PDF") and got.headers["x-export-rows"] == "2"
+
+
+async def test_screen_export_says_so_when_the_cap_cut_rows(api):
+    await _put(api.db, *_recent(EXPORT_ROW_CAP + 1))
+    got = await api.get(f"{EXPORT}?format=csv&bucket=all&days=all")
+    assert (got.headers["x-export-rows"], got.headers["x-export-total"], got.headers["x-export-truncated"]) == \
+        ("5000", "5001", "true")
+    assert api.audit.await_args.kwargs["truncated"] is True and api.audit.await_args.kwargs["total"] == 5001
+
+
+async def test_screen_export_with_nothing_to_export_is_204_and_not_audited(api):
+    await _put(api.db, *_recent(2, "t2", prefix="T2"))
+    got = await api.get(f"{EXPORT}?format=csv&bucket=done&days=30")
+    assert got.status_code == 204 and got.content == b"" and got.headers["x-export-total"] == "0"
+    api.audit.assert_not_awaited()
+
+
+@pytest.mark.parametrize("query,role,tenant,status,detail", [
+    ("format=csv&days=30", "analyst", "t1", 403, DENIED),                       # views, may not export
+    ("format=csv&tenantId=t1", "platform_support", "t1", 403, DENIED),          # Platform Support has no export:reports
+    ("format=csv&tenantId=t2", "tenant_admin", "t1", 403, None),                # another organization
+    ("format=csv&tenantId=platform-admin", "super_admin", "t1", 409, None),     # the platform organization
+    ("format=csv", "super_admin", "t1", 400, None),                             # platform staff must name one
+    ("format=xlsx", "tenant_admin", "t1", 422, None),
+    ("format=csv&bucket=nope", "tenant_admin", "t1", 422, None),
+    ("format=csv&days=14", "tenant_admin", "t1", 422, None),
+    ("days=30", "tenant_admin", "t1", 422, None),
+])
+async def test_screen_export_refusals(api, query, role, tenant, status, detail):
+    await _put(api.db, *_recent(2))
+    got = await api.get(f"{EXPORT}?{query}", role=role, tenant=tenant)
+    assert got.status_code == status
+    if detail:
+        assert got.json()["detail"] == detail
+    api.audit.assert_not_awaited()
+
+
+async def test_platform_owner_exports_the_organization_they_name_and_only_that_one(api):
+    await _put(api.db, *_recent(2), *_recent(3, "t2", prefix="T2"))
+    got = await api.get(f"{EXPORT}?format=csv&tenantId=t2", role="super_admin")
+    assert got.status_code == 200 and got.headers["x-export-rows"] == "3"
+    assert {row[6] for row in list(csv.reader(io.StringIO(got.text)))[1:]} == {"playbook:contain-ip"}
+    assert api.audit.await_args.args == ("autonomous_ops.export", "t2")
+    assert api.audit.await_args.kwargs["actor"]["tenantId"] == PLATFORM
+
+
+async def test_a_blocking_dlp_finding_refuses_the_export_and_records_the_incident(api, monkeypatch):
+    await _put(api.db, *_recent(2))
+    finding = {"name": "Credit card"}
+    monkeypatch.setattr(dlp_service, "scan_export", AsyncMock(return_value=([finding], [])))
+    got = await api.get(f"{EXPORT}?format=csv")
+    assert got.status_code == 403 and got.json()["detail"] == "Export blocked by DLP policy: Credit card"
+    api.incident.assert_awaited_once()
+    assert api.incident.await_args.kwargs["blocked"] is True
+    api.audit.assert_not_awaited()
+
+
+def test_the_export_controls_cover_the_route_and_the_browser_may_read_its_headers():
+    assert export_controls.EXPORT_PATHS.match("/api/autonomous-ops/export")
+    assert not export_controls.EXPORT_PATHS.match("/api/autonomous-ops/export/other")
+    for path in ("/api/reports/export", "/api/itam/data/export", "/api/tickets/export/csv"):
+        assert export_controls.EXPORT_PATHS.match(path)
+    import app_middleware
+    from rate_limiter import limiter
+    app = FastAPI()
+    app_middleware.register_middleware(app, limiter)
+    cors = next(m for m in app.user_middleware if m.cls.__name__ == "CORSMiddleware")
+    assert {"X-Export-Rows", "X-Export-Total", "X-Export-Truncated"} <= set(cors.kwargs["expose_headers"])
