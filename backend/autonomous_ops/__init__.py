@@ -29,7 +29,10 @@ PLATFORM_CONTROL_PERMISSION = "control:platform_autonomous_ops"
 # Decision records sit outside every generic retention path (GATE-07). Anything that
 # deletes documents must leave these collections alone and keep decisions at least
 # DECISION_RETENTION_FLOOR_DAYS (matching audit_ledger's 365).
-PROTECTED_COLLECTIONS = frozenset({"autonomy_actions", "autonomy_settings", "autonomy_never_touch"})
+PROTECTED_COLLECTIONS = frozenset({
+    "autonomy_actions", "autonomy_settings", "autonomy_never_touch",
+    "autonomy_golive_checks",     # the recorded go-live evidence (Phase 86, D-14): never deleted, only added to
+})
 DECISION_RETENTION_FLOOR_DAYS = 365
 
 # Safety limits.

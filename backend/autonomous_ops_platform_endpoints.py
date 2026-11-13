@@ -8,18 +8,22 @@ the stop; it can never resume it, lift a shadow flag or change a maximum level (
 
 This router sits outside every catalogue prefix; it has no mount guard of its own.
 Level, maximum level, shadow lift and never-touch editing are API-only in Phase 81 (D-22): the route
-summaries and docstrings below are the documentation, served at /docs.
+summaries and docstrings below are the documentation, served at /docs. The shadow lift is gated on the
+server (Phase 86, D-15): all five go-live checks recorded and seven days of shadow records, else 409.
 """
 import logging
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictBool
 
+import audit_ledger
 from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import (PLATFORM_CONTROL_PERMISSION, PLATFORM_TENANT_ID, health_messages, ledger, messages, oncall,
                             protected, selfheal, settings, views)
+from autonomous_ops.reporting import golive
 from autonomous_ops_endpoints import (
     NeverTouchBody, ResumeBody, StopBody, _forbidden, _require_interactive_session, _unavailable,
     clear_stop, press_stop,
@@ -220,20 +224,49 @@ async def put_shadow(
     user=Depends(_require_platform_autonomy_control),
     _session=Depends(_require_interactive_session),
 ):
-    """Lifts (false) or restores (true) the organization's own shadow flag. The deployment-wide switch
-    still forces shadow mode on while it is set. No organization route changes this flag."""
+    """Lifts (false) or restores (true) the organization's own shadow flag. A lift answers 409 with
+    ``{detail, reasons}`` and changes nothing until all 5 go-live checks are recorded and 7 whole days have
+    passed since the organization's first shadow record (or when that cannot be read). Restoring is never
+    gated, and neither is a lift for an organization that is already lifted. Both are written to the audit
+    ledger. The deployment-wide switch still forces shadow mode on while it is set; it does not block a
+    lift. No organization route changes this flag."""
     try:
         db = get_database()
         tenant = await _real_tenant(db, tenant_id)
         caller = await views.build_caller(user)
+        now = golive.clock()
+        lifting = body.shadow is False and (await settings.load(db, tenant)).shadow is True
+        if lifting:
+            reasons = await golive.lift_blockers(db, tenant, now)
+            if reasons:
+                return JSONResponse(status_code=409, content={"detail": golive.blocker_sentence(reasons),
+                                                              "reasons": reasons})
         out = await settings.set_shadow(db, tenant, body.shadow, actor=await views.actor_for(db, caller))
         if out["status"] != "ok":
             raise HTTPException(status_code=422, detail="shadow must be true or false")
+        if body.shadow or lifting:               # a lift of an organization that is already lifted changes nothing
+            await _audit_shadow_change(db, user, tenant, body.shadow, now)
         return await views.status_payload(db, caller, tenant)
     except HTTPException:
         raise
     except Exception as exc:
         raise _unavailable(exc) from exc
+
+
+async def _audit_shadow_change(db, user, tenant: str, shadow: bool, now) -> None:
+    """The audit event for a lift or a restore, in the organization's chain. The flag change stands even
+    when the event cannot be written."""
+    try:
+        fields = {} if shadow else await golive.lift_evidence(db, tenant, now)
+        action = ("autonomous_ops.shadow_restored" if shadow
+                  else "autonomous_ops.shadow_lifted")
+        await audit_ledger.event(
+            action, tenant,
+            actor={"email": getattr(user, "username", None), "role": getattr(user, "role", None),
+                   "tenantId": getattr(user, "tenant_id", None)},
+            organization=tenant, shadow=shadow, **fields)
+    except Exception as exc:
+        logger.error("autonomous_ops: the shadow change for %s was not written to the audit ledger: %s", tenant, exc)
 
 
 # ---------------------------------------------------------------- platform-wide never-touch entries (API only, D-22)
