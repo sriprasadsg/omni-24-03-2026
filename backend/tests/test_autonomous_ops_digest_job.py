@@ -107,7 +107,8 @@ async def test_a_second_pass_a_parallel_pass_and_a_restart_send_nothing_new(worl
 
 async def test_a_pass_returns_none_while_another_holder_has_the_lock(world):
     await _three_tenants(world)
-    await world["_distributed_locks"].insert_one({"_id": job.LOCK_NAME, "token": "other", "expiresAt": NOW + timedelta(hours=1)})
+    await world["_distributed_locks"].insert_one({"_id": job.LOCK_NAME, "token": "other",
+                                                   "expiresAt": datetime.now(UTC) + timedelta(hours=1)})
     assert await job.run_once(world, now=NOW) is None
     assert set((await _notice_counts(world)).values()) == {0} and await world[DIGESTS].count_documents({}) == 0
 

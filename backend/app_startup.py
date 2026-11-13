@@ -541,6 +541,9 @@ async def run_startup_services() -> None:
     # deletes only what a Super Admin confirmed, 02:00 UTC with catch-up, one runner at a time.
     from retention_job import retention_loop as _retention_loop
     asyncio.create_task(_safe_bg_task(_retention_loop(), "retention_job"), name="retention_job")
+    # Daily digest (Phase 86, ACTV-04): 07:00 UTC, once per organization and day, tenant admins only.
+    from autonomous_ops.reporting.digest_job import digest_loop as _digest_loop
+    asyncio.create_task(_safe_bg_task(_digest_loop(), "autonomous_ops_digest"), name="autonomous_ops_digest")
 
     from app_background_tasks import (
         monitor_agent_status,
