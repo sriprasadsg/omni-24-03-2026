@@ -7,8 +7,8 @@ scheduled retention) writes or reads across tenants: each runs its real entry po
 same-shaped tenants and every row, instruction, notice and count stays with the tenant that owns the agent,
 ticket or data; fails_when=any row, instruction, notice or counter of one tenant carries the other tenant's
 id, agent, host, address, ticket or article, one tenant's window, rings or retention days govern the other,
-or one tenant's rule deletes the other tenant's rows; no_claim=the reporting surfaces (86-09 adds their own
-two-tenant cases) and the live database.
+or one tenant's rule deletes the other tenant's rows; the reporting surfaces (86-09: statistics, export, the
+daily digest) count, list or name another tenant's rows; no_claim=the live database and the HTTP layer.
 """
 import json
 import os
@@ -25,9 +25,12 @@ os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-for-two-tenant-contracts")
 
 import audit_ledger
+import rbac_utils
 import retention_gate as gate
 import retention_job
-from autonomous_ops import ledger, protected, signals, sweep
+from auth_types import TokenData
+from autonomous_ops import ledger, protected, signals, sweep, views
+from autonomous_ops.reporting import digest, export, stats
 from autonomous_ops.rollout import loop as rollout_loop, start, store as rollout_store
 from service_desk import worker
 from service_desk.model import OllamaClient
@@ -283,3 +286,103 @@ async def test_retention_deletes_each_tenants_own_rows_past_its_own_cutoff_and_c
         for rtype in TYPES:
             row = await mongo_db.retention_gate.find_one({"tenantId": t, "type": rtype}, {"_id": 0})
             assert row["confirmedDays"] == DAYS[t], (t, rtype, row)
+
+
+# ------------------------------------------------------------------ reporting surfaces (86-09)
+
+REPORT_DAY = "2026-11-12"
+STOP_RULE = "control:platform-stop"
+# Distinct, public-looking targets per tenant; the same decision shapes in both.
+REPORT_TARGETS = {A: ("45.33.32.156", "45.33.32.157", "45.33.32.158"), B: ("45.33.32.10", "45.33.32.11", "45.33.32.12")}
+REPORT_RULES = {A: "sweep:block_ip", B: "playbook:bravo-only"}
+
+
+def _report_doc(tenant, n, state, target, *, finished=None, kind="action", scope=None, rule=None, expires=None):
+    doc = {"id": f"AO-{tenant}-{n}", "tenantId": tenant, "kind": kind, "origin": "playbook",
+           "dispatcher": "instruction", "command": "block_ip", "actions": ["block_ip"], "targets": [],
+           "target": target, "params": {}, "state": state, "level": "undoable_auto", "shadow": state == "shadow",
+           "reason": {"ruleId": rule or REPORT_RULES.get(tenant, STOP_RULE), "inputs": {}},
+           "reasonCode": "class_auto", "reasonText": "This action is allowed to run on its own.",
+           "approval": {"requiredBy": None, "expiresAt": expires, "approver": None, "decidedAt": None},
+           "undo": {"available": False, "action": None, "params": {}, "undoneAt": None, "undoneBy": None},
+           "createdAt": NOW - timedelta(hours=8, minutes=n), "updatedAt": NOW, "finishedAt": finished}
+    if scope:
+        doc["scope"] = scope
+        doc["controlEvent"] = "stop_pressed"
+    return doc
+
+
+async def _report_world(db):
+    """Per tenant: two executed rows (one finished in the digest window), one undone, one shadow, one waiting for
+    approval; plus ONE platform-scope stop row the Activity list shows to every organization."""
+    await ledger.ensure_indexes(db)
+    await digest.ensure_indexes(db)
+    rows = []
+    for tenant in (A, B):
+        await seed_tenant(db, tenant, shadow=False)
+        t0, t1, t2 = REPORT_TARGETS[tenant]
+        finished = datetime(2026, 11, 12, 5, 0, tzinfo=timezone.utc)
+        rows += [_report_doc(tenant, 1, "executed", t0, finished=finished),
+                 _report_doc(tenant, 2, "executed", t1, finished=finished),
+                 _report_doc(tenant, 3, "undone", t2, finished=finished),
+                 _report_doc(tenant, 4, "shadow", t0 + ".shadow"),
+                 _report_doc(tenant, 5, "awaiting_approval", t1 + ".wait", expires=NOW + timedelta(hours=1))]
+        if tenant == B:                                     # B has an extra row so the counts differ
+            rows.append(_report_doc(tenant, 6, "executed", t0 + ".extra", finished=finished))
+    rows.append(_report_doc("platform-admin", 1, "executed", "stop-all", finished=NOW, kind="control",
+                            scope="platform", rule=STOP_RULE))
+    await db.autonomy_actions.insert_many(rows)
+    return {tenant: {"tenant": tenant, **{f"ip{i}": ip for i, ip in enumerate(REPORT_TARGETS[tenant])}}
+            for tenant in (A, B)}
+
+
+async def test_statistics_for_each_tenant_total_only_its_own_rows(mongo_db, monkeypatch):
+    monkeypatch.setattr(rbac_utils, "get_database", lambda: mongo_db)
+    await _report_world(mongo_db)
+    totals = {}
+    for tenant in (A, B):
+        caller = await views.build_caller(TokenData(username="admin@example.test", role="tenant_admin",
+                                                    tenant_id=tenant, scopes=None, auth_source="session"))
+        payload = await stats.statistics_payload(mongo_db, caller, tenant, 30, now=NOW)
+        assert payload["tenantId"] == tenant
+        assert {r["id"] for r in payload["rules"]} == {REPORT_RULES[tenant]}, payload["rules"]   # no other tenant's rule, no stop row
+        totals[tenant] = payload["totals"]
+    # A: 2 executed + 1 undone fired and 1 waiting; B has the same plus one more executed row.
+    assert (totals[A]["fired"], totals[A]["done"], totals[A]["undone"], totals[A]["wouldHaveDone"]) == (4, 2, 1, 1)
+    assert (totals[B]["fired"], totals[B]["done"], totals[B]["undone"], totals[B]["wouldHaveDone"]) == (5, 3, 1, 1)
+
+
+async def test_the_export_of_each_tenant_holds_its_own_targets_and_shares_only_the_platform_stop_row(mongo_db):
+    worlds = await _report_world(mongo_db)
+    files = {}
+    for tenant in (A, B):
+        result = await export.build(mongo_db, tenant, bucket="all", days="all", fmt="csv",
+                                    viewer_is_platform_staff=False, now=NOW)
+        text = result.content.decode("utf-8")
+        mine = [ip for key, ip in worlds[tenant].items() if key.startswith("ip")]
+        other = [ip for key, ip in worlds[B if tenant == A else A].items() if key.startswith("ip")]
+        assert all(ip in text for ip in mine), (tenant, mine)                 # not vacuous: every own target is there
+        assert not any(ip in text for ip in other), (tenant, other)
+        files[tenant] = {tuple(row) for row in result.rows}
+        assert result.total == len(result.rows) == (6 if tenant == A else 7), (tenant, result.total)
+    shared = files[A] & files[B]
+    assert len(shared) == 1 and next(iter(shared))[6] == STOP_RULE, shared   # only the platform stop row (rule id column)
+
+
+async def test_the_digest_stores_one_notice_and_one_claim_per_tenant_each_naming_only_its_own_items(mongo_db,
+                                                                                                   monkeypatch):
+    monkeypatch.delenv("FRONTEND_URL", raising=False)                         # no mail is attempted
+    worlds = await _report_world(mongo_db)
+    for tenant in (A, B):
+        assert await digest.send_for_tenant(mongo_db, tenant, REPORT_DAY, NOW) == "sent"
+    notices = {t: [n async for n in mongo_db.notifications.find({"tenantId": t}, {"_id": 0})] for t in (A, B)}
+    assert [len(notices[t]) for t in (A, B)] == [1, 1]
+    for tenant in (A, B):
+        message = notices[tenant][0]["message"]
+        assert worlds[tenant]["ip0"] in message and worlds[tenant]["ip1"] in message, message   # its own items are named
+        assert notices[tenant][0]["metadata"]["day"] == REPORT_DAY
+    assert notices[A][0]["metadata"]["counts"] == {"ran": 2, "undone": 1, "waiting": 1, "simulation": 1}
+    assert notices[B][0]["metadata"]["counts"] == {"ran": 3, "undone": 1, "waiting": 1, "simulation": 1}
+    owned = await assert_no_crossing(mongo_db, ["notifications", digest.DIGESTS], worlds)
+    assert owned[A] == {"notifications": 1, digest.DIGESTS: 1} and owned[B] == {"notifications": 1, digest.DIGESTS: 1}
+    assert "stop-all" not in notices[A][0]["message"] + notices[B][0]["message"]
