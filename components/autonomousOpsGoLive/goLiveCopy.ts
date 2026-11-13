@@ -185,3 +185,7 @@ export const CLEAR_BODY = 'Customer rules apply to it again: it needs the five c
 export const clearedToast = (name: string): string => `The test mark on ${name} is cleared.`;
 export const CLEAR_FORBIDDEN = 'Only a platform administrator can clear the test mark.';
 export const CLEAR_FALLBACK = "Couldn't clear the test mark. Check your connection and try again.";
+
+/** Shown above the typed-name confirmation when the Lift dialog is for the test organization. */
+export const TEST_ORG_LIFT_NOTE =
+    'Test organization: the five checks and the seven days are not required. The lift is recorded as a test-organization lift.';

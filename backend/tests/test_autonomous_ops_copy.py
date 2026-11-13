@@ -66,6 +66,7 @@ EXPECTED_FILES = [
     "backend/autonomous_ops/reporting/golive_test_org.py",
     "docs/autonomous-ops-go-live.md",
     "services/autonomousOpsGoLive.ts",
+    "components/autonomousOpsGoLive/TestOrgDialogs.tsx",
 ]
 
 

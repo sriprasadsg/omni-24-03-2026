@@ -9,7 +9,7 @@ import { ACCENT_BUTTON, plain } from '../AutonomousOpsResponseSettingsDialogs';
 import { AlertTriangleIcon } from '../icons';
 import {
     KEEP_LIFTED, KEEP_SHADOW_ON, LIFTING, LIFT_BUTTON, LIFT_FALLBACK, LIFT_FORBIDDEN, LIFT_REASSURANCE, RESTORE_FALLBACK,
-    RESTORE_FORBIDDEN, SAVING, TURN_ON, TYPE_NAME_LABEL, TYPE_NAME_REASON, liftBody, liftEvidence, liftRefused, liftTitle,
+    RESTORE_FORBIDDEN, SAVING, TEST_ORG_LIFT_NOTE, TURN_ON, TYPE_NAME_LABEL, TYPE_NAME_REASON, liftBody, liftEvidence, liftRefused, liftTitle,
     liftedToast, restoreBody, restoreFailed, restoreTitle, restoredToast, typeNameHelper,
 } from './goLiveCopy';
 
@@ -88,9 +88,15 @@ export const LiftShadowDialog: React.FC<ShadowDialogProps> = ({ org, onClose, on
         >
             <div className="flex flex-col gap-4">
                 <p className="break-words text-sm text-gray-700 dark:text-gray-200">{liftBody(org.name)}</p>
-                <div className="break-words rounded-lg border border-gray-200 p-4 text-sm text-gray-900 dark:border-white/10 dark:text-white">
-                    {liftEvidence(org.daysObserved ?? 0, org.wouldHaveDone)}
-                </div>
+                {org.testOrganization === true ? (
+                    <div className="break-words rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200">
+                        {TEST_ORG_LIFT_NOTE}
+                    </div>
+                ) : (
+                    <div className="break-words rounded-lg border border-gray-200 p-4 text-sm text-gray-900 dark:border-white/10 dark:text-white">
+                        {liftEvidence(org.daysObserved ?? 0, org.wouldHaveDone)}
+                    </div>
+                )}
                 <p className="break-words text-xs text-gray-500 dark:text-gray-400">{LIFT_REASSURANCE}</p>
                 <div className="flex flex-col gap-1">
                     <label htmlFor={`${uid}-name`} className="text-sm font-semibold text-gray-900 dark:text-white">{TYPE_NAME_LABEL}</label>
