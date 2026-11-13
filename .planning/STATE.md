@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 86
 current_phase_name: Activity Reporting, Hardening & Live Validation
 status: executing
-stopped_at: Completed 86-02-PLAN.md
-last_updated: "2026-11-13T19:27:35.942Z"
+stopped_at: Completed 86-03-PLAN.md
+last_updated: "2026-11-13T19:33:11.537Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 86 execution started
-state_head: b621d4e8bd643f1b905e78790447971a485b553b
+state_head: 42d279867c9997952338fcab1aaa1388b0ae6df9
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 170
-  completed_plans: 158
+  completed_plans: 159
   percent: 75
 ---
 
@@ -680,6 +680,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 86]: 86-01: reporting router is loaded by router_registry but not in _REQUIRED_ROUTERS; losing it only degrades reporting
 - [Phase 86]: 86-02: the stop drill needed no production change; every actor already halted under the platform and tenant stop
 - [Phase 86]: 86-02: the watchdog is drilled through the real backend sync answer (selfheal.sync_response) fed to the watchdog's resolve_stop and restart.decide
+- [Phase 86]: 86-03: two-tenant contracts use tenant-alpha/tenant-bravo ids and a shared assert_no_crossing helper; no cross-tenant leak found in sweep, rollout loop, desk worker or retention
 
 ## Performance Metrics
 
@@ -993,6 +994,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 88 P15 | 30 min | 3 tasks | 11 files |
 | Phase 86 P01 | 20min | 3 tasks | 16 files |
 | Phase 86 P02 | 40 min | 2 tasks | 1 files |
+| Phase 86 P03 | 25 min | 2 tasks | 1 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1027,8 +1029,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-13T19:27:35.587Z
-**Stopped at:** Completed 86-02-PLAN.md
+**Last session:** 2026-11-13T19:33:11.167Z
+**Stopped at:** Completed 86-03-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1057,7 +1059,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 86 (Activity Reporting, Hardening & Live Validation) — EXECUTING
-Plan: 2 of 13
+Plan: 3 of 13
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 86 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
