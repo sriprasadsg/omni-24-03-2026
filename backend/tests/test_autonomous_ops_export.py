@@ -241,7 +241,8 @@ def _pdf(**over):
 
 def _text(pdf):
     """The text shown on every page, lines joined by a space (uncompressed streams only)."""
-    return b" ".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
+    joined = b" ".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
+    return re.sub(r"\s+", " ", joined.replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\"))
 
 
 def _pages(pdf):
@@ -275,8 +276,8 @@ def test_pdf_cell_text_is_shown_literally_never_as_markup():
     assert "Pay <b>now</b> & win" in text
     assert "&lt;" not in text and "&amp;" not in text
     unbalanced = ["2026-11-12 11:00:00", "Done", "Answer a ticket", "<b>open & <i>never closed", "web-01", "", "", "", ""]
-    assert "<b>open & <i>never closed" in _text(_pdf(rows=[unbalanced], organization="A <u>& B"))
-    assert "A <u>& B" in _text(_pdf(rows=[unbalanced], organization="A <u>& B"))
+    squeezed = _text(_pdf(rows=[unbalanced], organization="A <u>& B")).replace(" ", "")   # the engine splits runs at < and >
+    assert "<b>open&<i>neverclosed" in squeezed and "A<u>&B" in squeezed
 
 
 def test_pdf_repeats_the_rows_header_on_every_page():

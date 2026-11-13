@@ -21,14 +21,15 @@ from autonomous_ops import ledger, views
 from autonomous_ops.scope import raw
 from itam_data_service import sanitize_csv_cell
 
-from . import EXPORT_ROW_CAP
+from . import EXPORT_ROW_CAP, stats
 from .rule_names import rule_name
 
 CSV_HEADER = ("When (UTC)", "State", "Action", "Target", "Host", "Rule", "Rule id", "Approved by", "Result")
 STATE_WORDS = {"pending": "Pending", "done": "Done", "undone": "Undone", "failed": "Failed", "refused": "Refused",
                "suggested": "Suggested", "simulation": "Simulation", "control": "Control"}
 PERIODS = ("7", "30", "90", "all")
-MEDIA_TYPES = {"csv": "text/csv"}
+MEDIA_TYPES = {"csv": "text/csv", "pdf": "application/pdf"}
+PERIOD_WORDS = {"7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days", "all": "All time"}
 
 
 @dataclass
@@ -108,5 +109,24 @@ async def build(db, tenant_id: str, *, bucket: str, days: str, fmt: str, viewer_
                                              host=hosts.get(str(doc["targets"][0])) if doc.get("targets") else None),
                       viewer_is_platform_staff) for doc in docs]
     truncated = total > len(rows)
-    content = csv_bytes(rows, total, truncated)
+    if fmt == "pdf":
+        content = await _pdf_bytes(db, tenant_id, bucket=bucket, days=days, now=now, rows=rows,
+                                   cap_note=cap_sentence(len(rows), total) if truncated else None)
+    else:
+        content = csv_bytes(rows, total, truncated)
     return ExportResult(content, name, media_type, len(rows), total, truncated, rows)
+
+
+async def _pdf_bytes(db, tenant_id: str, *, bucket: str, days: str, now: datetime, rows: List[List[str]],
+                     cap_note: Optional[str]) -> bytes:
+    """The PDF: the summary page uses the statistics of the same window (stats.compute, fold, time_saved)."""
+    from . import export_pdf
+    groups = await stats.compute(db, tenant_id, days=None if days == "all" else int(days), now=now)
+    folded = stats.fold(groups)
+    tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1}) or {}
+    state = "All" if bucket == "all" else STATE_WORDS[bucket]
+    return export_pdf.render_pdf(
+        organization=tenant.get("name") or tenant_id, generated_at=now,
+        filter_line=f"Activity: {state}. Period: {PERIOD_WORDS[days]}. Newest first, up to {EXPORT_ROW_CAP:,} rows.",
+        summary=folded["totals"], rules=folded["rules"], time_saved=stats.time_saved(groups), rows=rows,
+        cap_note=cap_note)
