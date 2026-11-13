@@ -4,6 +4,8 @@ Five live checks are recorded once for the whole platform (``GOLIVE_CHECK_IDS``)
 document, so recording a check again keeps the earlier one and ``latest_checks`` shows the newest. An
 organization may leave shadow mode only when all five checks have a record and seven whole days have
 passed since its first shadow record (``lift_blockers``); anything that cannot be read blocks the lift.
+The one organization a Super Admin has marked as the go-live test organization (D-23) is exempt from both
+requirements; the mark is read fail closed, so an unreadable mark exempts nobody.
 
 This module is the only code that touches the evidence collection, and only to insert into it, read it
 and index it: it never updates, replaces or deletes a record (a structural test enforces that). Raw Mongo
@@ -16,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from autonomous_ops import settings as ao_settings
 from autonomous_ops.scope import raw
 
-from . import GOLIVE_CHECK_IDS, GOLIVE_CHECKS, NOTE_MAX, NOTE_MIN, SHADOW_DAYS_REQUIRED, SHADOW_STATE
+from . import GOLIVE_CHECK_IDS, GOLIVE_CHECKS, NOTE_MAX, NOTE_MIN, SHADOW_DAYS_REQUIRED, SHADOW_STATE, golive_test_org
 
 _SECONDS_PER_DAY = 86400
 _TOTAL = len(GOLIVE_CHECK_IDS)
@@ -100,9 +102,12 @@ async def observation(db, tenant_id: str, now: datetime) -> Dict[str, Any]:
     return {"daysObserved": max(0, int(elapsed // _SECONDS_PER_DAY)), "wouldHaveDone": would_have_done, "first": first}
 
 
-def _reasons(recorded: Optional[int], obs: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The reasons a lift is blocked. ``recorded`` or ``obs`` None means that read failed."""
+def _reasons(recorded: Optional[int], obs: Optional[Dict[str, Any]], exempt: bool = False) -> List[Dict[str, Any]]:
+    """The reasons a lift is blocked. ``recorded`` or ``obs`` None means that read failed. The go-live test
+    organization (``exempt``) has none: its checks, shadow records and days are not required."""
     reasons: List[Dict[str, Any]] = []
+    if exempt:
+        return reasons
     if recorded is not None and recorded < _TOTAL:
         reasons.append({"code": "checks_missing", "recorded": recorded})
     if recorded is None or obs is None:
@@ -114,8 +119,20 @@ def _reasons(recorded: Optional[int], obs: Optional[Dict[str, Any]]) -> List[Dic
     return reasons
 
 
+async def _test_org_mark(db) -> Optional[Dict[str, Any]]:
+    """The go-live test organization mark; None when there is none or it cannot be read (fail closed)."""
+    try:
+        return await golive_test_org.current(db)
+    except Exception:
+        return None
+
+
+def _is_marked(mark: Optional[Dict[str, Any]], tenant_id: str) -> bool:
+    return bool(mark) and mark.get("tenantId") == tenant_id
+
+
 async def _read(db, tenant_id: str, now: datetime):
-    """(recorded, observation); either is None when it could not be read."""
+    """(recorded, observation, is test organization); the first two are None when they could not be read."""
     try:
         recorded: Optional[int] = await _recorded_count(db)
     except Exception:
@@ -124,20 +141,21 @@ async def _read(db, tenant_id: str, now: datetime):
         obs: Optional[Dict[str, Any]] = await observation(db, tenant_id, now)
     except Exception:
         obs = None
-    return recorded, obs
+    return recorded, obs, _is_marked(await _test_org_mark(db), tenant_id)
 
 
 async def lift_blockers(db, tenant_id: str, now: datetime) -> List[Dict[str, Any]]:
     """Why this organization may not leave shadow mode yet; empty means it may."""
-    recorded, obs = await _read(db, tenant_id, now)
-    return _reasons(recorded, obs)
+    recorded, obs, exempt = await _read(db, tenant_id, now)
+    return _reasons(recorded, obs, exempt)
 
 
 async def lift_evidence(db, tenant_id: str, now: datetime) -> Dict[str, Any]:
-    """What a lift rests on, for the audit event: days observed, simulated actions and checks recorded."""
-    recorded, obs = await _read(db, tenant_id, now)
+    """What a lift rests on, for the audit event: days observed, simulated actions, checks recorded and
+    whether the organization is the go-live test organization."""
+    recorded, obs, exempt = await _read(db, tenant_id, now)
     return {"daysObserved": (obs or {}).get("daysObserved"), "wouldHaveDone": (obs or {}).get("wouldHaveDone"),
-            "checksRecorded": recorded}
+            "checksRecorded": recorded, "testOrganization": exempt}
 
 
 def blocker_sentence(reasons: List[Dict[str, Any]]) -> str:
@@ -159,13 +177,14 @@ def blocker_sentence(reasons: List[Dict[str, Any]]) -> str:
 
 async def overview(db, now: datetime) -> Dict[str, Any]:
     """What the Going live card shows: the five checks, every ticked organization with its observation and
-    whether it can be lifted, and the deployment-wide switch."""
+    whether it can be lifted, the go-live test organization (or None) and the deployment-wide switch."""
     from autonomous_ops import sweep         # local: the sweep imports the whole Autonomous Ops package
     checks = await latest_checks(db)
     try:
         recorded: Optional[int] = await _recorded_count(db)
     except Exception:
         recorded = None
+    mark = await _test_org_mark(db)
     organizations = []
     for tenant_id in await sweep._ticked_tenants(db):
         tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1})
@@ -174,11 +193,17 @@ async def overview(db, now: datetime) -> Dict[str, Any]:
             obs: Optional[Dict[str, Any]] = await observation(db, tenant_id, now)
         except Exception:
             obs = None
-        reasons = _reasons(recorded, obs)
+        marked = _is_marked(mark, tenant_id)
+        reasons = _reasons(recorded, obs, marked)
         organizations.append({
             "id": tenant_id, "name": str((tenant or {}).get("name") or tenant_id), "shadow": own.shadow,
             "daysObserved": (obs or {}).get("daysObserved"), "wouldHaveDone": (obs or {}).get("wouldHaveDone", 0),
-            "canLift": bool(own.shadow) and not reasons, "reasons": reasons})
+            "canLift": bool(own.shadow) and not reasons, "reasons": reasons, "testOrganization": marked})
     organizations.sort(key=lambda org: (org["name"].lower(), org["id"]))
+    test_organization = None
+    if mark:
+        test_organization = {"id": mark.get("tenantId"), "name": mark.get("tenantName"),
+                             "markedBy": mark.get("markedBy"), "markedAt": mark.get("markedAt")}
     return {"checks": checks, "recordedCount": sum(1 for c in checks if c["recorded"]),
-            "organizations": organizations, "masterShadow": ao_settings.master_shadow()}
+            "organizations": organizations, "masterShadow": ao_settings.master_shadow(),
+            "testOrganization": test_organization}
