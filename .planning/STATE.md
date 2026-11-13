@@ -1081,9 +1081,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 86 (Activity Reporting, Hardening & Live Validation) — EXECUTING
-Plan: 13 of 13
-Status: Ready to execute
-Last activity: 2026-11-13 — Phase 86 execution started
+Plan: 15 of 15 next (13 of 15 plans complete; 86-14/86-15 added 2026-11-13 for D-23, 86-13 moved to wave 8)
+Status: Executing
+Last activity: 2026-11-13 — 86-14 test-organization exemption complete; 86-15 (Going live card UI for it) next
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 
 ## Deferred Items
