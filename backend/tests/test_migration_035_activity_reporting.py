@@ -74,7 +74,8 @@ async def test_a_second_run_changes_no_index_and_no_document_and_a_seeded_row_is
     assert {c: await _index_names(mongo_db, c) for c in EXPECTED} == first_indexes
     assert await _counts(mongo_db) == first_counts == {"autonomy_actions": 1, "autonomy_digests": 0,
                                                        "autonomy_golive_checks": 0, "tenants": 1}
-    assert await mongo_db.autonomy_actions.find_one({"id": "AO-keep"}, {"_id": 0}) == row
+    kept = await mongo_db.autonomy_actions.find_one({"id": "AO-keep"}, {"_id": 0})
+    assert {k: (v.replace(tzinfo=timezone.utc) if isinstance(v, datetime) else v) for k, v in kept.items()} == row
     assert await mongo_db.tenants.find_one({"id": "t1"}, {"_id": 0}) == {"id": "t1", "name": "T1"}
 
 
