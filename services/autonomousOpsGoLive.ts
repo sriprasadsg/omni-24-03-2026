@@ -30,6 +30,16 @@ export interface GoLiveOrganization {
     wouldHaveDone: number;
     canLift: boolean;
     reasons: GoLiveReason[];
+    /** True for the one organization the Super Admin marked as the go-live test organization (D-23). */
+    testOrganization?: boolean;
+}
+
+/** The go-live test organization as the server reports it, or null when none is marked. */
+export interface GoLiveTestOrganization {
+    id: string;
+    name: string;
+    markedBy: string | null;
+    markedAt: string | null;
 }
 
 export interface GoLiveOverview {
@@ -38,6 +48,7 @@ export interface GoLiveOverview {
     organizations: GoLiveOrganization[];
     /** The deployment-wide shadow switch, set on the server. */
     masterShadow: boolean;
+    testOrganization?: GoLiveTestOrganization | null;
 }
 
 /** GET /api/platform/autonomous-ops/golive (Super Admin, interactive session) */
@@ -61,6 +72,27 @@ export async function recordGoLiveCheck(id: GoLiveCheckId, note: string): Promis
 export async function setOrganizationShadow(tenantId: string, shadow: boolean): Promise<unknown> {
     const res = await authFetch(`${API_BASE}/platform/autonomous-ops/tenants/${encodeURIComponent(tenantId)}/shadow`, {
         method: 'PUT', body: JSON.stringify({ shadow }),
+    });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
+
+/**
+ * POST /api/platform/autonomous-ops/golive/test-organization (D-23). Marks one ticked organization as the go-live test
+ * organization; confirmName is the name the person typed. 201 on success; 409, 422 and 404 carry the server's sentence.
+ */
+export async function markTestOrganization(tenantId: string, confirmName: string): Promise<unknown> {
+    const res = await authFetch(`${API_BASE}/platform/autonomous-ops/golive/test-organization`, {
+        method: 'POST', body: JSON.stringify({ tenantId, confirmName }),
+    });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
+
+/** DELETE /api/platform/autonomous-ops/golive/test-organization?tenantId= : clears the mark; 409 while its shadow mode is off. */
+export async function clearTestOrganization(tenantId: string): Promise<unknown> {
+    const res = await authFetch(`${API_BASE}/platform/autonomous-ops/golive/test-organization?tenantId=${encodeURIComponent(tenantId)}`, {
+        method: 'DELETE',
     });
     if (!res.ok) throw await failure(res);
     return res.json();

@@ -98,7 +98,7 @@ export const GoLiveCard: React.FC = () => {
                     )}
 
                     {data && <GoLiveChecklist checks={data.checks} onRecorded={load} />}
-                    {data && <GoLiveOrganizations organizations={data.organizations} masterShadow={!!data.masterShadow} onChanged={load} />}
+                    {data && <GoLiveOrganizations organizations={data.organizations} masterShadow={!!data.masterShadow} testOrganization={data.testOrganization ?? null} onChanged={load} />}
                 </div>
             )}
         </section>

@@ -160,3 +160,28 @@ export const RESTORE_FORBIDDEN = 'Only a platform administrator can change shado
 export const RESTORE_FALLBACK = "Couldn't turn shadow mode back on. Check your connection and try again.";
 export const restoreFailed = (message: string): string => `Couldn't turn shadow mode back on: ${message}. Try again.`;
 export const restoredToast = (name: string): string => `Shadow mode is on again for ${name}.`;
+
+// ── The go-live test organization (D-23, plan 86-15) ───────────────────────────────────────────────
+
+export const TEST_ORG_LABEL = 'Test organization';
+export const TEST_ORG_USE = 'Use as test organization';
+export const TEST_ORG_CLEAR = 'Clear test mark';
+export const TEST_ORG_CLEAR_REASON = 'Turn shadow mode back on first.';
+export const TEST_ORG_CANCEL = 'Cancel';
+export const TEST_ORG_KEEP = 'Keep test mark';
+export const TEST_ORG_MARKING = 'Marking...';
+export const TEST_ORG_CLEARING = 'Clearing...';
+
+export const markTitle = (name: string): string => `Use ${name} as the go-live test organization?`;
+export const MARK_BODY =
+    "This organization can leave shadow mode before the five checks are recorded and without the seven days of shadow records, so you can walk checks 1, 2 and 5. Use a dedicated test organization, never a customer's. Only one organization can be marked. This is recorded in the platform audit log.";
+export const markTypeLabel = (name: string): string => `Type ${name} to confirm`;
+export const markedToast = (name: string): string => `${name} is now the test organization.`;
+export const MARK_FORBIDDEN = 'Only a platform administrator can mark the test organization.';
+export const MARK_FALLBACK = "Couldn't mark the test organization. Check your connection and try again.";
+
+export const clearTitle = (name: string): string => `Clear the test mark on ${name}?`;
+export const CLEAR_BODY = 'Customer rules apply to it again: it needs the five checks and seven days before it can leave shadow mode.';
+export const clearedToast = (name: string): string => `The test mark on ${name} is cleared.`;
+export const CLEAR_FORBIDDEN = 'Only a platform administrator can clear the test mark.';
+export const CLEAR_FALLBACK = "Couldn't clear the test mark. Check your connection and try again.";
