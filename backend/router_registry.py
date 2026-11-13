@@ -350,6 +350,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "autonomous_ops_endpoints",   "router")  # Phase 81: Autonomous Ops tenant routes
     _load(app, "autonomous_ops_platform_endpoints", "router")  # Phase 81: platform-wide stop, maximum level, shadow
     _load(app, "autonomous_ops_retention_endpoints", "router")  # Phase 82: retention review and confirm (Super Admin)
+    _load(app, "autonomous_ops_golive_endpoints", "router")  # Phase 86: go-live checks (Super Admin)
     _load(app, "autonomous_ops_response_endpoints", "router")  # Phase 83: response settings (tenant admin)
     _load(app, "autonomous_ops_response_platform_endpoints", "router")  # Phase 83: response settings for every organization
     _load(app, "autonomous_ops_service_desk_endpoints", "router")  # Phase 85: service desk switch, words and restore

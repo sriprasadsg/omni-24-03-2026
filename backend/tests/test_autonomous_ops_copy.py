@@ -62,6 +62,7 @@ EXPECTED_FILES = [
     "backend/service_desk_tray_endpoints.py",
     "backend/autonomous_ops_reporting_endpoints.py",
     "services/autonomousOpsReporting.ts",
+    "backend/autonomous_ops_golive_endpoints.py",
 ]
 
 

@@ -61,6 +61,7 @@ const EXPECTED_FILES = [
   'backend/service_desk_tray_endpoints.py',
   'backend/autonomous_ops_reporting_endpoints.py',
   'services/autonomousOpsReporting.ts',
+  'backend/autonomous_ops_golive_endpoints.py',
 ];
 
 // Whole directories are walked recursively, so a file added later is covered without a list edit (UI-SPEC DEV-4).
