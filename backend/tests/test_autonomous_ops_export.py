@@ -11,6 +11,7 @@ dialog (86-08, 86-11).
 import csv
 import io
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -19,7 +20,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import PLATFORM_TENANT_ID, protected, views
-from autonomous_ops.reporting import EXPORT_ROW_CAP, export
+from autonomous_ops.reporting import EXPORT_ROW_CAP, export, export_pdf
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_agent, seed_tenant
 
@@ -219,3 +220,106 @@ def test_file_name_carries_the_tenant_and_the_day():
     assert export.file_name("t1", "csv", NOW) == "autonomous-ops-activity-t1-20261112.csv"
     assert export.file_name("t1", "pdf", NOW) == "autonomous-ops-activity-t1-20261112.pdf"
     assert export.file_name("acme corp/../x", "csv", NOW) == "autonomous-ops-activity-acme-corp----x-20261112.csv"
+
+
+# ------------------------------------------------------------------ the PDF
+
+def _pdf(**over):
+    rows = over.pop("rows", [
+        ["2026-11-12 11:00:00", "Done", "Block IP address", "203.0.113.7", "web-01", "Block an address two sources agree on",
+         "sweep:block_ip", "", "Done."],
+        ["2026-11-12 10:00:00", "Simulation", "Quarantine file", "C:\\x.exe", "web-02", "Quarantine a file two sources agree on",
+         "sweep:quarantine_file", "", "Would have quarantined it."]])
+    args = dict(organization="Acme Corp", generated_at=NOW, filter_line="Activity: All. Period: Last 30 days. Newest first, up to 5,000 rows.",
+                summary={"fired": 2, "done": 1, "undone": 0, "wouldHaveDone": 1},
+                rules=[{"id": "sweep:block_ip", "name": "Block an address two sources agree on", "fired": 1, "done": 1,
+                        "approved": 0, "denied": 0, "undone": 0, "failed": 0, "refused": 0, "wouldHaveDone": 0}],
+                time_saved={"minutes": 10, "estimate": True, "perKind": []}, rows=rows, cap_note=None, compress=False)
+    args.update(over)
+    return export_pdf.render_pdf(**args)
+
+
+def _text(pdf):
+    """The text shown on every page, lines joined by a space (uncompressed streams only)."""
+    return b" ".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
+
+
+def _pages(pdf):
+    return len(re.findall(rb"/Type /Page\b(?!s)", pdf))
+
+
+def test_pdf_has_a_summary_page_then_the_rows():
+    pdf = _pdf()
+    text = _text(pdf)
+    assert pdf.startswith(b"%PDF")
+    assert _pages(pdf) >= 2
+    assert "Acme Corp" in text and "Generated 2026-11-12 12:00 UTC" in text
+    assert "Activity: All. Period: Last 30 days. Newest first, up to 5,000 rows." in text
+    assert "Time saved (estimate): About 10 min" in text
+    assert "This is an estimate, not a measurement" in text
+    assert "Would have done (simulation)" in text
+    assert "Block IP address" in text and "Quarantine file" in text and "Simulation" in text
+    assert text.index("Time saved (estimate)") < text.index("Block IP address")
+
+
+def test_pdf_summary_carries_the_cap_sentence_only_when_cut():
+    cut = _text(_pdf(cap_note=export.cap_sentence(5000, 5001)))
+    assert export.cap_sentence(5000, 5001) in cut
+    assert "Rows older than that were left out" not in _text(_pdf())
+
+
+def test_pdf_cell_text_is_shown_literally_never_as_markup():
+    """protects=T-86-12; fails_when=markup or an ampersand in a target changes or breaks the page."""
+    row = ["2026-11-12 11:00:00", "Done", "Answer a ticket", "Pay <b>now</b> & win", "web-01", "", "", "", "Done."]
+    text = _text(_pdf(rows=[row]))
+    assert "Pay <b>now</b> & win" in text
+    assert "&lt;" not in text and "&amp;" not in text
+    unbalanced = ["2026-11-12 11:00:00", "Done", "Answer a ticket", "<b>open & <i>never closed", "web-01", "", "", "", ""]
+    assert "<b>open & <i>never closed" in _text(_pdf(rows=[unbalanced], organization="A <u>& B"))
+    assert "A <u>& B" in _text(_pdf(rows=[unbalanced], organization="A <u>& B"))
+
+
+def test_pdf_repeats_the_rows_header_on_every_page():
+    many = [["2026-11-12 11:00:00", "Done", "Block IP address", f"203.0.113.{i % 250}", "web-01", "", "", "", "Done."]
+            for i in range(120)]
+    pdf = _pdf(rows=many)
+    assert _pages(pdf) >= 3
+    assert _text(pdf).count("Approved by") >= 2
+
+
+async def test_build_pdf_uses_the_statistics_of_the_same_window(mongo_db, monkeypatch):
+    db = mongo_db
+    await seed_tenant(db, "t1", name="Acme Corp")
+    await _put(db,
+               _doc("AO-1", "t1", "executed", NOW - timedelta(days=1), rule="sweep:block_ip"),
+               _doc("AO-2", "t1", "executed", NOW - timedelta(days=2), rule="sweep:block_ip"),
+               _doc("AO-3", "t1", "shadow", NOW - timedelta(days=3), rule="sweep:block_ip"),
+               _doc("AO-4", "t1", "executed", NOW - timedelta(days=40), rule="sweep:block_ip"),
+               _doc("AO-t2", "t2", "executed", NOW - timedelta(days=1), rule="sweep:block_ip"))
+    seen = {}
+    real = export_pdf.render_pdf
+
+    def spy(**kwargs):
+        seen.update(kwargs)
+        return real(**{**kwargs, "compress": False})
+
+    monkeypatch.setattr(export_pdf, "render_pdf", spy)
+    result = await _build(db, days="30", fmt="pdf")
+    assert result.media_type == "application/pdf" and result.filename == "autonomous-ops-activity-t1-20261112.pdf"
+    assert result.content.startswith(b"%PDF")
+    assert (result.shown, result.total, result.truncated) == (3, 3, False)
+    assert seen["organization"] == "Acme Corp" and seen["generated_at"] == NOW
+    assert seen["filter_line"] == "Activity: All. Period: Last 30 days. Newest first, up to 5,000 rows."
+    assert seen["summary"]["done"] == 2 and seen["summary"]["wouldHaveDone"] == 1
+    assert seen["time_saved"]["minutes"] == 20
+    assert [r["id"] for r in seen["rules"]] == ["sweep:block_ip"] and seen["rules"][0]["fired"] == 2
+    assert seen["cap_note"] is None and len(seen["rows"]) == 3
+    everything = await _build(db, days="all", fmt="pdf")
+    assert everything.total == 4 and seen["summary"]["done"] == 3 and seen["time_saved"]["minutes"] == 30
+    assert seen["filter_line"].endswith("Period: All time. Newest first, up to 5,000 rows.")
+
+
+async def test_build_pdf_with_no_rows_gives_no_file(mongo_db):
+    await seed_tenant(mongo_db, "t1")
+    result = await _build(mongo_db, fmt="pdf")
+    assert result.content is None and result.total == 0
