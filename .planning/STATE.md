@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 86
 current_phase_name: Activity Reporting, Hardening & Live Validation
 status: executing
-stopped_at: Completed 86-05-PLAN.md
-last_updated: "2026-11-13T19:55:52.483Z"
+stopped_at: Completed 86-06-PLAN.md
+last_updated: "2026-11-13T20:06:58.598Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 86 execution started
-state_head: 06f66d00deb6633ea153f8bbf92b78e90e68c984
+state_head: 0037d66db95ccc0102c0f6bbecb2ac02964a1e33
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 170
-  completed_plans: 161
+  completed_plans: 162
   percent: 75
 ---
 
@@ -684,6 +684,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 86]: 86-04: Refused glossary line widened to include expired and stopped approvals (A-86-A2); All rules footer reads payload totals, not the visible rows
 - [Phase 86]: 86-05: a read failure while counting a day releases the digest claim so the next pass retries; a crash after the notice leaves the claim 'claimed' and is never re-sent
 - [Phase 86]: 86-05: the digest pass is skipped when its claim index cannot be made (never runs without the once-a-day guard)
+- [Phase 86]: 86-06: export rows limited by createdAt; platform approver identified by approval.approver.tier == platform; PDF summary reuses stats.fold for the same window
 
 ## Performance Metrics
 
@@ -1000,6 +1001,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 86 P03 | 25 min | 2 tasks | 1 files |
 | Phase 86 P04 | 10 min | 2 tasks | 5 files |
 | Phase 86 P05 | 12 min | 3 tasks | 6 files |
+| Phase 86 P06 | 25 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1034,8 +1036,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-13T19:55:52.146Z
-**Stopped at:** Completed 86-05-PLAN.md
+**Last session:** 2026-11-13T20:06:58.247Z
+**Stopped at:** Completed 86-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1064,7 +1066,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 86 (Activity Reporting, Hardening & Live Validation) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 86 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
