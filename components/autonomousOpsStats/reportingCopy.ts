@@ -140,3 +140,13 @@ export const exportToast = (rows: number): string => `Export downloaded. ${rowsW
 /** The cap note (D-10): the true total comes from X-Export-Total; the same sentence is written into the file. */
 export const capNote = (fileName: string, total: number): string =>
     `Downloaded ${fileName}: the newest ${EXPORT_LIMIT_TEXT} of ${total.toLocaleString('en-US')} rows. Rows older than that were left out. Pick a shorter period or a single state to get the rest.`;
+
+// ── Reporting screen card (86-UI-SPEC section 4, D-09) ──────────────────────────────────────────────────
+
+export const REPORT_CARD_TITLE = 'Autonomous Ops Activity';
+export const REPORT_CARD_NOTE = `All states, last 30 days, newest ${EXPORT_LIMIT_TEXT} rows.`;
+export const REPORT_NEEDS_EXPORT = 'Needs permission to export reports.';
+export const REPORT_NEEDS_VIEW = 'Needs permission to view Autonomous Ops.';
+export const REPORT_PLATFORM_STAFF = 'Open an organization in Tenants, then export from its Autonomous Ops screen.';
+export const REPORT_TRUNCATED_TOAST = `Export downloaded. Only the newest ${EXPORT_LIMIT_TEXT} rows are included.`;
+export const REPORT_FAILED_TOAST = `Failed to export ${REPORT_CARD_TITLE}.`;

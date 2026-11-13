@@ -331,6 +331,7 @@ describe('the Autonomous Ops Activity card on the Reporting screen', () => {
     expect(agent).toBeGreaterThan(0);
     expect(mine).toBeGreaterThan(agent);
     expect(mine).toBeLessThan(next);
-    expect(text.match(/ReportExportCard/g)).toHaveLength(2);
+    // one import line and one mount line, nothing else
+    expect(text.split('\n').filter(l => l.includes('ReportExportCard'))).toHaveLength(2);
   });
 });

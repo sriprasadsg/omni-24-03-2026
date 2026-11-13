@@ -18,6 +18,7 @@ import { BarChart3Icon, DownloadIcon, ActivityIcon, ShieldCheckIcon, TrendingUpI
 import { Asset, HistoricalData } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { showToast } from '../utils/toast';
+import { ReportExportCard } from './autonomousOpsStats/ReportExportCard';
 
 interface ReportingDashboardProps {
     historicalData: {
@@ -558,6 +559,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <ExportCard title="Change Management" onExport={f => handleExport('Change Management', f)} />
                         <ExportCard title="Agent Health" onExport={f => handleExport('Agent Health', f)} />
+                        <ReportExportCard />
                     </div>
 
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 pt-2">Chat & Support</p>

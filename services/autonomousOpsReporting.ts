@@ -118,3 +118,14 @@ export async function downloadAutonomousOpsExport(
     if (!res.ok) throw await failure(res);
     return { status: 'downloaded', ...(await saveExport(res, `autonomous_ops_activity.${q.format}`)) };
 }
+
+/** The registry type string the Reporting screen's export route knows (86-08). It always means all states, the last 30 days. */
+const REGISTRY_TYPE = 'Autonomous Ops Activity';
+
+/** GET /api/reports/export?type=Autonomous Ops Activity&format= for the Reporting screen card (D-09). A zero-row file still downloads. */
+export async function downloadAutonomousOpsReport(format: ExportFormat): Promise<{ fileName: string; rows: number; truncated: boolean }> {
+    const res = await authFetch(`${API_BASE}/reports/export?type=${encodeURIComponent(REGISTRY_TYPE)}&format=${format}`);
+    if (!res.ok) throw await failure(res);
+    const { fileName, rows, truncated } = await saveExport(res, `autonomous_ops_activity_report.${format}`);
+    return { fileName, rows, truncated };
+}
