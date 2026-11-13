@@ -1,12 +1,14 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from export_service import ExportService
 from authentication_service import TokenData
 from rbac_utils import require_permission, verify_permission
 from tenant_context import set_tenant_id
 from auth_roles import SUPER_ROLES
+from database import get_database
 import dlp_service
+import rbac_defaults
 
 router = APIRouter(tags=["Export"])
 logger = logging.getLogger(__name__)
@@ -36,12 +38,14 @@ REPORT_PERMISSIONS = {
     "User Activity": ("manage:users", "manage:rbac"),
     "Automation Policies": ("view:automation",),
     "Cloud Security": ("view:cloud_security",),
+    "Autonomous Ops Activity": ("view:autonomous_ops",),
 }
+AO_REPORT = "Autonomous Ops Activity"
 _FORMATS = ("csv", "pdf")
 
 
 @router.get("/api/reports/export")
-async def export_report_endpoint(type: str, format: str,
+async def export_report_endpoint(type: str, format: str, request: Request,
                                  user: TokenData = Depends(require_permission("export:reports"))):
     """Export report in CSV or PDF format."""
     needs = REPORT_PERMISSIONS.get(type)
@@ -51,6 +55,9 @@ async def export_report_endpoint(type: str, format: str,
         raise HTTPException(status_code=400, detail="format must be 'csv' or 'pdf'")
     if not any([await verify_permission(user, p) for p in needs]):
         raise HTTPException(status_code=403, detail=f"Exporting '{type}' needs {' or '.join(needs)}")
+
+    if type == AO_REPORT:
+        return await _autonomous_ops_activity(user, format, request.client.host if request.client else None)
 
     service = ExportService()
     is_admin = getattr(user, "role", "") in _SUPER_ROLES
@@ -78,3 +85,25 @@ async def export_report_endpoint(type: str, format: str,
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"', "X-Export-Rows": str(len(rows))},
     )
+
+
+async def _autonomous_ops_activity(user: TokenData, format: str, ip) -> Response:
+    """The organization's own Autonomous Ops activity (all states, last 30 days, newest 5,000). It runs before the
+    Super Admin elevation above and refuses platform staff: this report is never cross-tenant (D-09)."""
+    from autonomous_ops import PLATFORM_TENANT_ID
+    from autonomous_ops.reporting import export
+    tenant_id = getattr(user, "tenant_id", None)
+    if (rbac_defaults.is_platform_role(user.role) or user.role in _SUPER_ROLES
+            or not tenant_id or tenant_id == PLATFORM_TENANT_ID):
+        raise HTTPException(status_code=403,
+                            detail="Open an organization in Tenants, then export from its Autonomous Ops screen.")
+    try:
+        result = await export.build(get_database(), tenant_id, bucket="all", days="30", fmt=format,
+                                    viewer_is_platform_staff=False, allow_empty=True)
+        return await export.deliver(result, user=user, tenant_id=tenant_id, fmt=format, bucket="all", days="30",
+                                    entry="registry", ip=ip)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Export of %s failed: %s", AO_REPORT, e)
+        raise HTTPException(status_code=500, detail="Internal server error")

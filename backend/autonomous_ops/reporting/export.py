@@ -97,8 +97,9 @@ def csv_bytes(rows: List[List[str]], total: int, truncated: bool) -> bytes:
 
 
 async def build(db, tenant_id: str, *, bucket: str, days: str, fmt: str, viewer_is_platform_staff: bool,
-                now: Optional[datetime] = None) -> ExportResult:
-    """The export for one tenant, one Activity bucket and one period (``days``: "7", "30", "90" or "all")."""
+                now: Optional[datetime] = None, allow_empty: bool = False) -> ExportResult:
+    """The export for one tenant, one Activity bucket and one period (``days``: "7", "30", "90" or "all").
+    ``allow_empty`` gives the header-only CSV or the summary-only PDF for zero rows instead of no file."""
     if days not in PERIODS or fmt not in MEDIA_TYPES:
         raise ValueError("unknown period or format")
     now = now or datetime.now(timezone.utc)
@@ -108,7 +109,7 @@ async def build(db, tenant_id: str, *, bucket: str, days: str, fmt: str, viewer_
     ledger_rows = raw(db).autonomy_actions
     total = await ledger_rows.count_documents(flt)
     name, media_type = file_name(tenant_id, fmt, now), MEDIA_TYPES[fmt]
-    if total == 0:
+    if total == 0 and not allow_empty:
         return ExportResult(None, name, media_type, 0, 0, False)
     found = ledger_rows.find(flt, {"_id": 0}).sort([("createdAt", -1), ("id", -1)]).limit(EXPORT_ROW_CAP)
     docs = [ledger._normalize(doc) async for doc in found]

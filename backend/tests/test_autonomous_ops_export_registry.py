@@ -67,8 +67,8 @@ class RegistryApi:
 
 @pytest.fixture
 async def api(mongo_db, monkeypatch):
-    for tenant, ticked in (("t1", True), ("t2", True), ("t3", False)):
-        await seed_tenant(mongo_db, tenant, ticked=ticked)
+    for tenant in ("t1", "t2"):
+        await seed_tenant(mongo_db, tenant)
         await mongo_db.tenants.update_one({"id": tenant}, {"$addToSet": {"enabledFeatures": "export:reports"}})
     return RegistryApi(mongo_db, monkeypatch)
 
@@ -91,8 +91,9 @@ async def test_an_organizations_user_exports_all_states_of_the_last_thirty_days(
     api.elevate.assert_not_called()
 
 
-async def test_a_role_without_the_screen_right_gets_the_registrys_own_refusal(api):
-    got = await api.get(tenant="t3")
+async def test_a_role_without_the_screen_right_gets_the_registrys_own_refusal(api, monkeypatch):
+    monkeypatch.setattr(rbac_utils, "granted_permissions", AsyncMock(return_value=["export:reports"]))
+    got = await api.get(role="viewer")
     assert got.status_code == 403 and got.json()["detail"] == f"Exporting '{TYPE}' needs view:autonomous_ops"
     api.audit.assert_not_awaited()
 
