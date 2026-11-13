@@ -13,6 +13,7 @@ import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
 import { DeskSettingsCard } from './serviceDesk/DeskSettingsCard';
 import { StatsCard } from './autonomousOpsStats/StatsCard';
+import { GoLiveCard } from './autonomousOpsGoLive/GoLiveCard';
 import { ExportDialog } from './autonomousOpsStats/ExportDialog';
 import { EXPORT_OPEN } from './autonomousOpsStats/reportingCopy';
 import type { StatsWindow } from '../services/autonomousOpsReporting';
@@ -139,6 +140,7 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                         <AutonomousOpsPlatformHealth refreshSignal={refreshSignal} />
                     )}
                     {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && <PlatformResponseSettings />}
+                    {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && <GoLiveCard />}
                     {showResponseSettings && (
                         <AutonomousOpsResponseSettings
                             key={scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}

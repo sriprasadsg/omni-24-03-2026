@@ -64,6 +64,7 @@ EXPECTED_FILES = [
     "services/autonomousOpsReporting.ts",
     "backend/autonomous_ops_golive_endpoints.py",
     "docs/autonomous-ops-go-live.md",
+    "services/autonomousOpsGoLive.ts",
 ]
 
 
@@ -231,6 +232,7 @@ EXPECTED_DIRECTORIES = [
     "services/serviceDesk",
     "backend/autonomous_ops/reporting",
     "components/autonomousOpsStats",
+    "components/autonomousOpsGoLive",
 ]
 
 

@@ -50,7 +50,8 @@
     "backend/autonomous_ops_reporting_endpoints.py",
     "services/autonomousOpsReporting.ts",
     "backend/autonomous_ops_golive_endpoints.py",
-    "docs/autonomous-ops-go-live.md"
+    "docs/autonomous-ops-go-live.md",
+    "services/autonomousOpsGoLive.ts"
   ],
   "directories": [
     "backend/autonomous_ops/rollout",
@@ -60,7 +61,8 @@
     "components/serviceDesk",
     "services/serviceDesk",
     "backend/autonomous_ops/reporting",
-    "components/autonomousOpsStats"
+    "components/autonomousOpsStats",
+    "components/autonomousOpsGoLive"
   ],
   "catalogueViews": ["autonomousOps"]
 }
