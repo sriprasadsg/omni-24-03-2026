@@ -174,3 +174,112 @@ async def test_one_rollout_pass_keeps_each_tenants_window_hosts_and_instructions
         assert owned[t]["patch_rollouts"] == 1 and owned[t]["patch_rollout_hosts"] == 2, owned
     assert {i["agent_id"] async for i in mongo_db.agent_instructions.find({"tenantId": A})} == {worlds[A]["canary"]}
     assert owned[B]["agent_instructions"] == 1 and owned[A]["agent_instructions"] >= 1, owned
+
+
+# ------------------------------------------------------------------ service desk worker
+
+DESK_NOW = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)      # the clock of service_desk_worker_support
+PW_CONTENT = ("If you forgot your password, open the sign-in page and choose Forgot password. Enter your work "
+              "email and follow the steps to reset your password. You can sign in again once the reset is finished.")
+CHAIR_CONTENT = "To order an ergonomic office chair, ask your manager to approve it and file the order with facilities."
+ANSWER = "Open the sign-in page and choose Forgot password."
+
+
+@pytest.fixture
+async def desk(mongo_db, monkeypatch):
+    """What the worker tests' ``world`` fixture sets up, minus its starter articles (they would blur the leak check)."""
+    import ticket_notifications
+    import tickets_config_mixin
+    import tickets_service
+    for module in (tickets_service, tickets_config_mixin):
+        monkeypatch.setattr(module, "get_database", lambda: mongo_db)
+    monkeypatch.setattr(ticket_notifications, "notify_assigned", AsyncMock())
+    monkeypatch.setattr(ticket_notifications, "notify_status_changed", AsyncMock())
+    await ledger.ensure_indexes(mongo_db)
+    await desk_indexes_without_ttl(mongo_db)
+    return mongo_db
+
+
+async def test_one_desk_pass_answers_from_the_tenants_own_article_and_hands_off_the_other(desk, _env):
+    for t in (A, B):                                   # Post mode: with nothing stored the desk only drafts
+        await seed_desk_tenant(desk, t, mode="post", shadow=False)
+    await seed_article(desk, A, "kb-chair-alpha", title="Order an office chair", content=CHAIR_CONTENT)
+    await seed_article(desk, B, "kb-pw-bravo", title="Reset your own password", content=PW_CONTENT)
+    ticket_a, job_a = await queue(desk, 1, tenant=A, arrived=DESK_NOW)    # the same question twice:
+    ticket_b, job_b = await queue(desk, 2, tenant=B, arrived=DESK_NOW)    # only bravo's article answers it
+
+    transport, calls = stand_in(answer=ANSWER, cited=(1,))
+    for _ in range(4):                                 # the worker generates for one ticket per pass
+        await worker.run_once(desk, client=OllamaClient(transport=transport), clock=Clock())
+        if not await desk.service_desk_jobs.count_documents({"state": {"$in": ["pending", "ready", "running"]}}):
+            break
+
+    done_a, done_b = await job(desk, job_a), await job(desk, job_b)
+    assert (done_a["state"], done_a["reason"]) == ("done", "no_article"), done_a      # handed to a person
+    assert (done_b["state"], done_b["reason"]) == ("done", "posted"), done_b          # answered, not drafted
+    assert not {"ai_answer", "ai_draft"} & set(kinds(await stored(desk, ticket_a)))
+    assert "ai_answer" in kinds(await stored(desk, ticket_b))
+    assert "Forgot password" not in json.dumps((await stored(desk, ticket_a))["comments"], default=str)
+    assert [c for c in calls if c["path"] == "/api/generate"], calls
+    prompts = json.dumps([c["body"] for c in calls if c["path"] == "/api/generate"])
+    assert "ergonomic" not in prompts                  # alpha's article never reached the model
+
+    worlds = {A: {"tenant": A, "ticket": ticket_a["id"], "article": "kb-chair-alpha", "job": job_a},
+              B: {"tenant": B, "ticket": ticket_b["id"], "article": "kb-pw-bravo", "job": job_b}}
+    owned = await assert_no_crossing(
+        desk, ("service_desk_jobs", "service_desk_gaps", "autonomy_actions", "tickets", "notifications"), worlds,
+        _env.call_args_list)
+    for t in (A, B):
+        assert owned[t]["service_desk_jobs"] == 1 and owned[t]["tickets"] == 1, owned
+    for t in (A, B):
+        for row in [r async for r in desk.autonomy_actions.find({"tenantId": t, "kind": "servicedesk"})]:
+            assert worlds[A if t == B else B]["ticket"] not in json.dumps(row, default=str), row
+
+
+# ------------------------------------------------------------------ scheduled retention
+
+RET_NOW = datetime(2026, 11, 12, 9, 0, tzinfo=timezone.utc)
+DAYS = {A: 20, B: 60}                                  # each tenant's own confirmed period for the same types
+AGES = (10, 30, 70)                                    # days old: kept by both, A deletes 2, B deletes 1
+TYPES = ("agent_metrics", "logs")                      # an ObjectId-aged type with each tenant field spelling
+FIELD = {"agent_metrics": "tenant_id", "logs": "tenantId"}
+
+
+def _oid(days_ago):
+    return ObjectId(ObjectId.from_datetime(RET_NOW - timedelta(days=days_ago)).binary[:4] + os.urandom(8))
+
+
+async def _keys(db, collection, tenant):
+    return sorted([d["age"] async for d in db[collection].find({FIELD[collection]: tenant})])
+
+
+async def test_retention_deletes_each_tenants_own_rows_past_its_own_cutoff_and_counts_per_tenant(mongo_db, monkeypatch):
+    monkeypatch.setattr(retention_job, "_sleep", AsyncMock())
+    for t in (A, B):
+        await seed_tenant(mongo_db, t)
+        for rtype in TYPES:
+            await mongo_db[rtype].insert_many([{"_id": _oid(age), FIELD[rtype]: t, "age": age}
+                                               for age in AGES])
+        for rtype in TYPES:
+            await mongo_db.retention_policies.insert_one(
+                {"tenantId": t, "collection": rtype, "retention_days": DAYS[t]})
+    # the first run only counts; the Super Admin's review then confirms every counted period
+    await retention_job.run_all(mongo_db, now=RET_NOW)
+    for t in (A, B):
+        for rtype in TYPES:
+            row = await mongo_db.retention_counts.find_one({"tenantId": t, "type": rtype}, {"_id": 0})
+            assert (row["days"], row["count"]) == (DAYS[t], sum(1 for a in AGES if a > DAYS[t])), (t, rtype, row)
+            assert await _keys(mongo_db, rtype, t) == list(AGES)                 # counting deletes nothing
+    rows = await gate.review_rows(mongo_db)
+    await gate.confirm(mongo_db, gate.review_token(rows), "Super Admin", RET_NOW)
+
+    summary = await retention_job.run_all(mongo_db, now=RET_NOW + timedelta(minutes=1))
+
+    for rtype in TYPES:
+        assert await _keys(mongo_db, rtype, A) == [10], rtype                    # past A's 20 days: 30 and 70 gone
+        assert await _keys(mongo_db, rtype, B) == [10, 30], rtype                # past B's 60 days: only 70 gone
+    assert summary["deleted"] == len(TYPES) * (2 + 1) and summary["tenants"] == 2, summary
+    for t in (A, B):                                   # each tenant's own period is what its gate row now records
+        for rtype in TYPES:
+            row = await mongo_db.retention_gate.find_one({"tenantId": t, "type": rtype}, {"_id": 0})
+            assert row["confirmedDays"] == DAYS[t], (t, rtype, row)
