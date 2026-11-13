@@ -324,7 +324,7 @@ async def test_timestamps_are_aware_datetimes(live):
 def test_decision_records_sit_outside_every_retention_path():
     """GATE-07 retention."""
     assert DECISION_RETENTION_FLOOR_DAYS >= 365
-    assert PROTECTED_COLLECTIONS == {"autonomy_actions", "autonomy_settings", "autonomy_never_touch"}
+    assert PROTECTED_COLLECTIONS == {"autonomy_actions", "autonomy_settings", "autonomy_never_touch", "autonomy_golive_checks"}
     for rel in ("retention_service.py", "retention_endpoints.py", "audit_ledger.py"):
         text = open(os.path.join(BACKEND, rel), encoding="utf-8").read()
         for name in PROTECTED_COLLECTIONS:

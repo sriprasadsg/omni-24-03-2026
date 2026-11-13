@@ -12,6 +12,10 @@ level or a shadow flag, and a platform person's name stays private from tenants;
 key reaches a route it should not, a level goes above its cap, or a name leaks;
 no_claim=the screen (81-10) and a real browser session.
 """
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
+
+import audit_ledger
 from autonomous_ops import gate, ledger, protected
 from tests._autonomous_ops_http import NOW, PLATFORM, _case, _env, _probe, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -155,14 +159,25 @@ async def test_the_platform_organization_cannot_be_raised_above_off(api):
                            json={"maxLevel": "high"})).status_code == 422
 
 
-async def test_only_the_platform_route_lifts_a_tenants_shadow_flag(api):
+async def test_only_the_platform_route_lifts_a_tenants_shadow_flag(api, monkeypatch):
     """protects=D-03 / GATE-09; fails_when=a tenant route changes the shadow flag."""
+    monkeypatch.setattr(audit_ledger, "event", AsyncMock(return_value={}))
     assert (await api.db.autonomy_settings.find_one({"tenantId": "t1"}))["shadow"] is True
     for role in ("tenant_admin", "platform_support", "security_analyst"):
         assert (await api.call("PUT", f"{PLAT}/tenants/t1/shadow", role=role, json={"shadow": False})).status_code == 403
     assert (await api.call("PUT", f"{STOP_BASE}/settings/shadow", role="tenant_admin",
                            json={"shadow": False})).status_code in (404, 405)
     assert (await api.call("PUT", f"{PLAT}/tenants/t1/shadow", role="super_admin", json={"shadow": "no"})).status_code == 422
+    refused = await api.call("PUT", f"{PLAT}/tenants/t1/shadow", role="super_admin", json={"shadow": False})
+    assert refused.status_code == 409          # the lift gate is part of the route (86-07): no checks, no week yet
+    assert (await api.db.autonomy_settings.find_one({"tenantId": "t1"}))["shadow"] is True
+    now = datetime.now(timezone.utc)
+    for check_id in ("firewall_round_trip", "reboot_gate", "watchdog_stop_start", "alert_delivery", "live_stop_drill"):
+        await api.db.autonomy_golive_checks.insert_one({
+            "id": f"GL-{check_id}", "checkId": check_id, "note": "Seeded for the test",
+            "recordedBy": {"username": "root", "display": "Root"}, "recordedAt": now})
+    await api.db.autonomy_actions.insert_one({"id": "AO-seed-shadow", "tenantId": "t1", "kind": "action",
+                                              "state": "shadow", "createdAt": now - timedelta(days=8)})
     done = await api.call("PUT", f"{PLAT}/tenants/t1/shadow", role="super_admin", json={"shadow": False})
     assert done.status_code == 200
     assert (await api.db.autonomy_settings.find_one({"tenantId": "t1"}))["shadow"] is False
