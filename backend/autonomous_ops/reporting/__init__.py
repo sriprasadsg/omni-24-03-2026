@@ -2,8 +2,8 @@
 activity export and the go-live checklist.
 
 This package is read-only over ``autonomy_actions``. The only collections it owns are
-``autonomy_digests`` (what was already sent) and ``autonomy_golive_checks`` (the recorded go-live
-checks). Every query goes through ``autonomous_ops.scope.raw`` with an explicit tenantId; nothing
+``autonomy_digests`` (what was already sent), ``autonomy_golive_checks`` (the recorded go-live
+checks) and ``autonomy_golive_test_org`` (the single go-live test organization mark). Every query goes through ``autonomous_ops.scope.raw`` with an explicit tenantId; nothing
 here uses the ambient tenant context and nothing here imports an LLM client.
 
 Constants only (stdlib): later plans import these names and never redefine them.
@@ -48,6 +48,8 @@ DIGEST_TARGET_CAP = 80
 # Collections this package owns.
 DIGESTS = "autonomy_digests"
 GOLIVE_CHECKS = "autonomy_golive_checks"
+GOLIVE_TEST_ORG = "autonomy_golive_test_org"      # D-23: one document, the designated go-live test organization
+TEST_ORG_DOC_ID = "current"
 
 # D-14 / D-15: the go-live checklist and the shadow period before it can be lifted.
 GOLIVE_CHECK_IDS = ("firewall_round_trip", "reboot_gate", "watchdog_stop_start", "alert_delivery", "live_stop_drill")
