@@ -4,7 +4,7 @@
  * PUT /tenants/{id}/shadow with a 409 {detail, reasons} on a refused lift).
  */
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 
 vi.mock('../../services/apiService', () => ({
@@ -412,5 +412,263 @@ describe('the inline record form', () => {
     fireEvent.click(within(rows[2]).getByRole('button', { name: 'Record this check' }));
     await waitFor(() => expect(screen.getAllByLabelText('Note (required)')).toHaveLength(1));
     expect(within(rows[2]).getByLabelText('Note (required)')).toBeInTheDocument();
+  });
+});
+
+// ── Task 2: the organizations table and the two shadow dialogs ──────────────────────────────────────────
+
+const ACME = {
+  id: 'acme-id', name: 'Acme', shadow: true, daysObserved: 5, wouldHaveDone: 18, canLift: false,
+  reasons: [{ code: 'checks_missing', recorded: 3 }, { code: 'days_short', days: 5 }],
+};
+const BOLT = { id: 'bolt-id', name: 'Bolt', shadow: false, daysObserved: 12, wouldHaveDone: 40, canLift: false, reasons: [] };
+const READY = { ...ACME, daysObserved: 7, canLift: true, reasons: [] };
+
+const renderExpanded = async (organizations: unknown[], opts: { masterShadow?: boolean; recorded?: number[] } = {}) => {
+  fetchOverview.mockResolvedValue(overview(opts.recorded ?? [], organizations, opts.masterShadow ?? false));
+  const view = render(<GoLiveCard />);
+  await expand();
+  await screen.findByRole('heading', { level: 3, name: 'Organizations' });
+  return view;
+};
+
+const orgTable = () => screen.getByRole('table', { name: 'Shadow mode by organization' });
+const orgRow = (name: string) => {
+  const row = within(orgTable()).getAllByRole('row').find(r => within(r).queryByText(name));
+  if (!row) throw new Error(`no row for ${name}`);
+  return row;
+};
+const describedBy = (el: HTMLElement) =>
+  (el.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map(id => document.getElementById(id)?.textContent);
+
+describe('the organizations table', () => {
+  it('lists organizations sorted by name with chip, days observed, the simulation count and the action', async () => {
+    await renderExpanded([BOLT, ACME]);
+    expect(screen.getByText('Only organizations with Autonomous Ops switched on are listed. Turning shadow mode back on is always allowed.')).toBeInTheDocument();
+    const table = orgTable();
+    ['Organization', 'Shadow mode', 'Days observed', 'Would have done (simulation)', 'Action'].forEach(h => {
+      expect(within(table).getByRole('columnheader', { name: h })).toBeInTheDocument();
+    });
+    const body = within(table).getAllByRole('row').filter(r => r.closest('tbody'));
+    expect(body.map(r => within(r).getAllByRole('rowheader')[0].textContent)).toEqual(['Acme', 'Bolt']);
+    const acme = orgRow('Acme');
+    expect(within(acme).getByText('Shadow mode on')).toBeInTheDocument();
+    expect(within(acme).getByText('5 of 7 days')).toBeInTheDocument();
+    expect(within(acme).getByText('18')).toBeInTheDocument();
+    const bolt = orgRow('Bolt');
+    expect(within(bolt).getByText('Shadow mode lifted')).toBeInTheDocument();
+    expect(within(bolt).getByText('12 of 7 days')).toBeInTheDocument();
+    expect(within(bolt).getByRole('button', { name: 'Turn shadow mode back on' })).toBeEnabled();
+  });
+
+  it('disables Lift shadow mode and lists every unmet reason as an amber status line it points to', async () => {
+    await renderExpanded([ACME]);
+    const acme = orgRow('Acme');
+    const lift = within(acme).getByRole('button', { name: 'Lift shadow mode' });
+    expect(lift).toBeDisabled();
+    const lines = within(acme).getAllByRole('status').map(l => l.textContent);
+    expect(lines).toEqual([
+      'Record all 5 go-live checks first (3 of 5 recorded).',
+      'Needs 7 days of shadow records. 5 days so far.',
+    ]);
+    expect(describedBy(lift)).toEqual(lines);
+  });
+
+  it('words the other reasons: no records yet, one day, unreadable', async () => {
+    await renderExpanded([
+      { ...ACME, id: 'a', name: 'Alpha', daysObserved: null, wouldHaveDone: 0, reasons: [{ code: 'no_shadow_records' }] },
+      { ...ACME, id: 'b', name: 'Bravo', daysObserved: 1, reasons: [{ code: 'days_short', days: 1 }] },
+      { ...ACME, id: 'c', name: 'Charlie', daysObserved: null, reasons: [{ code: 'unreadable' }] },
+    ]);
+    expect(within(orgRow('Alpha')).getByText('No shadow records yet. Needs 7 days.')).toBeInTheDocument();
+    expect(within(orgRow('Bravo')).getByText('Needs 7 days of shadow records. 1 day so far.')).toBeInTheDocument();
+    const charlie = orgRow('Charlie');
+    expect(within(charlie).getByText("Shadow records couldn't be read, so lifting is blocked.")).toBeInTheDocument();
+    expect(within(charlie).getByText('—', { selector: 'td' })).toBeInTheDocument();
+    expect(within(charlie).getByRole('button', { name: 'Lift shadow mode' })).toBeDisabled();
+  });
+
+  it('follows the server: canLift false with no reasons is still disabled, canLift true is enabled', async () => {
+    await renderExpanded([{ ...ACME, id: 'a', name: 'Alpha', reasons: [], canLift: false }, { ...READY, id: 'b', name: 'Bravo' }]);
+    expect(within(orgRow('Alpha')).getByRole('button', { name: 'Lift shadow mode' })).toBeDisabled();
+    expect(within(orgRow('Alpha')).queryAllByRole('status')).toHaveLength(0);
+    expect(within(orgRow('Bravo')).getByRole('button', { name: 'Lift shadow mode' })).toBeEnabled();
+  });
+
+  it('explains the deployment-wide switch in a blue notice and leaves an allowed Lift enabled', async () => {
+    await renderExpanded([READY], { masterShadow: true, recorded: [0, 1, 2, 3, 4] });
+    expect(screen.getByText(/The deployment-wide shadow switch is also on\./)).toBeInTheDocument();
+    expect(within(orgRow('Acme')).getByRole('button', { name: 'Lift shadow mode' })).toBeEnabled();
+  });
+
+  it('shows no notice about the switch when it is off', async () => {
+    await renderExpanded([READY]);
+    expect(screen.queryByText(/deployment-wide shadow switch/)).toBeNull();
+  });
+
+  it('shows the empty state when no organization has Autonomous Ops switched on', async () => {
+    await renderExpanded([]);
+    expect(screen.getByText('No organization has Autonomous Ops switched on')).toBeInTheDocument();
+    expect(screen.getByText('Switch it on for an organization in Tenants. It starts in shadow mode and appears here.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('renders a hostile organization name as text and wraps long names', async () => {
+    const hostile = '<img src=x onerror=alert(1)>';
+    const { container } = await renderExpanded([{ ...ACME, name: hostile }]);
+    expect(within(orgTable()).getByText(hostile)).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+    expect(within(orgTable()).getByText(hostile).className).toContain('break-words');
+  });
+
+  describe('below lg', () => {
+    beforeEach(() => {
+      window.matchMedia = ((query: string) => ({
+        matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {},
+        addListener: () => {}, removeListener: () => {}, onchange: null, dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+    });
+    afterEach(() => { delete (window as unknown as { matchMedia?: unknown }).matchMedia; });
+
+    it('stacks each organization as a card with a dl and the same action', async () => {
+      await renderExpanded([BOLT, ACME]);
+      expect(screen.queryByRole('table')).toBeNull();
+      const cards = within(screen.getByRole('list', { name: 'Shadow mode by organization' })).getAllByRole('listitem');
+      expect(cards).toHaveLength(2);
+      expect(within(cards[0]).getByText('Acme')).toBeInTheDocument();
+      expect(Array.from(cards[0].querySelectorAll('dt')).map(d => d.textContent)).toEqual([
+        'Shadow mode', 'Days observed', 'Would have done (simulation)',
+      ]);
+      expect(within(cards[0]).getByRole('button', { name: 'Lift shadow mode' })).toBeDisabled();
+      expect(within(cards[1]).getByRole('button', { name: 'Turn shadow mode back on' })).toBeEnabled();
+    });
+  });
+});
+
+const openLift = async () => {
+  await renderExpanded([READY], { recorded: [0, 1, 2, 3, 4] });
+  fireEvent.click(within(orgRow('Acme')).getByRole('button', { name: 'Lift shadow mode' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Lift shadow mode for Acme?' });
+  const input = within(dialog).getByLabelText('Type the organization name to confirm');
+  return { dialog, input, confirm: within(dialog).getByRole('button', { name: 'Lift shadow mode' }) };
+};
+
+describe('the Lift shadow mode dialog', () => {
+  it('opens with the evidence, the typed-name input focused and the confirm disabled with its reason', async () => {
+    const { dialog, input, confirm } = await openLift();
+    expect(input).toHaveFocus();
+    expect(within(dialog).getByText(/From now on, automatic actions in Acme are carried out for real/)).toBeInTheDocument();
+    expect(within(dialog).getByText('7 days of shadow records. 18 actions would have been done. All 5 go-live checks are recorded.')).toBeInTheDocument();
+    expect(within(dialog).getByText(/You can turn shadow mode back on at any time\./)).toBeInTheDocument();
+    expect(within(dialog).getByText('Type Acme exactly as shown.')).toBeInTheDocument();
+    expect(confirm).toBeDisabled();
+    const reason = within(dialog).getByText('Type the name to continue.');
+    expect(describedBy(confirm)).toContain('Type the name to continue.');
+    expect(describedBy(input)).toContain(reason.textContent);
+    expect(within(dialog).getByRole('button', { name: 'Keep shadow mode on' })).toBeInTheDocument();
+  });
+
+  it('stays disabled for a different or partly typed name and enables for the exact name after trimming', async () => {
+    const { input, confirm } = await openLift();
+    fireEvent.change(input, { target: { value: 'acme' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(input, { target: { value: 'Acm' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(input, { target: { value: ' Acme ' } });
+    expect(confirm).toBeEnabled();
+    expect(screen.queryByText('Type the name to continue.')).toBeNull();
+  });
+
+  it('lifts once, shows Lifting..., ignores Esc while pending, then toasts and refetches', async () => {
+    const { dialog, input, confirm } = await openLift();
+    const pending = deferred<unknown>();
+    setShadow.mockReturnValueOnce(pending.promise);
+    fireEvent.change(input, { target: { value: 'Acme' } });
+    fireEvent.click(confirm);
+    const busy = within(dialog).getByRole('button', { name: 'Lifting...' });
+    fireEvent.click(busy);
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Lift shadow mode for Acme?' })).toBeInTheDocument();
+    expect(setShadow).toHaveBeenCalledTimes(1);
+    expect(setShadow).toHaveBeenCalledWith('acme-id', false);
+    const before = fetchOverview.mock.calls.length;
+    await act(async () => { pending.resolve({}); await Promise.resolve(); });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Shadow mode lifted for Acme.', 'success'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(fetchOverview.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('shows the server reasons on a 409, keeps the input and refetches so the table updates', async () => {
+    const { dialog, input, confirm } = await openLift();
+    setShadow.mockRejectedValueOnce(apiError(409, 'Record all 5 go-live checks first (4 of 5 recorded).'));
+    fireEvent.change(input, { target: { value: 'Acme' } });
+    const before = fetchOverview.mock.calls.length;
+    fireEvent.click(confirm);
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent("Shadow mode can't be lifted yet: Record all 5 go-live checks first (4 of 5 recorded).");
+    expect(input).toHaveValue('Acme');
+    expect(toast).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetchOverview.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('shows the platform administrator sentence for a 403', async () => {
+    const { dialog, input, confirm } = await openLift();
+    setShadow.mockRejectedValueOnce(apiError(403, 'Forbidden'));
+    fireEvent.change(input, { target: { value: 'Acme' } });
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Only a platform administrator can lift shadow mode.');
+    expect(input).toHaveValue('Acme');
+  });
+
+  it('closes on Keep shadow mode on without writing', async () => {
+    const { dialog } = await openLift();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep shadow mode on' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(setShadow).not.toHaveBeenCalled();
+  });
+});
+
+const openRestore = async () => {
+  await renderExpanded([BOLT], { recorded: [0, 1, 2, 3, 4] });
+  fireEvent.click(within(orgRow('Bolt')).getByRole('button', { name: 'Turn shadow mode back on' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Turn shadow mode back on for Bolt?' });
+  return { dialog, confirm: within(dialog).getByRole('button', { name: 'Turn shadow mode on' }) };
+};
+
+describe('the Turn shadow mode back on dialog', () => {
+  it('opens with Keep it lifted focused, no typed name and no gate', async () => {
+    const { dialog } = await openRestore();
+    expect(within(dialog).getByRole('button', { name: 'Keep it lifted' })).toHaveFocus();
+    expect(within(dialog).getByText(/Automatic actions in Bolt become simulations again and nothing new is carried out\./)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('textbox')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Turn shadow mode on' })).toBeEnabled();
+  });
+
+  it('saves once, shows Saving..., then toasts and refetches', async () => {
+    const { dialog, confirm } = await openRestore();
+    const pending = deferred<unknown>();
+    setShadow.mockReturnValueOnce(pending.promise);
+    fireEvent.click(confirm);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Saving...' }));
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(setShadow).toHaveBeenCalledTimes(1);
+    expect(setShadow).toHaveBeenCalledWith('bolt-id', true);
+    const before = fetchOverview.mock.calls.length;
+    await act(async () => { pending.resolve({}); await Promise.resolve(); });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Shadow mode is on again for Bolt.', 'success'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(fetchOverview.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('keeps the dialog open with an alert for a failure and for a 403', async () => {
+    const { dialog, confirm } = await openRestore();
+    setShadow.mockRejectedValueOnce(apiError(500, 'The database is busy.'));
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("Couldn't turn shadow mode back on: The database is busy. Try again.");
+    setShadow.mockRejectedValueOnce(apiError(403, 'Forbidden'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Turn shadow mode on' }));
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('Only a platform administrator can change shadow mode.'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
