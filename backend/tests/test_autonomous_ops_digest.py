@@ -191,3 +191,267 @@ def test_a_digest_of_long_targets_and_rule_names_stays_bounded():
     body = text.notice_text(group, group, group, group)
     assert len(body) < 20000
     assert all(len(line) < 700 for line in body.split("\n"))
+
+
+# ================================================================== task 2: one organization
+
+import asyncio  # noqa: E402
+import uuid  # noqa: E402
+from datetime import timedelta  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
+
+import email_service as email_module  # noqa: E402
+import notification_audience  # noqa: E402
+from autonomous_ops.reporting import DIGESTS, digest  # noqa: E402
+from tests._mongo_test_db import mongo_db  # noqa: E402,F401  (fixture)
+
+DAY = "2026-11-12"
+NOW = datetime(2026, 11, 12, 7, 5, tzinfo=UTC)
+FRONTEND = "https://app.example"
+SMTP = {"smtpHost": "smtp.example", "smtpPasswordEncrypted": "x"}
+
+
+def _at(h, m=0, s=0, *, day=12):
+    return datetime(2026, 11, day, h, m, s, tzinfo=UTC)
+
+
+async def seed(db, tenant, command, state, *, finished=None, created=None, kind="security", rule=None, target=None,
+               expires=None, inputs=None):
+    """One decision row with the fields the digest reads (terminal rows carry finishedAt)."""
+    row = {"id": "AO-" + uuid.uuid4().hex, "tenantId": tenant, "kind": kind, "command": command, "state": state,
+           "reason": {"ruleId": rule or f"sweep:{command}", "inputs": inputs or {}}, "target": target or "203.0.113.7",
+           "createdAt": created or _at(3), "finishedAt": finished}
+    if expires:
+        row["approval"] = {"expiresAt": expires}
+    await db.autonomy_actions.insert_one(row)
+    return row
+
+
+@pytest.fixture
+def world(mongo_db, monkeypatch):
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    return mongo_db
+
+
+async def _ready(db, *tenants):
+    await digest.ensure_indexes(db)
+    for tenant in tenants:
+        await db.tenants.replace_one({"id": tenant}, {"id": tenant, "name": tenant.title(), "enabledFeatures": ["view:autonomous_ops"]},
+                                     upsert=True)
+
+
+async def _notices(db, tenant):
+    return [n async for n in db.notifications.find({"tenantId": tenant}, {"_id": 0})]
+
+
+def _mail(*, smtp=SMTP, send=None):
+    """Patch the mail path: the smtp lookup and email_service.send_email (nothing real is sent)."""
+    mock = send or AsyncMock(return_value={"success": True})
+    return mock, [patch("auth_password_reset_endpoints._resolve_smtp_config", AsyncMock(return_value=smtp)),
+                  patch("database.get_database", lambda: MagicMock()),
+                  patch.object(email_module.email_service, "send_email", mock)]
+
+
+async def _with_mail(coro_factory, *, smtp=SMTP, send=None, patches=()):
+    mock, ps = _mail(smtp=smtp, send=send)
+    for p in list(ps) + list(patches):
+        p.start()
+    try:
+        return mock, await coro_factory()
+    finally:
+        for p in list(ps) + list(patches):
+            p.stop()
+
+
+def test_the_window_is_the_24_hours_before_07_00_utc_of_the_day():
+    assert digest.window(DAY) == (_at(7, day=11), _at(7))
+
+
+async def test_a_row_finished_exactly_at_07_00_belongs_to_the_next_digest(world):
+    await _ready(world, "t1")
+    inside = await seed(world, "t1", "block_ip", "executed", finished=_at(6, 59, 59))
+    await seed(world, "t1", "block_ip", "executed", finished=_at(7, 0, 0))
+    edge = await seed(world, "t1", "block_ip", "executed", finished=_at(7, 0, 0, day=11))
+    ran, undone, waiting, simulation = await digest.gather(world, "t1", DAY, NOW)
+    assert ran.total == 2 and sorted(i.id for i in ran.items) == sorted([inside["id"], edge["id"]])
+    assert (undone.total, waiting.total, simulation.total) == (0, 0, 0)
+
+
+async def test_the_digest_counts_the_organizations_rows_and_stores_one_notice_for_its_admins(world):
+    await _ready(world, "t1", "t2")
+    for _ in range(2):
+        await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    await seed(world, "t1", "isolate_host", "undone", finished=_at(6))
+    await seed(world, "t1", "install_patches", "awaiting_approval", expires=NOW + timedelta(hours=1))
+    for _ in range(3):
+        await seed(world, "t1", "block_ip", "shadow", created=_at(4))
+    await seed(world, "t1", "block_ip", "recorded", kind="control", finished=_at(5))
+    await seed(world, "t1", "block_ip", "recorded", kind="platform_health", finished=_at(5))
+    await seed(world, "t2", "block_ip", "executed", finished=_at(5))
+    assert await digest.send_for_tenant(world, "t1", DAY, NOW) == "sent"
+    notices = await _notices(world, "t1")
+    assert len(notices) == 1
+    lines = notices[0]["message"].split("\n")
+    assert lines[0] == "Last 24 hours: 2 ran, 1 undone, 1 waiting for your approval."
+    assert lines[1] == "Simulation (shadow mode): 3 would have been done. Nothing was carried out."
+    assert notices[0]["title"] == "Autonomous Ops daily digest" and notices[0]["severity"] == "info"
+    meta = notices[0]["metadata"]
+    assert meta["source"] == "autonomous_ops" and meta["event"] == "autonomous_ops.daily_digest"
+    assert meta["audience"] == "tenant_admins" and meta["day"] == DAY
+    assert meta["counts"] == {"ran": 2, "undone": 1, "waiting": 1, "simulation": 3}
+    assert "Ran (3)" not in notices[0]["message"]            # PROH-86-02: simulation is never counted as ran
+    assert [n async for n in world.notifications.find({"tenantId": "platform-admin"})] == []
+    assert await world.oncall_outbox.count_documents({}) == 0   # PROH-86-01: nothing pages on-call
+    assert await _notices(world, "t2") == []
+    claim = await world[DIGESTS].find_one({"tenantId": "t1", "day": DAY})
+    assert claim["state"] == "sent" and claim["counts"] == meta["counts"] and claim["sentAt"]
+
+
+async def test_the_notice_is_read_only_by_users_the_tenant_admins_audience_admits(world):
+    await _ready(world, "t1")
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    await digest.send_for_tenant(world, "t1", DAY, NOW)
+
+    async def readable(perms):
+        with patch.object(notification_audience.rbac_service, "get_user_permissions", AsyncMock(return_value=perms)), \
+                patch.object(notification_audience, "is_ticket_staff", AsyncMock(return_value=False)):
+            query = await notification_audience.reader_filter(MagicMock(username="u", email="u@x.io"), "t1")
+        return await world.notifications.count_documents(query)
+
+    assert await readable(["view:overview"]) == 0
+    assert await readable(["manage:agents"]) == 1
+    assert await readable(["*"]) == 1
+
+
+async def test_a_simulation_only_day_sends_the_digest_with_zero_counts(world):
+    await _ready(world, "t1")
+    await seed(world, "t1", "block_ip", "shadow", created=_at(4))
+    await seed(world, "t1", "isolate_host", "shadow", created=_at(5))
+    assert await digest.send_for_tenant(world, "t1", DAY, NOW) == "sent"
+    lines = (await _notices(world, "t1"))[0]["message"].split("\n")
+    assert lines[0] == "Last 24 hours: 0 ran, 0 undone, 0 waiting for your approval."
+    assert lines[1].startswith("Simulation (shadow mode): 2 would have been done.")
+
+
+async def test_a_day_with_nothing_or_only_failed_and_refused_rows_is_quiet(world):
+    await _ready(world, "t1", "t2")
+    await seed(world, "t2", "block_ip", "failed", finished=_at(5))
+    await seed(world, "t2", "block_ip", "refused", finished=_at(5))
+    await seed(world, "t2", "block_ip", "shadow", created=_at(3, day=10))   # before the window
+    for tenant in ("t1", "t2"):
+        assert await digest.send_for_tenant(world, tenant, DAY, NOW) == "quiet"
+        assert await _notices(world, tenant) == []
+        assert (await world[DIGESTS].find_one({"tenantId": tenant, "day": DAY}))["state"] == "quiet"
+
+
+async def test_a_second_call_for_the_same_day_sends_nothing(world):
+    await _ready(world, "t1")
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    assert await digest.send_for_tenant(world, "t1", DAY, NOW) == "sent"
+    assert await digest.send_for_tenant(world, "t1", DAY, NOW) == "already_claimed"
+    first, second = await asyncio.gather(digest.send_for_tenant(world, "t1", "2026-11-13", NOW + timedelta(days=1)),
+                                         digest.send_for_tenant(world, "t1", "2026-11-13", NOW + timedelta(days=1)))
+    assert sorted([first, second]) == ["already_claimed", "quiet"]
+    assert len(await _notices(world, "t1")) == 1
+
+
+async def test_waiting_is_the_screens_needs_your_decision_set(world):
+    await _ready(world, "t1")
+    live = NOW + timedelta(hours=1)
+    await seed(world, "t1", "install_patches", "awaiting_approval", expires=live)
+    await seed(world, "t1", "install_patches", "awaiting_approval", expires=NOW - timedelta(minutes=1))   # expired
+    await seed(world, "t1", "ticket_answer", "awaiting_approval", expires=live, inputs={"suggestionOnly": True})
+    _, _, waiting, _ = await digest.gather(world, "t1", DAY, NOW)
+    assert waiting.total == 1
+
+
+async def test_items_are_newest_first_cut_at_ten_with_the_total_kept(world):
+    await _ready(world, "t1")
+    for n in range(12):
+        await seed(world, "t1", "block_ip", "executed", finished=_at(1, n), target=f"198.51.100.{n}")
+    await digest.send_for_tenant(world, "t1", DAY, NOW)
+    lines = (await _notices(world, "t1"))[0]["message"].split("\n")
+    start = lines.index("Ran (12)")
+    assert lines[start + 1].endswith("01:11 UTC") and lines[start + 10].endswith("01:02 UTC")
+    assert lines[start + 11] == MORE.format(n=12)
+
+
+async def test_long_targets_are_cut_in_the_stored_notice(world):
+    await _ready(world, "t1")
+    for n in range(10):
+        await seed(world, "t1", "block_ip", "executed", finished=_at(1, n), target="x" * 400, rule="rule:" + "y" * 300)
+    await digest.send_for_tenant(world, "t1", DAY, NOW)
+    message = (await _notices(world, "t1"))[0]["message"]
+    assert "x" * 81 not in message and len(message) < 8000
+
+
+async def test_a_failed_read_releases_the_claim_so_the_day_is_not_lost(world):
+    await _ready(world, "t1")
+    with patch.object(digest, "gather", AsyncMock(side_effect=RuntimeError("down"))):
+        with pytest.raises(RuntimeError):
+            await digest.send_for_tenant(world, "t1", DAY, NOW)
+    assert await world[DIGESTS].count_documents({"tenantId": "t1"}) == 0
+
+
+async def _admins(db):
+    await db.users.insert_many([
+        {"email": "a1@x.io", "tenantId": "t1", "role": "Tenant Admin", "status": "Active"},
+        {"email": "a2@x.io", "tenantId": "t1", "role": "admin", "status": "Active"},
+        {"email": "gone@x.io", "tenantId": "t1", "role": "admin", "status": "Inactive"},
+        {"email": "v@x.io", "tenantId": "t1", "role": "Viewer", "status": "Active"},
+        {"email": "other@x.io", "tenantId": "t2", "role": "admin", "status": "Active"}])
+
+
+async def test_email_goes_to_the_tenant_admins_only_with_the_digest_subject(world, monkeypatch):
+    await _ready(world, "t1")
+    await _admins(world)
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    monkeypatch.setenv("FRONTEND_URL", FRONTEND + "/")
+    send, _ = await _with_mail(lambda: digest.send_for_tenant(world, "t1", DAY, NOW))
+    assert send.await_count == 2
+    assert sorted(c.kwargs["to_email"] for c in send.await_args_list) == ["a1@x.io", "a2@x.io"]
+    first = send.await_args_list[0].kwargs
+    assert first["subject"] == "Autonomous Ops daily digest for T1: 1 ran, 0 undone, 0 waiting"
+    assert "See everything: https://app.example" in first["body_text"] and "<p>" in first["body_html"]
+    assert first["smtp_config"] == SMTP
+    claim = await world[DIGESTS].find_one({"tenantId": "t1", "day": DAY})
+    assert claim["state"] == "sent" and claim["email"] == {"sent": 2, "failed": 0}
+
+
+@pytest.mark.parametrize("how", ["raises", "refused", "hangs"])
+async def test_a_failing_email_never_blocks_the_notice(world, monkeypatch, how):
+    await _ready(world, "t1")
+    await _admins(world)
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    monkeypatch.setenv("FRONTEND_URL", FRONTEND)
+
+    async def hang(**_):
+        await asyncio.sleep(60)
+
+    send = {"raises": AsyncMock(side_effect=RuntimeError("smtp down")), "refused": AsyncMock(return_value={"success": False}),
+            "hangs": AsyncMock(side_effect=hang)}[how]
+    _, result = await _with_mail(lambda: digest.send_for_tenant(world, "t1", DAY, NOW), send=send,
+                                 patches=[patch.object(digest, "EMAIL_TIMEOUT", 0.05)])
+    assert result == "sent" and len(await _notices(world, "t1")) == 1
+    assert (await world[DIGESTS].find_one({"tenantId": "t1", "day": DAY}))["email"] == {"sent": 0, "failed": 2}
+
+
+@pytest.mark.parametrize("frontend,smtp", [("", SMTP), ("app.example", SMTP), (FRONTEND, None)])
+async def test_no_email_without_an_http_link_base_or_a_mail_configuration(world, monkeypatch, frontend, smtp):
+    await _ready(world, "t1")
+    await _admins(world)
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    monkeypatch.setenv("FRONTEND_URL", frontend)
+    send, result = await _with_mail(lambda: digest.send_for_tenant(world, "t1", DAY, NOW), smtp=smtp)
+    assert result == "sent" and send.await_count == 0 and len(await _notices(world, "t1")) == 1
+
+
+async def test_the_organization_name_loses_line_breaks_in_the_subject(world, monkeypatch):
+    await _ready(world, "t1")
+    await world.tenants.update_one({"id": "t1"}, {"$set": {"name": "Acme\r\nBcc: x"}})
+    await _admins(world)
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    monkeypatch.setenv("FRONTEND_URL", FRONTEND)
+    send, _ = await _with_mail(lambda: digest.send_for_tenant(world, "t1", DAY, NOW))
+    subject = send.await_args_list[0].kwargs["subject"]
+    assert "\r" not in subject and "\n" not in subject and "Acme Bcc: x" in subject
