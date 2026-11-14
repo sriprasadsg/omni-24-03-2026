@@ -5,21 +5,25 @@ mounted through the Phase 81 HTTP harness (the 86-07 fixtures are reused).
 
 Value: protects=PROH-86-04 / PROH-86-14: exactly one Super Admin-marked organization may leave shadow mode
 without the five checks and the seven days, every other organization keeps the full gate, the mark cannot be
-set twice, set on the platform organization, or cleared while the organization is lifted, and the read of the
-mark fails closed; fails_when=a second organization is exempted, a customer organization skips the gate, a
-failed read exempts, the mark is cleared while the organization is live, or an unprivileged caller marks;
-no_claim=the Going live card (86-15) and a real browser session.
+set twice, set on the platform organization, or cleared while the organization is lifted or its shadow flag
+cannot be confirmed (T-86-14-03: checked before the clear and again after it, and a lift of the test
+organization is checked again after the write), and the read of the mark fails closed; fails_when=a second
+organization is exempted, a customer organization skips the gate, a failed read exempts, the mark is cleared
+while the organization is live or unconfirmed, a clear and a lift racing leave a lifted organization unmarked,
+or an unprivileged caller marks; no_claim=the Going live card (86-15) and a real browser session.
 """
 import logging
 import os
 import sys
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from autonomous_ops import settings as ao_settings
 from autonomous_ops.reporting import GOLIVE_TEST_ORG, TEST_ORG_DOC_ID, golive_test_org
 from tests._autonomous_ops_http import _env, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -51,6 +55,27 @@ async def named(gapi):
 
 def _events(audit, action):
     return [c for c in audit.await_args_list if c.args[0] == action]
+
+
+async def _stored_mark(db):
+    return await db[GOLIVE_TEST_ORG].find_one({"_id": TEST_ORG_DOC_ID})
+
+
+def _read_fails(monkeypatch, collection):
+    """The settings read of ``ao_settings.load`` raises for ``collection`` (tenants or autonomy_settings);
+    every other collection is the real one."""
+    real = ao_settings.raw
+
+    class _Db:
+        def __init__(self, db):
+            self._db = db
+
+        def __getattr__(self, name):
+            if name == collection:
+                return SimpleNamespace(find_one=AsyncMock(side_effect=RuntimeError("database is down")))
+            return getattr(self._db, name)
+
+    monkeypatch.setattr(ao_settings, "raw", lambda db: _Db(real(db)))
 
 
 # ------------------------------------------------------------------ marking
@@ -153,6 +178,95 @@ async def test_clearing_an_organization_that_is_not_marked_changes_nothing(named
     assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
 
 
+async def test_clearing_is_refused_when_the_shadow_flag_cannot_be_read(named, audit, monkeypatch):
+    """protects=PROH-86-14 / T-86-14-03 fail closed; fails_when=a failed read of the tenant or its settings reads
+    as shadow on and the mark of a lifted organization is cleared."""
+    for collection in ("tenants", "autonomy_settings"):
+        assert (await _mark(named)).status_code == 201
+        before = await _stored_mark(named.db)
+        with monkeypatch.context() as patch:
+            _read_fails(patch, collection)
+            refused = await _clear(named)
+        assert refused.status_code == 409, collection
+        assert refused.json()["detail"] == f"Shadow mode for {NAME} couldn't be confirmed, so the test mark stays."
+        assert await _stored_mark(named.db) == before, collection
+        assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+        await named.db[GOLIVE_TEST_ORG].delete_many({})
+
+
+async def test_clearing_is_refused_when_the_stored_shadow_flag_is_not_a_boolean(named, audit):
+    """protects=T-86-14-03; fails_when=a stored "false" (not understood, read as the default) lets the clear through."""
+    assert (await _mark(named)).status_code == 201
+    before = await _stored_mark(named.db)
+    await named.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": "false"}})
+    refused = await _clear(named)
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == f"Shadow mode for {NAME} couldn't be confirmed, so the test mark stays."
+    assert await _stored_mark(named.db) == before
+    assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+
+
+async def test_a_lift_that_lands_during_the_clear_puts_the_mark_back(named, audit, monkeypatch):
+    """protects=PROH-86-14 race; fails_when=the shadow flag went off between the check and the delete and the
+    mark stays removed, is put back changed, or the clear is audited."""
+    assert (await _mark(named)).status_code == 201
+    before = await _stored_mark(named.db)
+    real_clear = golive_test_org.clear
+
+    async def clear_then_lift(db, tenant_id):
+        removed = await real_clear(db, tenant_id)
+        await db.autonomy_settings.update_one({"tenantId": tenant_id}, {"$set": {"shadow": False}})
+        return removed
+
+    monkeypatch.setattr(golive_test_org, "clear", clear_then_lift)
+    refused = await _clear(named)
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == f"Turn shadow mode back on for {NAME} first."
+    assert await _stored_mark(named.db) == before
+    assert await _own_flag(named.db) is False
+    assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+
+
+async def test_a_flag_that_cannot_be_read_after_the_clear_puts_the_mark_back(named, audit, monkeypatch):
+    """protects=T-86-14-03; fails_when=a failing re-read after the delete leaves the mark removed or answers 503."""
+    assert (await _mark(named)).status_code == 201
+    before = await _stored_mark(named.db)
+    real_load, calls = ao_settings.load, []
+
+    async def load_once(db, tenant_id):
+        calls.append(tenant_id)
+        if len(calls) > 1:
+            raise RuntimeError("database is down")
+        return await real_load(db, tenant_id)
+
+    monkeypatch.setattr(ao_settings, "load", load_once)
+    refused = await _clear(named)
+    assert len(calls) == 2
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == f"Shadow mode for {NAME} couldn't be confirmed, so the test mark stays."
+    assert await _stored_mark(named.db) == before
+    assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+
+
+async def test_restoring_a_mark_keeps_it_identical_and_never_replaces_anothers(mongo_db, caplog):
+    """protects=PROH-86-14 single slot; fails_when=a restored mark differs, or a mark made in between is replaced
+    or restored silently."""
+    await golive_test_org.mark(mongo_db, "t1", "One", OWNER, NOW)
+    before = await _stored_mark(mongo_db)
+    mark = await golive_test_org.current(mongo_db)
+    assert await golive_test_org.clear(mongo_db, "t1") is True
+    assert await golive_test_org.restore(mongo_db, mark) is True
+    assert await _stored_mark(mongo_db) == before
+
+    await golive_test_org.clear(mongo_db, "t1")
+    await golive_test_org.mark(mongo_db, "t2", "Two", OWNER, NOW)
+    with caplog.at_level(logging.ERROR):
+        assert await golive_test_org.restore(mongo_db, mark) is False
+    assert (await golive_test_org.current(mongo_db))["tenantId"] == "t2"
+    assert await mongo_db[GOLIVE_TEST_ORG].count_documents({}) == 1
+    assert any("test organization" in r.getMessage() for r in caplog.records)
+
+
 # ------------------------------------------------------------------ the gate
 
 async def test_the_test_organization_lifts_with_no_checks_and_no_records_others_do_not(named, audit, clock):
@@ -215,6 +329,63 @@ async def test_an_unreadable_observation_does_not_block_the_test_organization(na
     assert await _golive().lift_blockers(named.db, "t1", NOW) == []
     assert await _golive().lift_blockers(named.db, "t2", NOW) == [{"code": "checks_missing", "recorded": 0},
                                                                   {"code": "unreadable"}]
+
+
+async def test_a_test_organization_lift_is_undone_when_the_mark_vanishes_during_it(named, audit, clock, monkeypatch):
+    """protects=PROH-86-14 race / T-86-14-03; fails_when=a clear that lands between the gate and the write leaves a
+    lifted organization with no mark, or the undone lift is audited."""
+    assert (await _mark(named)).status_code == 201
+    audit.reset_mock()
+    real_set = ao_settings.set_shadow
+
+    async def write_then_unmark(db, tenant_id, shadow, *, actor):
+        out = await real_set(db, tenant_id, shadow, actor=actor)
+        if shadow is False:
+            await db[GOLIVE_TEST_ORG].delete_many({})
+        return out
+
+    monkeypatch.setattr(ao_settings, "set_shadow", write_then_unmark)
+    resp = await _lift(named)
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["reasons"] == [{"code": "checks_missing", "recorded": 0}, {"code": "no_shadow_records"}]
+    assert body["detail"] == _golive().blocker_sentence(body["reasons"])
+    assert await _own_flag(named.db) is True
+    assert _events(audit, "autonomous_ops.shadow_lifted") == []
+
+
+async def test_a_lift_that_passed_the_full_gate_is_not_checked_again(named, audit, clock, monkeypatch):
+    """protects=PROH-86-04; fails_when=an ordinary lift re-runs the gate or is undone by the test organization's
+    mark changing, or a healthy test-organization lift or clear changes."""
+    await seed_tenant(named.db, "t2", shadow=True, name="Second Org")
+    await _put_checks(named.db, when=NOW - timedelta(days=9))
+    await _put_shadow_row(named.db, "t2", NOW - timedelta(days=9))
+    assert (await _mark(named)).status_code == 201
+    real_set, real_gate, gate_calls = ao_settings.set_shadow, _golive().lift_blockers, []
+
+    async def counted_gate(db, tenant_id, now):
+        gate_calls.append(tenant_id)
+        return await real_gate(db, tenant_id, now)
+
+    async def write_then_unmark(db, tenant_id, shadow, *, actor):
+        out = await real_set(db, tenant_id, shadow, actor=actor)
+        await db[GOLIVE_TEST_ORG].delete_many({})
+        return out
+
+    monkeypatch.setattr(_golive(), "lift_blockers", counted_gate)
+    with monkeypatch.context() as patch:
+        patch.setattr(ao_settings, "set_shadow", write_then_unmark)
+        plain = await named.call("PUT", f"{PLAT}/tenants/t2/shadow", role="super_admin", json={"shadow": False})
+    assert plain.status_code == 200 and await _own_flag(named.db, "t2") is False
+    assert gate_calls == ["t2"]
+    assert len(_events(audit, "autonomous_ops.shadow_lifted")) == 1
+
+    await golive_test_org.mark(named.db, "t1", NAME, OWNER, NOW)
+    assert (await _lift(named)).status_code == 200 and await _own_flag(named.db) is False
+    await named.call("PUT", SHADOW, role="super_admin", json={"shadow": True})
+    assert (await _clear(named)).status_code == 200
+    assert await named.db[GOLIVE_TEST_ORG].count_documents({}) == 0
+    assert len(_events(audit, "autonomous_ops.golive_test_org_cleared")) == 1
 
 
 # ------------------------------------------------------------------ the overview
