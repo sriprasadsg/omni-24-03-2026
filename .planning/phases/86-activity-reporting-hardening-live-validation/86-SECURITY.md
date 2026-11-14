@@ -4,9 +4,10 @@ slug: "activity-reporting-hardening-live-validation"
 status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
 threats_open: 0
-threats_total: 41
-threats_closed: 41
-threats_open_nonblocking: 0
+threats_total: 44
+threats_closed: 42
+# T-86-33 and T-86-35 (86-16, low): plan-time accepts, rationale verified, awaiting the user's acceptance
+threats_open_nonblocking: 2
 # residual notes R1-R4 under T-86-14-03: each low (below block_on high), open, NOT accepted; see Audit Notes
 residual_notes_open: 4
 asvs_level: 1
@@ -20,7 +21,7 @@ created: "2026-11-14"
 
 > Per-phase security contract: threat register, accepted risks, and audit trail.
 
-The register is the union of the `<threat_model>` blocks in 86-01..86-15-PLAN.md. T-86-SC (no package installed) appears in 86-01..86-13 with the same text and is counted once. The 86-14 and 86-15 registers carry no Severity column. Their severities below are the auditor's assessment, marked "assessed". An OPEN threat with no plan severity counts as critical for the gate (fail-closed rule).
+The register is the union of the `<threat_model>` blocks in 86-01..86-16-PLAN.md. T-86-SC (no package installed) appears in 86-01..86-13 with the same text and in 86-16 (high, mitigate), and is counted once. The 86-14 and 86-15 registers carry no Severity column. Their severities below are the auditor's assessment, marked "assessed". An OPEN threat with no plan severity counts as critical for the gate (fail-closed rule).
 
 Line anchors are at HEAD 324340252 (third audit, 2026-11-14). Only seven files changed after the first audit (`git diff --name-only 2b14815b0 HEAD`): `autonomous_ops/reporting/golive.py`, `autonomous_ops/reporting/golive_test_org.py`, `autonomous_ops_golive_endpoints.py`, `autonomous_ops_platform_endpoints.py`, `tests/test_autonomous_ops_golive.py`, `tests/test_autonomous_ops_golive_test_org.py` and the new `tests/test_autonomous_ops_golive_test_org_race.py`. Every other row's evidence is unchanged from the first audit.
 
@@ -52,7 +53,7 @@ Line anchors are at HEAD 324340252 (third audit, 2026-11-14). Only seven files c
 | T-86-01 | Information disclosure | statistics route tenant resolution | high | mitigate | `autonomous_ops_reporting_endpoints.py:41` -> `_tenant_for` (`autonomous_ops_endpoints.py:41-46`) -> `views.resolve_tenant` (`views.py:107-128`: Billing 403 at 112-113, staff must name one at 120-121, tenant role only its own at 123-127); `stats.py:32` `$match` names tenantId; tests `test_autonomous_ops_stats.py:270,280,285`, `test_autonomous_ops_two_tenant.py:339` | closed |
 | T-86-02 | Tampering | days / tenantId query parameters | low | mitigate | `autonomous_ops_reporting_endpoints.py:31` (max_length TENANT_ID_MAX=128), `:37-38` (422 outside WINDOWS); `views.py:114-116`; test `test_autonomous_ops_stats.py:101` | closed |
 | T-86-03 | Information disclosure | rule names and targets in the statistics payload | low | accept | Plan-time accept, logged as AR-86-01 (user, 2026-11-14). Rationale verified: `stats.py:111-120` returns counts, rule ids and code-owned names (`rule_names.py`), no targets or people; React text (`StatsRuleTable.tsx`) | closed (accepted, AR-86-01) |
-| T-86-SC | Tampering | npm/pip installs | low | accept | Plan-time accept, logged as AR-86-02 (user, 2026-11-14). Rationale verified: `git diff fd337f721~1 HEAD` over every package.json, lock file, requirements*.txt, pyproject and Cargo file is empty (reportlab was already in `backend/requirements.txt:99`); the ae0b01058..324340252 fix commits touch no package file | closed (accepted, AR-86-02) |
+| T-86-SC | Tampering | npm/pip installs | low | accept | Plan-time accept, logged as AR-86-02 (user, 2026-11-14). Rationale verified: `git diff fd337f721~1 HEAD` over every package.json, lock file, requirements*.txt, pyproject and Cargo file is empty (reportlab was already in `backend/requirements.txt:99`); the ae0b01058..324340252 fix commits touch no package file. 86-16 (gap G-86-5) mitigation verified: none of its commits 2a4e2ea4e, ad556c174, 1b7b2857e, 70dd3e59f touches a package.json, lock, requirements, pyproject or Cargo file | closed (accepted, AR-86-02) |
 | T-86-04 | Elevation of privilege | any automatic actor that ignores the stop | high | mitigate | `tests/test_autonomous_ops_stop_drill.py:156-157` presses the real `stop.press`; platform and tenant stops over sweep, delivery, approvals, rollout, desk and watchdog (295-449), control test at 295, unreadable stop counts as stopped at 449 | closed |
 | T-86-05 | Information disclosure | sweep, rollout loop, desk worker, retention | high | mitigate | `tests/test_autonomous_ops_two_tenant.py:103` (sweep), `:147` (rollout), `:206` (desk), `:259` (retention) | closed |
 | T-86-06 | Tampering | StatsCard, StatsRuleTable, TimeSavedBlock | low | mitigate | No `dangerouslySetInnerHTML`/`innerHTML` in any Phase 86 frontend file (18 files); `StatsRuleTable.tsx:45-46` renders name/id as text | closed |
@@ -90,6 +91,9 @@ Line anchors are at HEAD 324340252 (third audit, 2026-11-14). Only seven files c
 | T-86-15-01 | Spoofing/Tampering | the UI marks or lifts what the server would refuse | low (assessed) | mitigate | `GoLiveOrganizations.tsx:71-90` disables Lift on the server's `canLift` and shows its reasons; refetch after any refusal; no 5-check/7-day constants in the UI | closed |
 | T-86-15-02 | Repudiation | an operator marks the wrong organization | low (assessed) | mitigate | `TestOrgDialogs.tsx:58,66` confirm only on the typed exact name; warning `goLiveCopy.ts:176` (MARK_BODY), label `goLiveCopy.ts:166` shown at `GoLiveOrganizations.tsx:44`; server audit `autonomous_ops_golive_endpoints.py:155` | closed |
 | T-86-15-03 | Information disclosure | server sentence rendered as HTML | low (assessed) | mitigate | `TestOrgDialogs.tsx:40-45` sentence as React text; no HTML sink in `components/autonomousOpsGoLive` | closed |
+| T-86-33 | Elevation of privilege | Action column now reachable in the Organizations scroll region (86-16) | low | accept | Plan-time accept. Rationale verified: `git diff -w 16bbdda58 HEAD -- components/` adds only the region wrapper (`GoLiveOrganizations.tsx:137`) and the `dl` grid classes; no `canLift`, `onClick` or button logic changed; the server gate is unchanged (T-86-15, T-86-30) | open — below high threshold (non-blocking), awaiting the user's acceptance |
+| T-86-34 | Tampering | user's uncommitted work in progress (App.tsx, tests, .claude-flow metrics) during 86-16 | medium | mitigate | `git log --name-only --grep='86-16'`: the four 86-16 commits list only the plan's paths (the two components, `autonomousOpsTableScroll.test.tsx`, 86-UI-SPEC.md, SUMMARY/STATE/ROADMAP); App.tsx in none; App.tsx WIP still uncommitted in the tree | closed |
+| T-86-35 | Information disclosure | server text inside the new region wrappers (86-16) | low | accept | Plan-time accept. Rationale verified: wrappers carry only `role="region"`, `tabIndex={0}` and `aria-label` from code constants (`ORG_CAPTION` `goLiveCopy.ts:99`, `rulesCaption` `reportingCopy.ts:72`); no `dangerouslySetInnerHTML` added; no server string moved into an attribute | open — below high threshold (non-blocking), awaiting the user's acceptance |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -261,6 +265,7 @@ Kept for the record. The read-failure paths and the clear-side race below were f
 | 2026-11-14 | 41 | 35 | 6 (1 blocking: T-86-14-03; 5 non-blocking plan-time accepts) | gsd-security-auditor (sonnet) + secure-phase orchestrator probe |
 | 2026-11-14 (re-audit after 6b58bd655) | 41 | 40 | 1 (blocking: T-86-14-03, gate-to-mark-read window; AR-86-01..05 accepted by the user) | gsd-security-auditor (sonnet) + secure-phase orchestrator reproduction, ASVS L1, block_on high |
 | 2026-11-14 (third audit after 324340252) | 41 | 41 | 0 (residual notes R1-R4: low, non-blocking, open, not accepted) | gsd-security-auditor (sonnet, SECURED, L3 trace for T-86-14-03) + secure-phase orchestrator tests, snapshots and HEAD model, ASVS L1, block_on high |
+| 2026-11-14 (gap plan 86-16, after 70dd3e59f) | 44 | 42 | 2 non-blocking (T-86-33, T-86-35: low plan-time accepts, rationale verified, awaiting the user); 0 blocking | secure-phase orchestrator, L1 grep-depth short-circuit (threats_open 0, register authored at plan time, ASVS L1, block_on high); no auditor spawned |
 
 ---
 
@@ -271,7 +276,7 @@ Kept for the record. The read-failure paths and the clear-side race below were f
 - [x] `threats_open: 0` confirmed (third audit, HEAD 324340252)
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Residual notes R1-R4 await the user's fix-or-accept decision; none is accepted.
+**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Residual notes R1-R4 await the user's fix-or-accept decision; none is accepted. Gap plan 86-16 audited the same day: T-86-34 and T-86-SC closed by verification; T-86-33 and T-86-35 are low plan-time accepts awaiting the user's acceptance (they would become AR-86-06 and AR-86-07); threats_open stays 0.
 
 ## Security Audit 2026-11-14
 
@@ -288,3 +293,11 @@ Kept for the record. The read-failure paths and the clear-side race below were f
 | Threats found | 41 |
 | Closed | 41 |
 | Open | 0 |
+
+## Security Audit 2026-11-14
+
+| Metric | Count |
+|---|---|
+| Threats found | 44 |
+| Closed | 42 |
+| Open | 2 |
