@@ -15,6 +15,7 @@ is forced at one point) and the Going live card.
 import os
 import sys
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,7 +24,7 @@ from tests._autonomous_ops_http import _env, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_tenant
 from tests.test_autonomous_ops_golive import (  # noqa: F401  (fixtures and helpers of the 86-07 suite)
-    NOW, PLAT, _golive, _lift, _own_flag, _put_checks, _put_shadow_row, audit, clock, gapi)
+    NOW, OWNER, PLAT, _golive, _lift, _own_flag, _put_checks, _put_shadow_row, audit, clock, gapi)
 from tests.test_autonomous_ops_golive_test_org import NAME, _clear, _events, _mark, named  # noqa: F401
 
 NOT_MET = [{"code": "checks_missing", "recorded": 0}, {"code": "no_shadow_records"}]
@@ -136,3 +137,44 @@ async def test_a_customer_organization_that_passed_the_full_gate_is_not_undone_b
     events = _events(audit, "autonomous_ops.shadow_lifted")
     assert len(events) == 1 and events[0].args[1] == "t2"
     assert events[0].kwargs["testOrganization"] is False and events[0].kwargs["checksRecorded"] == 5
+
+
+# ------------------------------------------------------------------ the decision the gate hands the route
+
+async def test_the_gate_reports_the_exemption_from_the_one_mark_read_it_decided_on(mongo_db, monkeypatch):
+    """protects=T-86-14-03; fails_when=the exemption is missing from the decision, names another organization,
+    outlives an unreadable mark, or the decision reads the mark twice (two reads can disagree)."""
+    golive = _golive()
+    await golive_test_org.mark(mongo_db, "t1", NAME, OWNER, NOW)
+    assert await golive.lift_decision(mongo_db, "t1", NOW) == ([], True)
+    assert await golive.lift_decision(mongo_db, "t2", NOW) == (NOT_MET, False)
+    assert await golive.lift_blockers(mongo_db, "t1", NOW) == []
+    assert await golive.lift_blockers(mongo_db, "t2", NOW) == NOT_MET
+
+    real, reads = golive_test_org.current, []
+
+    async def counted(db):
+        reads.append(True)
+        return await real(db)
+
+    monkeypatch.setattr(golive_test_org, "current", counted)
+    await golive.lift_decision(mongo_db, "t1", NOW)
+    assert len(reads) == 1
+
+    monkeypatch.setattr(golive_test_org, "current", AsyncMock(side_effect=RuntimeError("database is down")))
+    assert await golive.lift_decision(mongo_db, "t1", NOW) == (NOT_MET, False)
+    monkeypatch.setattr(golive_test_org, "current", real)
+    await golive_test_org.clear(mongo_db, "t1")
+    assert await golive.lift_decision(mongo_db, "t1", NOW) == (NOT_MET, False)
+
+
+async def test_the_exemption_is_reported_for_the_marked_organization_even_when_the_full_gate_would_pass(mongo_db):
+    """protects=T-86-14-03; fails_when=an organization the mark names is reported as not exempt only because it
+    also has the checks and the days, or a customer organization with the full evidence is reported as exempt."""
+    golive = _golive()
+    await _put_checks(mongo_db, when=NOW - timedelta(days=9))
+    await _put_shadow_row(mongo_db, "t1", NOW - timedelta(days=9))
+    await _put_shadow_row(mongo_db, "t2", NOW - timedelta(days=9))
+    await golive_test_org.mark(mongo_db, "t1", NAME, OWNER, NOW)
+    assert await golive.lift_decision(mongo_db, "t1", NOW) == ([], True)
+    assert await golive.lift_decision(mongo_db, "t2", NOW) == ([], False)

@@ -141,7 +141,7 @@ async def test_restore_is_never_gated_and_lifting_a_lifted_organization_skips_th
     """protects=D-15 / D-21; fails_when=turning shadow back on is refused, or a no-op lift consults the gate."""
     await api.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
     gate = AsyncMock(side_effect=AssertionError("the gate must not run"))
-    monkeypatch.setattr(_golive(), "lift_blockers", gate)
+    monkeypatch.setattr(_golive(), "lift_decision", gate)
     again = await _lift(api)
     assert again.status_code == 200 and await _own_flag(api.db) is False
     gate.assert_not_awaited()

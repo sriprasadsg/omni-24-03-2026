@@ -361,7 +361,7 @@ async def test_a_lift_that_passed_the_full_gate_is_not_checked_again(named, audi
     await _put_checks(named.db, when=NOW - timedelta(days=9))
     await _put_shadow_row(named.db, "t2", NOW - timedelta(days=9))
     assert (await _mark(named)).status_code == 201
-    real_set, real_gate, gate_calls = ao_settings.set_shadow, _golive().lift_blockers, []
+    real_set, real_gate, gate_calls = ao_settings.set_shadow, _golive().lift_decision, []
 
     async def counted_gate(db, tenant_id, now):
         gate_calls.append(tenant_id)
@@ -372,7 +372,7 @@ async def test_a_lift_that_passed_the_full_gate_is_not_checked_again(named, audi
         await db[GOLIVE_TEST_ORG].delete_many({})
         return out
 
-    monkeypatch.setattr(_golive(), "lift_blockers", counted_gate)
+    monkeypatch.setattr(_golive(), "lift_decision", counted_gate)
     with monkeypatch.context() as patch:
         patch.setattr(ao_settings, "set_shadow", write_then_unmark)
         plain = await named.call("PUT", f"{PLAT}/tenants/t2/shadow", role="super_admin", json={"shadow": False})

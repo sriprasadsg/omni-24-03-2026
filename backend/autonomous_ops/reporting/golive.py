@@ -144,10 +144,19 @@ async def _read(db, tenant_id: str, now: datetime):
     return recorded, obs, _is_marked(await _test_org_mark(db), tenant_id)
 
 
+async def lift_decision(db, tenant_id: str, now: datetime):
+    """(reasons, exempt): why this organization may not leave shadow mode yet (empty means it may), and
+    whether the one mark read that decided it named this organization, so the gate passes it by the test
+    organization exemption. The caller that writes the lift on ``exempt`` checks again after the write; it
+    must not read the mark a second time to decide that, since the mark can change between two reads."""
+    recorded, obs, exempt = await _read(db, tenant_id, now)
+    return _reasons(recorded, obs, exempt), exempt
+
+
 async def lift_blockers(db, tenant_id: str, now: datetime) -> List[Dict[str, Any]]:
     """Why this organization may not leave shadow mode yet; empty means it may."""
-    recorded, obs, exempt = await _read(db, tenant_id, now)
-    return _reasons(recorded, obs, exempt)
+    reasons, _exempt = await lift_decision(db, tenant_id, now)
+    return reasons
 
 
 async def lift_evidence(db, tenant_id: str, now: datetime) -> Dict[str, Any]:

@@ -23,7 +23,7 @@ import audit_ledger
 from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import (PLATFORM_CONTROL_PERMISSION, PLATFORM_TENANT_ID, health_messages, ledger, messages, oncall,
                             protected, selfheal, settings, views)
-from autonomous_ops.reporting import golive, golive_test_org
+from autonomous_ops.reporting import golive
 from autonomous_ops_endpoints import (
     NeverTouchBody, ResumeBody, StopBody, _forbidden, _require_interactive_session, _unavailable,
     clear_stop, press_stop,
@@ -229,8 +229,9 @@ async def put_shadow(
     passed since the organization's first shadow record (or when that cannot be read). Restoring is never
     gated, and neither is a lift for an organization that is already lifted. Both are written to the audit
     ledger. The deployment-wide switch still forces shadow mode on while it is set; it does not block a
-    lift. A lift of the go-live test organization is checked again once the flag is written: when its mark
-    is gone by then (a clear landed in between) the flag goes back on and the answer is the same 409. No
+    lift. A lift that the gate passed by the go-live test organization exemption (the gate's own read of the
+    mark named the organization) is checked again once the flag is written: when the mark is gone or cannot
+    be read by then (a clear landed in between) the flag goes back on and the answer is the same 409. No
     organization route changes this flag."""
     try:
         db = get_database()
@@ -240,17 +241,16 @@ async def put_shadow(
         lifting = body.shadow is False and (await settings.load(db, tenant)).shadow is True
         test_org_lift = False
         if lifting:
-            reasons = await golive.lift_blockers(db, tenant, now)
+            reasons, test_org_lift = await golive.lift_decision(db, tenant, now)
             if reasons:
                 return JSONResponse(status_code=409, content={"detail": golive.blocker_sentence(reasons),
                                                               "reasons": reasons})
-            test_org_lift = await _may_be_test_organization(db, tenant)
         actor = await views.actor_for(db, caller)
         out = await settings.set_shadow(db, tenant, body.shadow, actor=actor)
         if out["status"] != "ok":
             raise HTTPException(status_code=422, detail="shadow must be true or false")
         if test_org_lift:
-            reasons = await golive.lift_blockers(db, tenant, now)
+            reasons, _exempt = await golive.lift_decision(db, tenant, now)
             if reasons:                      # the mark vanished (or cannot be read) after the gate: undo the lift
                 await settings.set_shadow(db, tenant, True, actor=actor)
                 return JSONResponse(status_code=409, content={"detail": golive.blocker_sentence(reasons),
@@ -262,16 +262,6 @@ async def put_shadow(
         raise
     except Exception as exc:
         raise _unavailable(exc) from exc
-
-
-async def _may_be_test_organization(db, tenant: str) -> bool:
-    """True when the organization is the go-live test organization, or when the mark cannot be read (fail
-    closed: the lift is then checked again). A lift that passed the gate in full is not checked again."""
-    try:
-        mark = await golive_test_org.current(db)
-    except Exception:
-        return True
-    return bool(mark) and mark.get("tenantId") == tenant
 
 
 async def _audit_shadow_change(db, user, tenant: str, shadow: bool, now) -> None:
