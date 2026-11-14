@@ -1,9 +1,9 @@
 ---
-status: partial
+status: diagnosed
 phase: 86-activity-reporting-hardening-live-validation
 source: [86-VERIFICATION.md]
 started: 2026-11-14T10:45:00Z
-updated: 2026-11-14T10:43:47.252Z
+updated: 2026-11-14T11:20:00Z
 ---
 
 ## Current Test
@@ -58,5 +58,19 @@ blocked: 3
   reason: "User reported: pass (recorded as an issue on code evidence, with the user's agreement): no overflow-x-auto wrapper in GoLiveOrganizations.tsx or StatsRuleTable.tsx and the wide layout switches at 1024 px, so the Going live Action column is clipped at ~1024-1175 px with the sidebar open and the per-rule table loses Refused and Would have done (simulation) up to ~1240 px"
   severity: major
   test: 5
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "Two conditions together: (1) both components pick the wide table by the viewport (WIDE_QUERY '(min-width: 1024px)', GoLiveOrganizations.tsx:15, StatsRuleTable.tsx:16) while the table width depends on the card's content column, which is vw - 358 - scrollbar with the sidebar open (656 px at 1024) and the tables need 884 px (Organizations, column minimums :141-145) and ~946 px (per-rule, 240 + 7x72 + 144, min-w-[72px] includes padding, :55-57), so they only fit from ~1252 / ~1314 px; (2) nothing makes the overflow scrollable: the wrapper is a plain min-w-0 div (GoLiveOrganizations.tsx:231-233, StatsRuleTable.tsx:150-152), .card has no overflow rule, and main's overflow-x-hidden (App.tsx:2023) clips the spill so the columns cannot be reached. Designed in, not a regression: the UI-SPEC 900 px table budget was never compared with the real column and its 888 px per-rule figure is wrong. Every other matchMedia useWideLayout table (RingDetail.tsx:64, PartnersDashboard.tsx:188/:327, PartnerPortal.tsx:240, PartnerTeamPanel.tsx:281) wraps the table in overflow-x-auto. 320 px: no page scroll in light or dark (cards render), but the Organizations card's 'Shadow mode on' chip overlaps the Days observed cell below ~366 px (25 px at 320) and 'Use as test organization' overhangs its list item by 16 px (cosmetic)."
+  artifacts:
+    - path: "components/autonomousOpsGoLive/GoLiveOrganizations.tsx"
+      issue: "Table wrapper (:231-233) has no overflow-x-auto; viewport switch at 1024 (:15, :24-35) while the 884 px table needs ~1252 px with the sidebar open; card chip cell overlaps at <=366 px (:169-176, grid-cols-2)"
+    - path: "components/autonomousOpsStats/StatsRuleTable.tsx"
+      issue: "Table wrapper (:150-152) has no overflow-x-auto; viewport switch at 1024 (:16, :19-30) while the ~946 px table needs ~1314 px with the sidebar open"
+    - path: "App.tsx"
+      issue: "main overflow-x-hidden (:2023) clips the spill; amplifier only, not to be changed"
+    - path: ".planning/phases/86-activity-reporting-hardening-live-validation/86-UI-SPEC.md"
+      issue: "900 px table budget and 888 px per-rule figure (:72, :258, :341, :387) are wrong; real per-rule minimum ~946 px and real column is vw - 358 - scrollbar"
+  missing:
+    - "Wrap the Organizations and per-rule tables in an overflow-x-auto scroll region (the RingDetail.tsx:64 / PartnersDashboard.tsx:188 pattern), keyboard-reachable (tabIndex 0 + label), so every column is reachable at every width"
+    - "Vitest regression: each table has an overflow-x-auto ancestor inside its card section (jsdom has no layout, so assert structure, not pixels)"
+    - "Optional: fix the <=366 px Organizations card chip overlap (chip cell col-span-2 or single-column dl below sm) and let 'Use as test organization' wrap"
+    - "Correct the UI-SPEC table budget lines to the measured widths"
+  debug_session: ".planning/debug/golive-tables-clipped.md"
