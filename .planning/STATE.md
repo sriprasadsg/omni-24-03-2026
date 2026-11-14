@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 86
 current_phase_name: Activity Reporting, Hardening & Live Validation
-status: executing
-stopped_at: Completed 86-15-PLAN.md
-last_updated: "2026-11-13T21:37:05.910Z"
+status: verifying
+stopped_at: "Completed 86-13-PLAN.md (4 human screen checks pending; digest check after 07:00 UTC 2026-11-15)"
+last_updated: "2026-11-14T05:21:50.377Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 86 execution started
-state_head: bb43a90bcc118f7b08a2bc114cbeee9913a37e10
+state_head: 49e65979102daaaf2c1ea78087665282a676fa40
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 172
-  completed_plans: 170
+  completed_plans: 171
   percent: 75
 ---
 
@@ -694,6 +694,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 86]: 86-12: the Going live card reads the lift decision from the server's canLift and reasons; a 409 shows the server sentence and refetches, no client-side gate
 - [Phase 86]: 86-14: the go-live test organization is one fixed-id platform document; lift_blockers returns no reasons for the marked organization and reads the mark fail closed; clear needs the organization's own shadow flag on
 - [Phase 86]: 86-15: for the go-live test organization the Lift dialog replaces the evidence line (which claims five recorded checks) with the exemption note; other organizations unchanged
+- [Phase 86]: 86-13: Phase 86 live (migration 035 + digest loop 2026-11-14 05:16-05:18Z, UI index-BwnVKpDW.js); one-off email script archived by user decision (49e659791); 034 was already live since 2026-11-11
 
 ## Performance Metrics
 
@@ -1019,6 +1020,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 86 P12 | 21 min | 2 tasks | 11 files |
 | Phase 86 P14 | 25 min | 2 tasks | 9 files |
 | Phase 86 P15 | 15 min | 2 tasks | 10 files |
+| Phase 86 P13 | 40min | 3 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1053,8 +1055,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-13T21:37:05.550Z
-**Stopped at:** Completed 86-15-PLAN.md
+**Last session:** 2026-11-14T05:21:49.999Z
+**Stopped at:** Completed 86-13-PLAN.md (4 human screen checks pending; digest check after 07:00 UTC 2026-11-15)
 **Resume file:** None
 
 ## Accumulated Context
@@ -1084,7 +1086,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 86 (Activity Reporting, Hardening & Live Validation) — EXECUTING
 Plan: 15 of 15 next (13 of 15 plans complete; 86-14/86-15 added 2026-11-13 for D-23, 86-13 moved to wave 8)
-Status: Executing
+Status: Phase complete — ready for verification
 Last activity: 2026-11-13 — 86-14 test-organization exemption complete; 86-15 (Going live card UI for it) next
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 

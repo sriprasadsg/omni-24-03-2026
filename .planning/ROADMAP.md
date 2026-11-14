@@ -641,7 +641,7 @@ Plans:
   4. A live stop drill across every actor shows that the platform stop and a tenant stop halt new security decisions, hold back queued instructions, freeze pending approvals and patch rollouts, and pause AI ticket replies (this re-verifies GATE-06 against the actors built in Phases 82–85).
   5. A two-tenant contract test per automatic loop (security response, patch rollouts, service desk, retention) shows nothing crosses tenants, and the live-only checklist (firewall round-trip, reboot gate, watchdog stop/start, alert delivery) is walked and recorded before any tenant is lifted out of shadow mode.
 
-**Plans:** 14/15 plans executed
+**Plans:** 15/15 plans executed
 
 Plans:
 
@@ -674,7 +674,7 @@ Plans:
 - [x] 86-15-PLAN.md — Going live card: test-organization label, mark and clear dialogs, Lift dialog note
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 86-13-PLAN.md — phase gate on a git archive snapshot, then the user's restart, publish and push, read-only live checks
+- [x] 86-13-PLAN.md — phase gate on a git archive snapshot, then the user's restart, publish and push, read-only live checks
 
 **UI hint**: yes
 **Research**: None — UI, tests and copy checks (standard patterns).
@@ -738,7 +738,7 @@ Plans:
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
 | 85. First-Line Service Desk | 42/42 | In Progress | - |
-| 86. Activity Reporting, Hardening & Live Validation | 14/15 | In Progress | - |
+| 86. Activity Reporting, Hardening & Live Validation | 15/15 | In Progress | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
 
 ### Phase 88: Plan-Based Licensing & Network Enrollment Rules

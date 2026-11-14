@@ -77,10 +77,10 @@
 - [x] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
 - [x] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
 - [x] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
-- [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
-- [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
-- [ ] **ACTV-06**: The operator can export the activity log as CSV or PDF.
-- [ ] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
+- [x] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
+- [x] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
+- [x] **ACTV-06**: The operator can export the activity log as CSV or PDF.
+- [x] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
 - [x] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
 
 ### 7. Partner Channel
@@ -253,10 +253,10 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | DESK-05 | Phase 85 | Complete |
 | DESK-06 | Phase 85 | Complete |
 | DESK-07 | Phase 85 | Complete |
-| ACTV-04 | Phase 86 | Pending |
-| ACTV-05 | Phase 86 | Pending |
-| ACTV-06 | Phase 86 | Pending |
-| ACTV-07 | Phase 86 | Pending |
+| ACTV-04 | Phase 86 | Complete |
+| ACTV-05 | Phase 86 | Complete |
+| ACTV-06 | Phase 86 | Complete |
+| ACTV-07 | Phase 86 | Complete |
 | PART-01 | Phase 87 | Complete |
 | PART-02 | Phase 87 | Complete |
 | PART-03 | Phase 87 | Complete |
