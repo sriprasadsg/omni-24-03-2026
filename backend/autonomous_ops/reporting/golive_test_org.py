@@ -7,6 +7,7 @@ construction (a second insert raises). This module only stores, reads and remove
 gate that honours it is ``golive.lift_blockers``. It never touches the go-live evidence. Raw Mongo handle,
 explicit fields, no model call.
 """
+import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -15,6 +16,8 @@ from pymongo.errors import DuplicateKeyError
 from autonomous_ops.scope import raw
 
 from . import GOLIVE_TEST_ORG, TEST_ORG_DOC_ID
+
+logger = logging.getLogger(__name__)
 
 
 class AlreadyMarked(Exception):
@@ -51,3 +54,15 @@ async def clear(db, tenant_id: str) -> bool:
     """Remove the mark, only when it is this organization's. True when a mark was removed."""
     result = await _coll(db).delete_one({"_id": TEST_ORG_DOC_ID, "tenantId": tenant_id})
     return result.deleted_count == 1
+
+
+async def restore(db, mark: Dict[str, Any]) -> bool:
+    """Put back a mark ``clear`` just removed, exactly as ``current`` returned it. False, with an error logged,
+    when another organization was marked in between: that mark stays and this one is not put back."""
+    try:
+        await _coll(db).insert_one({"_id": TEST_ORG_DOC_ID, **mark})
+    except DuplicateKeyError:
+        logger.error("autonomous_ops: the go-live test organization mark for %s could not be put back because "
+                     "another test organization was marked in between", mark.get("tenantId"))
+        return False
+    return True

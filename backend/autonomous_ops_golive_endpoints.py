@@ -12,7 +12,8 @@ again keeps the earlier record and the newest one is shown. Each record is writt
 chain. The lift itself is PUT /tenants/{id}/shadow, which refuses until the checks and the observation
 period are met, except for the go-live test organization: one ticked organization, named by typing its
 name, may leave shadow mode without them so the live checks can be walked. Only one can be marked, never the
-platform organization, and the mark cannot be cleared while that organization is out of shadow mode. Marking
+platform organization, and the mark cannot be cleared unless that organization's shadow mode is confirmed on:
+it is checked before the clear and again after it, and the mark goes back when the second check fails. Marking
 and clearing are written to the platform audit chain.
 """
 import logging
@@ -107,6 +108,16 @@ async def _audit_test_org(action: str, user, tenant_id: str, name: str) -> None:
                      "audit ledger: %s", action, tenant_id, exc)
 
 
+def _clear_refusal(name: str, own) -> str:
+    """Why the mark may not be cleared, or an empty string when ``own`` (the organization's settings) reads
+    and has shadow mode on. Anything that could not be read or understood counts as not confirmed (T-86-14-03)."""
+    if own is None or not own.readable:
+        return f"Shadow mode for {name} couldn't be confirmed, so the test mark stays."
+    if own.shadow is not True:
+        return f"Turn shadow mode back on for {name} first."
+    return ""
+
+
 def _mark_payload(mark) -> dict:
     return {"id": mark.get("tenantId"), "name": mark.get("tenantName"),
             "markedBy": mark.get("markedBy"), "markedAt": mark.get("markedAt")}
@@ -155,17 +166,29 @@ async def delete_test_organization(
     user=Depends(_require_platform_autonomy_control),
     _session=Depends(_require_interactive_session),
 ):
-    """Clears the mark. Answers 404 when this organization is not the test organization and 409 while its
-    own shadow mode is off, changing nothing. Super Admin only, interactive session."""
+    """Clears the mark. Answers 404 when this organization is not the test organization and 409 unless its
+    own shadow mode is confirmed on (off, or not readable), changing nothing. The flag is read again after
+    the mark is removed; when it is no longer confirmed on (a lift landed in between) the mark is put back
+    and the answer is the same 409. Super Admin only, interactive session."""
     try:
         db = get_database()
         mark = await golive_test_org.current(db)
         if not mark or mark.get("tenantId") != tenantId:
             raise HTTPException(status_code=404, detail="That organization is not the test organization.")
         name = str(mark.get("tenantName") or tenantId)
-        if (await ao_settings.load(db, tenantId)).shadow is not True:
-            raise HTTPException(status_code=409, detail=f"Turn shadow mode back on for {name} first.")
+        refusal = _clear_refusal(name, await ao_settings.load(db, tenantId))
+        if refusal:
+            raise HTTPException(status_code=409, detail=refusal)
         if await golive_test_org.clear(db, tenantId):
+            try:
+                refusal = _clear_refusal(name, await ao_settings.load(db, tenantId))
+            except Exception as exc:
+                logger.warning("autonomous_ops: shadow mode for %s could not be read after the test mark was "
+                               "cleared: %s", tenantId, exc)
+                refusal = _clear_refusal(name, None)
+            if refusal:
+                await golive_test_org.restore(db, mark)
+                raise HTTPException(status_code=409, detail=refusal)
             await _audit_test_org("autonomous_ops.golive_test_org_cleared", user, tenantId, name)
         return {"testOrganization": None}
     except HTTPException:
