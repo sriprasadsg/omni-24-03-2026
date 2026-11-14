@@ -51,9 +51,21 @@ findings:
     severity: info
     disposition: open
     title: "The in-app digest reaches `manage:agents` holders regardless of `view:autonomous_ops`"
-open: 12
-total: 12
-recorded: 2026-11-14T10:18:58.648Z
+  - id: WR-07
+    severity: warning
+    disposition: open
+    title: "The off-screen Action / Refused / simulation columns have no visual scroll cue"
+  - id: IN-06
+    severity: info
+    disposition: open
+    title: "The region wrapper is an unconditional tab stop and a duplicate-named landmark, even when nothing overflows"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "Measured pixel widths are written into JSDoc and will go stale"
+open: 15
+total: 15
+recorded: 2026-11-14T11:43:50.673Z
 ---
 
 # Phase 86: Code Review Disposition
@@ -72,6 +84,9 @@ recorded: 2026-11-14T10:18:58.648Z
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
 | IN-05 | info | open | - |
+| WR-07 | warning | open | - |
+| IN-06 | info | open | - |
+| IN-07 | info | open | - |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
