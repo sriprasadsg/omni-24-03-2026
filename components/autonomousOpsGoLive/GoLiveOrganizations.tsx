@@ -134,31 +134,33 @@ const OrganizationAction: React.FC<ActionProps> = props => (
 const isTestRow = (org: GoLiveOrganization, testId: string | null): boolean => org.testOrganization === true || org.id === testId;
 
 const OrganizationTable: React.FC<{ rows: GoLiveOrganization[]; uid: string } & RowHandlers & RowMarks> = ({ rows, uid, testId, anyMarked, ...handlers }) => (
-    <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">{ORG_CAPTION}</caption>
-        <thead>
-            <tr>
-                <th scope="col" className={`${HEAD} min-w-[240px]`}>{COL_ORGANIZATION}</th>
-                <th scope="col" className={`${HEAD} min-w-[160px]`}>{COL_SHADOW}</th>
-                <th scope="col" className={`${HEAD} min-w-[120px] text-right`}>{COL_DAYS}</th>
-                <th scope="col" className={`${HEAD} min-w-[144px] text-right ${SIM_RULE}`}>{COL_SIMULATION}</th>
-                <th scope="col" className={`${HEAD} min-w-[220px]`}>{COL_ACTION}</th>
-            </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-            {rows.map(org => (
-                <tr key={org.id}>
-                    <th scope="row" className="min-w-[240px] px-4 py-2 text-left align-top font-normal"><OrganizationName org={org} isTest={isTestRow(org, testId)} /></th>
-                    <td className="px-4 py-2 align-top"><ShadowChip org={org} /></td>
-                    <td className="px-4 py-2 text-right align-top tabular-nums text-gray-900 dark:text-white">{daysLabel(org.daysObserved)}</td>
-                    <td className={`px-4 py-2 text-right align-top tabular-nums ${MUTED} ${SIM_RULE}`}>{org.wouldHaveDone}</td>
-                    <td className="px-4 py-2 align-top">
-                        <OrganizationAction org={org} idPrefix={`${uid}-t-${org.id}`} isTest={isTestRow(org, testId)} anyMarked={anyMarked} {...handlers} />
-                    </td>
+    <div role="region" aria-label={ORG_CAPTION} tabIndex={0} className="min-w-0 overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">{ORG_CAPTION}</caption>
+            <thead>
+                <tr>
+                    <th scope="col" className={`${HEAD} min-w-[240px]`}>{COL_ORGANIZATION}</th>
+                    <th scope="col" className={`${HEAD} min-w-[160px]`}>{COL_SHADOW}</th>
+                    <th scope="col" className={`${HEAD} min-w-[120px] text-right`}>{COL_DAYS}</th>
+                    <th scope="col" className={`${HEAD} min-w-[144px] text-right ${SIM_RULE}`}>{COL_SIMULATION}</th>
+                    <th scope="col" className={`${HEAD} min-w-[220px]`}>{COL_ACTION}</th>
                 </tr>
-            ))}
-        </tbody>
-    </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-white/10">
+                {rows.map(org => (
+                    <tr key={org.id}>
+                        <th scope="row" className="min-w-[240px] px-4 py-2 text-left align-top font-normal"><OrganizationName org={org} isTest={isTestRow(org, testId)} /></th>
+                        <td className="px-4 py-2 align-top"><ShadowChip org={org} /></td>
+                        <td className="px-4 py-2 text-right align-top tabular-nums text-gray-900 dark:text-white">{daysLabel(org.daysObserved)}</td>
+                        <td className={`px-4 py-2 text-right align-top tabular-nums ${MUTED} ${SIM_RULE}`}>{org.wouldHaveDone}</td>
+                        <td className="px-4 py-2 align-top">
+                            <OrganizationAction org={org} idPrefix={`${uid}-t-${org.id}`} isTest={isTestRow(org, testId)} anyMarked={anyMarked} {...handlers} />
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
 );
 
 const OrganizationCards: React.FC<{ rows: GoLiveOrganization[]; uid: string } & RowHandlers & RowMarks> = ({ rows, uid, testId, anyMarked, ...handlers }) => (
@@ -198,7 +200,8 @@ interface GoLiveOrganizationsProps {
 
 /**
  * Organizations (86-UI-SPEC section 6c, D-15, D-16): every organization with Autonomous Ops switched on, its shadow state,
- * days observed, the separate simulation count and the action. A real table at lg and wider, stacked cards below. Whether a
+ * days observed, the separate simulation count and the action. A real table at lg and wider, stacked cards below; when the card is narrower than the table (about 884 px) the
+ * table scrolls sideways inside the card (G-86-5). Whether a
  * lift is allowed is read from the server's answer, never recomputed here; the dialog still handles a refusal.
  */
 export const GoLiveOrganizations: React.FC<GoLiveOrganizationsProps> = ({ organizations, masterShadow, testOrganization, onChanged }) => {
