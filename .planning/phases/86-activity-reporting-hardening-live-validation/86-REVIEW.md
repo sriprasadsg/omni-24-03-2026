@@ -1,8 +1,8 @@
 ---
 phase: 86-activity-reporting-hardening-live-validation
-reviewed: 2026-11-14T00:00:00Z
+reviewed: 2026-11-14T12:00:00Z
 depth: standard
-files_reviewed: 68
+files_reviewed: 69
 files_reviewed_list:
   - archive/backend-email-oneoff/send_pending_emails.py
   - backend/app_middleware.py
@@ -72,11 +72,12 @@ files_reviewed_list:
   - src/__tests__/autonomousOpsGoLive.test.tsx
   - src/__tests__/autonomousOpsGoLiveTestOrg.test.tsx
   - src/__tests__/autonomousOpsStats.test.tsx
+  - src/__tests__/autonomousOpsTableScroll.test.tsx
 findings:
   critical: 1
-  warning: 6
-  info: 5
-  total: 12
+  warning: 7
+  info: 7
+  total: 15
 status: issues_found
 ---
 
@@ -84,7 +85,7 @@ status: issues_found
 
 **Reviewed:** 2026-11-14
 **Depth:** standard
-**Files Reviewed:** 68
+**Files Reviewed:** 69
 **Status:** issues_found
 
 ## Summary
@@ -204,6 +205,30 @@ Add a test with `limit=%C2%B2`. (Also note the rewrite only happens when a value
 **File:** `backend/autonomous_ops/reporting/digest.py:103-111`; `backend/notification_audience.py:36-40`
 **Issue:** The digest lists hosts, targets and rule names and is addressed to the `tenant_admins` audience, which `reader_filter` grants to anyone holding `*` or `manage:agents`. A user with `manage:agents` but without the Autonomous Ops screen sees the digest in the notification feed, while the email goes to admin-role users only. Not a cross-tenant leak; an intra-tenant audience mismatch.
 **Fix:** Either accept and document it, or add a dedicated audience (for example `autonomous_ops_admins`) that `reader_filter` grants only with `view:autonomous_ops`.
+
+## Incremental review: gap plan 86-16 (2026-11-14)
+
+**Scope:** `git diff 07f8bf9ba..HEAD` of `components/autonomousOpsGoLive/GoLiveOrganizations.tsx`, `components/autonomousOpsStats/StatsRuleTable.tsx` and the new `src/__tests__/autonomousOpsTableScroll.test.tsx` (G-86-5, tables clipped at 1024-1280 px). The other 68 files are unchanged by this plan and were not re-reviewed. The new test file passes (8/8 on the current tree).
+
+**Assessment:** The change is small and correct for what it sets out to do. Each wide table now sits in its own `role="region"` / `tabIndex={0}` / `overflow-x-auto` wrapper; the wrapper lives inside the component, so the Show all and glossary controls stay outside it; the `<caption>`, row/column headers and column order are untouched; the card layout and the 1024 px switch are unchanged. The ancestors up to the card (`section.card p-6`, `div.min-w-0`, `section.flex.flex-col`) are block or column-flex containers, so the wrapper can shrink below the table width. The Organizations card `dl` change (`grid-cols-1 sm:grid-cols-2`, `col-span-full`) is valid Tailwind and the test pins it. No bug, security or data-handling defect was found. Three robustness and quality items follow. None of them changes the earlier findings or their IDs.
+
+### WR-07: The off-screen Action / Refused / simulation columns have no visual scroll cue
+
+**File:** `components/autonomousOpsGoLive/GoLiveOrganizations.tsx:137`, `components/autonomousOpsStats/StatsRuleTable.tsx:51`
+**Issue:** Between 1024 px and about 1280 px with the sidebar open, the 86-16 fix makes the table scroll sideways, but nothing shows that more content exists to the right. The column that is pushed out of view on the Organizations table is the Action column, which holds the only way to lift or restore shadow mode, and on the Statistics table the Refused and simulation columns. Browsers with overlay scrollbars (macOS default, touch laptops) hide the scrollbar until the user scrolls, so a user can read "Acme, Shadow on, 5 days" and never learn there is a Lift button. The fix removes the clipping, but not the hidden-primary-action problem; the 1024 px switch is still viewport-based while the real constraint is the card width (86-16 itself records about 884 px and 946 px as the needed card widths).
+**Fix:** Add a cue. Either a scroll-shadow on the right edge of the region (CSS `background-attachment: local, scroll` gradient, or a small "scroll for more" hint rendered when `scrollWidth > clientWidth`), or switch to the card layout on the card's own width (a `ResizeObserver` on the wrapper, or a container query) instead of `(min-width: 1024px)`, so the table is only drawn when it fits. The second option also removes the need for the scroll region at most widths.
+
+### IN-06: The region wrapper is an unconditional tab stop and a duplicate-named landmark, even when nothing overflows
+
+**File:** `components/autonomousOpsGoLive/GoLiveOrganizations.tsx:137`, `components/autonomousOpsStats/StatsRuleTable.tsx:51`
+**Issue:** `tabIndex={0}` plus `role="region"` is applied at every width where the table is drawn, including 1280 px and wider where nothing scrolls. Each table then adds one extra Tab stop and one extra landmark, and the region's `aria-label` repeats the table's `<caption>` text word for word, so a screen reader announces the same name twice ("Shadow mode by organization, region", then "Shadow mode by organization, table"). The test even pins that the card layout adds no extra tab stop (`autonomousOpsTableScroll.test.tsx:81`), which shows the cost was considered for cards but not for a non-overflowing table. The wrapper's `tabIndex` is only needed (axe `scrollable-region-focusable`) when the content has no focusable child; the Organizations table does have buttons, and the Statistics table has none, so the two cases differ.
+**Fix:** Keep the focusable region for the Statistics table (no interactive content inside) and drop `tabIndex`/`role` on the Organizations wrapper, whose buttons already satisfy the rule, or set `tabIndex` only while `scrollWidth > clientWidth`. Optionally shorten the region label (for example "Scrollable: ...") so it is not identical to the caption.
+
+### IN-07: Measured pixel widths are written into JSDoc and will go stale
+
+**File:** `components/autonomousOpsGoLive/GoLiveOrganizations.tsx:201-204`, `components/autonomousOpsStats/StatsRuleTable.tsx:140-141`
+**Issue:** The doc comments state "about 884 px" and "about 946 px". These are derived from the `min-w-[...]` values on the header cells plus padding, which are right beside the comment; the next column or copy change will silently make the comment wrong (the plan itself had to correct wrong budget claims in 86-UI-SPEC.md). The Organizations comment line is also wrapped unevenly, with a one-line orphan ("table scrolls sideways ... (G-86-5). Whether a").
+**Fix:** Drop the numbers and say "when the card is narrower than the sum of the column minimum widths (see the `min-w-[...]` classes)", or derive a shared constant from the columns.
 
 ## Known items (cross-reference)
 
