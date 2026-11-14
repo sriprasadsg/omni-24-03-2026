@@ -48,41 +48,43 @@ const RuleName: React.FC<{ rule: AutonomousOpsRuleStats }> = ({ rule }) => (
 );
 
 const RuleTable: React.FC<{ rules: AutonomousOpsRuleStats[]; totals: Counts; days: number }> = ({ rules, totals, days }) => (
-    <table className="w-full min-w-0 text-sm">
-        <caption className="sr-only">{rulesCaption(days)}</caption>
-        <thead>
-            <tr className="text-left">
-                <th scope="col" className={`${HEAD} min-w-[240px]`}>{RULE_HEADER}</th>
-                {RULE_COUNT_COLUMNS.map(c => <th key={c.key} scope="col" className={`${HEAD} min-w-[72px] text-right`}>{c.label}</th>)}
-                <th scope="col" className={`${HEAD} min-w-[144px] text-right ${SIM_RULE}`}>
-                    <span className="inline-flex items-center justify-end gap-1">
-                        <FlaskConicalIcon size={12} aria-hidden="true" />
-                        {SIMULATION_HEADER}
-                    </span>
-                </th>
-            </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-            {rules.map(rule => (
-                <tr key={rule.id}>
-                    <th scope="row" className="px-4 py-2 text-left align-top font-normal"><RuleName rule={rule} /></th>
-                    {RULE_COUNT_COLUMNS.map(c => (
-                        <td key={c.key} className={`px-4 py-2 text-right align-top tabular-nums ${tone(rule[c.key])}`}>{show(rule[c.key])}</td>
-                    ))}
-                    <td className={`px-4 py-2 text-right align-top tabular-nums ${MUTED} ${SIM_RULE}`}>{show(rule.wouldHaveDone)}</td>
+    <div role="region" aria-label={rulesCaption(days)} tabIndex={0} className="min-w-0 overflow-x-auto">
+        <table className="w-full min-w-0 text-sm">
+            <caption className="sr-only">{rulesCaption(days)}</caption>
+            <thead>
+                <tr className="text-left">
+                    <th scope="col" className={`${HEAD} min-w-[240px]`}>{RULE_HEADER}</th>
+                    {RULE_COUNT_COLUMNS.map(c => <th key={c.key} scope="col" className={`${HEAD} min-w-[72px] text-right`}>{c.label}</th>)}
+                    <th scope="col" className={`${HEAD} min-w-[144px] text-right ${SIM_RULE}`}>
+                        <span className="inline-flex items-center justify-end gap-1">
+                            <FlaskConicalIcon size={12} aria-hidden="true" />
+                            {SIMULATION_HEADER}
+                        </span>
+                    </th>
                 </tr>
-            ))}
-        </tbody>
-        <tfoot>
-            <tr className="border-t border-gray-200 dark:border-white/10">
-                <th scope="row" className="px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">{ALL_RULES}</th>
-                {RULE_COUNT_COLUMNS.map(c => (
-                    <td key={c.key} className={`px-4 py-2 text-right font-semibold tabular-nums ${tone(totals[c.key])}`}>{show(totals[c.key])}</td>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-white/10">
+                {rules.map(rule => (
+                    <tr key={rule.id}>
+                        <th scope="row" className="px-4 py-2 text-left align-top font-normal"><RuleName rule={rule} /></th>
+                        {RULE_COUNT_COLUMNS.map(c => (
+                            <td key={c.key} className={`px-4 py-2 text-right align-top tabular-nums ${tone(rule[c.key])}`}>{show(rule[c.key])}</td>
+                        ))}
+                        <td className={`px-4 py-2 text-right align-top tabular-nums ${MUTED} ${SIM_RULE}`}>{show(rule.wouldHaveDone)}</td>
+                    </tr>
                 ))}
-                <td className={`px-4 py-2 text-right tabular-nums ${MUTED} ${SIM_RULE}`}>{show(totals.wouldHaveDone)}</td>
-            </tr>
-        </tfoot>
-    </table>
+            </tbody>
+            <tfoot>
+                <tr className="border-t border-gray-200 dark:border-white/10">
+                    <th scope="row" className="px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">{ALL_RULES}</th>
+                    {RULE_COUNT_COLUMNS.map(c => (
+                        <td key={c.key} className={`px-4 py-2 text-right font-semibold tabular-nums ${tone(totals[c.key])}`}>{show(totals[c.key])}</td>
+                    ))}
+                    <td className={`px-4 py-2 text-right tabular-nums ${MUTED} ${SIM_RULE}`}>{show(totals.wouldHaveDone)}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
 );
 
 const RuleCards: React.FC<{ rules: AutonomousOpsRuleStats[] }> = ({ rules }) => (
@@ -135,7 +137,8 @@ interface StatsRuleTableProps {
 }
 
 /**
- * Section 2e: decisions by rule. A real table at lg and wider, stacked cards below.
+ * Section 2e: decisions by rule. A real table at lg and wider, stacked cards below; when the card is narrower than the
+ * table (about 946 px) the table scrolls sideways inside the card (G-86-5).
  * The "Would have done (simulation)" column is set apart by a dashed rule so a simulation is never read as a real count (ACTV-05).
  * Also a totals row, show-all past 15 rules and a glossary of every column. Rule names and ids are server text
  * and render as React text only.

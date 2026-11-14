@@ -168,7 +168,7 @@ const OrganizationCards: React.FC<{ rows: GoLiveOrganization[]; uid: string } & 
         {rows.map(org => (
             <li key={org.id} className="flex flex-col gap-4 p-4">
                 <OrganizationName org={org} isTest={isTestRow(org, testId)} />
-                <dl className="grid grid-cols-2 gap-2">
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="min-w-0">
                         <dt className={`text-xs ${MUTED}`}>{COL_SHADOW}</dt>
                         <dd className="mt-1"><ShadowChip org={org} /></dd>
@@ -177,7 +177,7 @@ const OrganizationCards: React.FC<{ rows: GoLiveOrganization[]; uid: string } & 
                         <dt className={`text-xs ${MUTED}`}>{COL_DAYS}</dt>
                         <dd className="mt-1 text-sm tabular-nums text-gray-900 dark:text-white">{daysLabel(org.daysObserved)}</dd>
                     </div>
-                    <div className="col-span-2 min-w-0 border-t border-dashed border-gray-400 pt-2 dark:border-gray-500">
+                    <div className="col-span-full min-w-0 border-t border-dashed border-gray-400 pt-2 dark:border-gray-500">
                         <dt className={`text-xs ${MUTED}`}>{COL_SIMULATION}</dt>
                         <dd className={`mt-1 text-sm tabular-nums ${MUTED}`}>{org.wouldHaveDone}</dd>
                     </div>
