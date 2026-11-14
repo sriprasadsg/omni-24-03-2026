@@ -1,10 +1,19 @@
-# Phase 86 — UI Review
+# Phase 86 — UI Review (re-audit after gap plan 86-16)
 
-**Audited:** 2026-11-14
-**Baseline:** 86-UI-SPEC.md (approved 2026-11-11). Plans 86-14/86-15 (D-23 test organization) have no UI-SPEC section and are judged against the spec's existing card, dialog, chip and label patterns.
-**Screenshots:** not captured. No dev server answered on localhost:3000, 5173 or 8080. The live site (https://127.0.0.1, bundle `index-BwnVKpDW.js`, whose lazy chunk `AutonomousOpsActivity-DvA1idXW.js` contains the 86-15 strings) serves the Phase 86 build, but every Phase 86 surface needs a signed-in tenant admin or Super Admin. No audit credentials were available and signing in with a real account was not allowed, so this is a code-only audit. One finding (the table overflow) was checked with a **static layout probe**: a local HTML page using the same shell, card and table classes, styled with the live CSS (`index-BRVoEUxD.css`) and measured in headless Chromium at 1024 to 1440 px. The probe is not a screenshot of the app.
-**Interaction captures:** off (workflow.ui_interaction_capture is false). Every interaction finding below comes from reading the code.
-**Unit evidence:** `npx vitest run` on the five Phase 86 UI suites (stats, export, goLive, goLiveTestOrg, copy): 140/140 passed.
+**Audited:** 2026-11-14 (HEAD, after 86-16 commits 2a4e2ea4e, ad556c174, 1b7b2857e)
+**Baseline:** 86-UI-SPEC.md (approved 2026-11-11, corrected by 86-16). Plans 86-14/86-15 (D-23 test organization) have no UI-SPEC section and are judged against the spec's card, dialog, chip and label patterns.
+**Screenshots:** not captured. No dev server on localhost:3000, 5173 or 8080. The live site still serves the pre-86-16 bundle (`index-BwnVKpDW.js`); the fix is in `dist-new` (`index-BeV-nK0J.js`) and is unpublished. Every Phase 86 surface needs a signed-in admin, so this is a code-only audit. The 86-16 fix was not re-measured in a browser.
+**Interaction captures:** off (workflow.ui_interaction_capture is false). All interaction findings come from reading code.
+**Carried-forward evidence:** the earlier static layout probe (884 px Organizations table, 946 px per-rule table, content column = viewport minus about 358 px with sidebar open) is the width basis for the scroll-region assessment. Per 86-16, the five Phase 86 suites pass (124 tests, including 8 new structural tests in `autonomousOpsTableScroll.test.tsx`).
+
+---
+
+## Blocker status
+
+**G-86-5 (clipped tables): RESOLVED in code, pending a browser check on the published build.**
+- `GoLiveOrganizations.tsx:137` and `StatsRuleTable.tsx:51` each wrap the table in `<div role="region" aria-label=... tabIndex={0} className="min-w-0 overflow-x-auto">`. `main`'s `overflow-x-hidden` (App.tsx:2023) no longer swallows content, because the overflow now scrolls inside the card, and the region is Tab-reachable. A global `:focus-visible` rule (index.css:131) supplies the ring.
+- The card `dl` is `grid-cols-1 sm:grid-cols-2` with the simulation cell `col-span-full` (GoLiveOrganizations.tsx:171, 180), which fixes the chip overlap below sm.
+- Not yet verified on the real build: scroll behaviour at 1024 to 1300 px, light and dark, sidebar open and collapsed, and the visible focus ring. That is UAT test 5 and cannot be settled here.
 
 ---
 
@@ -12,114 +21,68 @@
 
 | Pillar | Score | Key Finding |
 |--------|-------|-------------|
-| 1. Copywriting | 3/4 | Close to the contract word for word. Defects: "12 of 7 days" (a test pins it), "checks 1, 2 and 5" refers to numbers the list never shows, and the summary hides the test-organization exemption |
-| 2. Visuals | 3/4 | The focal point survives (quiet collapsed cards). But every row shows a second secondary button, "Use as test organization", and the Time saved figure appears twice |
-| 3. Color | 4/4 | No hex or rgba values. Accent appears only on dialog and form confirms and the selected pill. Simulation figures are never green. Every colour has a `dark:` pair |
-| 4. Typography | 4/4 | Exactly 12/14/18 and weights 400/600 in new code. The only exception (`font-medium`, a 16px h4) is in the Reporting card, which the contract told to copy |
-| 5. Spacing | 2/4 | Both tables switch to the wide layout at 1024 px but only fit from about 1280 px with the sidebar open. They have no `overflow-x-auto`, so the Lift shadow mode button is cut off. The per-rule table's real minimum is about 946 px, not the spec's 888 |
-| 6. Experience Design | 3/4 | States are thorough (loading, empty, error, partial, disabled reasons, one request per click, focus). But Export disappears without a reason when Statistics fails, and a failed refetch after a write leaves stale rows |
+| 1. Copywriting | 3/4 | Matches the contract. Still open: "12 of 7 days" (`goLiveCopy.ts:113`), "checks 1, 2 and 5" with no visible numbers (`goLiveCopy.ts:177`), no wording for the test-organization exemption in the summary |
+| 2. Visuals | 3/4 | Focal point and chips hold. Still open: a second secondary button per organization row, Time saved drawn twice, nested card in the empty state |
+| 3. Color | 4/4 | No hard-coded colours, accent only on dialog and form confirms and the selected pill, simulation never green, every colour has a `dark:` pair |
+| 4. Typography | 4/4 | 12/14/18 and weights 400/600 only in new code |
+| 5. Spacing | 3/4 | Blocker fixed by scroll regions. Residual: the per-rule table (946 px) still scrolls up to about 1314 px viewport with the sidebar open, with the `Refused` and simulation columns off-screen and no cue. Off-scale `gap-3`, `mt-0.5` half-steps |
+| 6. Experience Design | 3/4 | States are thorough and the tables are now reachable. Still open: Export vanishes silently when Statistics fails; a failed refetch after a write leaves stale rows with no notice |
 
-**Overall: 19/24**
+**Overall: 20/24** (previous 19/24; Spacing 2 to 3, nothing else changed)
 
 ---
 
 ## Top 3 Priority Fixes
 
-1. **Wide tables are cut off between 1024 and about 1280 px with the sidebar open (BLOCKER for the Organizations table, WARNING for the per-rule table).** Users lose the go-live task: at 1024 to about 1175 px the `Lift shadow mode`, `Turn shadow mode back on` and `Use as test organization` buttons in the Action column are clipped by `main`'s `overflow-x-hidden` (App.tsx:2023), and the per-rule table loses `Refused` and the whole `Would have done (simulation)` column up to about 1240 px. **Fix:** in `GoLiveOrganizations.tsx:231-233` and `StatsRuleTable.tsx:150-151`, wrap each table in `overflow-x-auto`, as Phase 84 does in `patchRollouts/RingDetail.tsx:64`. Also move the switch to the wide layout (`WIDE_QUERY`, GoLiveOrganizations.tsx:15 and StatsRuleTable.tsx:16) from `lg` (1024) to `xl` (1280), or base it on the card's width (ResizeObserver) rather than the viewport. Correct the UI-SPEC budget arithmetic too: `min-w-[72px]` includes the 32 px of padding, so `Approved`, `Refused` and `Undone` overflow it, and the table measures about 946 px.
-2. **"12 of 7 days" and an ambiguous dash in Days observed (WARNING).** An organization observed longer than the minimum reads as nonsense, and the test pins that string (`src/__tests__/autonomousOpsGoLive.test.tsx:460`). An organization with no shadow records shows `—`, which the spec reserves for "couldn't be read". **Fix:** in `goLiveCopy.ts:113`, render `{d} days (7 needed)` (or cap the figure at `7 of 7 days`), and show `0 of 7 days` when daysObserved is null only because there are no records. The server's `observation()` returns None in both cases, so the payload needs a flag that tells them apart, or the UI can key off the `no_shadow_records` reason.
-3. **The test-organization exemption is hard to read (WARNING).** (a) The collapsed summary can read `2 of 5 checks recorded · 1 organization out of shadow mode` (goLiveCopy.ts:20-27, GoLiveCard.tsx:58/74). To anyone glancing at the card, that looks like the gate was bypassed. Say `(the test organization)` when the only lifted organization is the test one. (b) MARK_BODY (goLiveCopy.ts:176-177) says "so you can walk checks 1, 2 and 5", but the checklist `<ol>` (GoLiveChecklist.tsx:194) shows no numbers, because preflight removes list markers. Name the checks instead: "Firewall round-trip, Reboot gate and Live stop drill". (c) While nothing is marked, every organization row carries a second secondary button, `Use as test organization` (GoLiveOrganizations.tsx:123). It competes with `Lift shadow mode` and invites marking a customer organization. Demote it to the text-button style, or offer it from one place above the table.
+1. **Test-organization exemption and "12 of 7 days" copy (WARNING, carried forward).** At `goLiveCopy.ts:113`, an organization observed longer than seven days reads "12 of 7 days" (a test pins it at `autonomousOpsGoLive.test.tsx:460`), and an organization with no records shows the dash the spec reserves for "couldn't be read". At `goLiveCopy.ts:177`, MARK_BODY says "checks 1, 2 and 5" while the checklist shows no numbers. `goLiveSummary` (`goLiveCopy.ts:20-27`) reads as if the gate was bypassed when only the test organization is lifted. Fix: render `{d} days (7 needed)` or cap at `7 of 7 days`, name the three checks in MARK_BODY, and append "(the test organization)" in the summary.
+2. **Export disappears with no reason, and stale rows after a failed refetch (WARNING, carried forward).** `showExport` (`AutonomousOpsActivity.tsx:82`) depends on a successful Statistics load, so a user with the right sees `Export activity` vanish when Statistics errors. `GoLiveCard.tsx:61` (`showError = failed && !data`) shows nothing when a reload after a lift or mark fails, so the toast says success while the row may be stale. Fix: show a disabled Export with a reason, and show a small amber "Couldn't refresh. The list may be out of date. Try again." line when `failed && data`.
+3. **Per-rule table scrolls with no cue, and the Action button crowding (WARNING).** Between 1024 and about 1314 px with the sidebar open, `Refused` and `Would have done (simulation)` sit beyond the fold of a scroll region with no shadow, fade or hint, so a user may never learn the simulation column exists. Add an edge fade or a one-line "Scroll sideways for more columns" hint below the wide breakpoint cases, or let the header words wrap inside 72 px to shrink the table. Also demote `Use as test organization` (`GoLiveOrganizations.tsx:123`, same secondary style as `Lift shadow mode` on every row) to a text button.
 
 ---
 
 ## Detailed Findings
 
 ### Pillar 1: Copywriting (3/4)
-
-Contract match: every Copywriting Contract row was checked against `reportingCopy.ts` and `goLiveCopy.ts`. Titles, summary lines, readout labels, the simulation line, the Estimate method (character for character), the glossary, the Export dialog lines, the cap note, the Reporting card note and reasons, the checklist titles, the record form, both shadow dialogs, the toasts and the errors all match. Documented, justified deviations (not counted against the score): the `Refused` glossary line was widened to "blocked by a limit, a never-touch entry or a stop, or nobody answered the approval in time" (reportingCopy.ts:101, which matches the server column); check descriptions 2 and 3 follow the runbook ("on its card", "watchdog timer"), as R15 allows; and the note helper has no address from a documentation range (goLiveCopy.ts:78). Added fallback sentences for 5xx and network failures (goLiveCopy.ts:149, 160, 181, 187) close gaps the spec left.
-
-Findings:
-- WARNING: `daysLabel` renders `{d} of 7 days` with no cap (goLiveCopy.ts:113), so a lifted organization reads `12 of 7 days`. A test pins this (autonomousOpsGoLive.test.tsx:460). See Top fix 2.
-- WARNING: an organization with no shadow records shows `—` (goLiveCopy.ts:113 with server `observation()` returning None, golive.py:96). The spec reserves `—` for "can't be read" (UI-SPEC section 6, Partial). The reason line below it does tell the two apart, but the cell itself does not.
-- WARNING: `MARK_BODY` (goLiveCopy.ts:176-177) refers to "checks 1, 2 and 5", numbers the list never shows (GoLiveChecklist.tsx:194 has no `list-decimal`). Name the checks.
-- WARNING: `goLiveSummary` (goLiveCopy.ts:20-27) has no wording for a lifted test organization, so the collapsed card seems to contradict its own gate. Spec gap from 86-15 (no UI-SPEC section).
-- Minor: the Mark dialog says "Type {name}" twice, once as the label `Type {name} to confirm` and again as the helper `Type {name} exactly as shown.` (TestOrgDialogs.tsx:99-100). The Lift dialog uses the neutral label `Type the organization name to confirm` (goLiveCopy.ts:143), so the two typed-name dialogs read differently. Reuse `TYPE_NAME_LABEL`.
-- Minor: the Mark dialog's secondary is the generic `Cancel` (goLiveCopy.ts:170, TestOrgDialogs.tsx:86). Every other Phase 86 dialog names what staying means (`Keep shadow mode on`, `Keep it lifted`, `Keep test mark`). `Cancel` exists in Phase 81 to 83 dialogs, so this is consistency, not a contract breach. Suggest `Don't mark it`.
-- Minor: `CLEAR_BODY` (goLiveCopy.ts:184) introduces "Customer rules", a term the card never defines. "The full go-live gate applies to it again" reuses wording the card already shows.
+Contract rows (titles, summary, readout labels, simulation line, Estimate method, glossary, export dialog, checklist titles, toasts, errors) match `reportingCopy.ts` and `goLiveCopy.ts`. The 86-16 change adds no copy: the region `aria-label` reuses `ORG_CAPTION` and `rulesCaption(days)`. All of these still hold, unchanged (the files were not touched by 86-16 for copy):
+- WARNING: `daysLabel` (`goLiveCopy.ts:113`) renders `12 of 7 days`; null days shows `—` for both "no records" and "unreadable".
+- WARNING: `MARK_BODY` (`goLiveCopy.ts:177`) refers to checks by number the list does not show.
+- WARNING: no summary wording for a lifted test organization (`goLiveCopy.ts:20-27`).
+- Minor: the Mark dialog says "Type {name}" twice and its secondary is the generic `Cancel` (TestOrgDialogs.tsx:86, 99-100). `CLEAR_BODY` uses the undefined term "Customer rules".
 
 ### Pillar 2: Visuals (3/4)
-
-Focal point: tenant scope keeps `Needs your decision` as the anchor. `Statistics` is a single collapsed `.card` row whose summary carries the headline (StatsCard.tsx:97-109). Platform scope keeps the status card as the anchor, and `Going live` is a collapsed row (GoLiveCard.tsx:64-76). Placement matches section 1 (AutonomousOpsActivity.tsx:143, 157-166, 171-176). There are no icon-only buttons; every icon is `aria-hidden`, and every chip pairs icon and text (HealthChip, the outline Estimate chip, the dashed Shadow chip at GoLiveOrganizations.tsx:20-21/50).
-
-Findings:
-- WARNING: with no test organization marked, every row offers `Use as test organization` in the same secondary style as `Lift shadow mode` (GoLiveOrganizations.tsx:123, 126-131). N organizations means 2N competing secondary buttons in the Action column, and the less frequent, riskier control looks as important as the main one. See Top fix 3(c).
-- Minor: the Time saved figure is drawn twice in the expanded card, once in the readout cell (StatsCard.tsx:154-157) and again in the TimeSavedBlock (TimeSavedBlock.tsx:39), both at 18/600 with an Estimate chip. The spec mandates both (sections 2b and 2d), but the repeat dilutes the readout. Consider using the block's heading row as the only figure, or dropping the figure from the block and keeping the method.
-- Minor: the Organizations empty state is a `.card` nested inside the Going live `.card` (GoLiveOrganizations.tsx:225), a card inside a card with a double border and shadow. The Statistics empty state puts `EmptyStateCard` straight on the card (StatsCard.tsx:161). Drop the inner `card overflow-hidden` wrapper.
-- Minor: the Lift dialog's test-organization note is a hand-rolled blue block with no icon (ShadowDialogs.tsx:92-94). Every other notice in the phase uses `HealthNotice`, which always carries its 16px icon. Use `<HealthNotice tone="blue">`.
-- Minor: the `EmptyStateCard` heading under the `Organizations` h3 is also an h3 (default `headingLevel`, AutonomousOpsEmptyStateCard.tsx:9), so the outline is flat. It should be h4. Allowing `'h4'` needs a one-line type change.
+- Focal point holds: `Needs your decision` in tenant scope, the status card in platform scope, with `Statistics` and `Going live` as collapsed rows. No icon-only buttons; icons are `aria-hidden`.
+- New and good: the scroll regions are labelled landmarks, so assistive tech announces "Shadow mode by organization, region", and the card layout adds no extra tab stop (pinned by test).
+- WARNING: `Use as test organization` competes with `Lift shadow mode` in every row (GoLiveOrganizations.tsx:123, 127).
+- Minor: Time saved appears twice (StatsCard.tsx:154, TimeSavedBlock.tsx:39); nested `.card` in the Organizations empty state (GoLiveOrganizations.tsx:225); hand-rolled note in the Lift dialog (ShadowDialogs.tsx:92-94) instead of `HealthNotice`; flat h3 outline in the empty state.
 
 ### Pillar 3: Color (4/4)
-
-- Hard-coded colours: 0 hex or rgb/rgba values in all 12 Phase 86 component files.
-- Accent (`ACCENT_BUTTON` / `primary-*`): 7 uses. These are Download CSV/PDF (ExportDialog.tsx:75, item 21), Record check (GoLiveChecklist.tsx:109, item 20), Lift shadow mode and Turn shadow mode on (ShadowDialogs.tsx:81/152, item 19), the selected period pill (StatsCard.tsx:29, item 2), and the two D-23 confirms (TestOrgDialogs.tsx:88/148). At most one accent is visible at a time, because each sits in a modal or the single open form. The cards, tables and readouts are `.card` surfaces with neutral text, so the 60/30/10 split holds.
-- Simulation marks: the dashed neutral border plus the words appear on the per-rule column (StatsRuleTable.tsx:12, 57, 72, 82), the stacked card (StatsRuleTable.tsx:101), the simulation line (StatsCard.tsx:40), the Organizations column and card (GoLiveOrganizations.tsx:18, 144, 154, 178) and the Shadow chip. Simulation values are always `MUTED`, never green and never in a real cell.
-- Dark mode: every `text-gray-*`, `bg-*` and `border-*` class in the new files has a `dark:` pair. The three unpaired `hover:bg-*` cases carry `dark:hover:` as well.
-- Informational (spec bookkeeping, no code change): the two D-23 accent confirms are not in the UI-SPEC accent register, which says Phase 86 adds "exactly three". They follow the "one affirmative action of a dialog" rule, so the next spec revision should record them as items 22 and 23.
-- Informational: the Reporting card's PDF button is red-tinted (ReportExportCard.tsx:15). Section 4 requires it ("keep the Reporting screen's own styles"), but it sits awkwardly against "Destructive red: none in this phase".
+- 0 hex or rgb values in the 12 Phase 86 component files and in the 86-16 changes.
+- Accent in 7 places (Download CSV/PDF, Record check, Lift and Turn-on confirms, selected pill, two D-23 confirms), at most one visible at a time. Simulation figures are `MUTED`, never green. Every `text-gray-*`, `bg-*`, `border-*` has a `dark:` pair.
+- Informational: the two D-23 accent confirms are not in the UI-SPEC accent register ("exactly three"); record them as items 22 and 23.
 
 ### Pillar 4: Typography (4/4)
+- New code uses `text-xs`, `text-sm`, `text-lg` only; weights `font-semibold` and `font-normal` plus one inherited `font-medium` in `ReportExportCard` (contract says copy `ExportCard`). Number cells are `tabular-nums`. 86-16 added no type classes.
+- Minor: `Close form`, `Discard note` and `Keep editing` use the 12/600 `TEXT_BUTTON` beside the 14/600 `Record check`.
 
-- Sizes in new code: `text-xs` 39, `text-sm` 49, `text-lg` 5, and nothing else. No 30 px size was added; the page title is unchanged.
-- Weights: `font-semibold` 38, `font-normal` 4 (resetting `th` boldness on row headers, which is correct), `font-medium` 1.
-- Contract roles hold. Card titles are 18/600 (StatsCard.tsx:99, GoLiveCard.tsx:66). Headline numbers are 18/600 `tabular-nums` (StatsCard.tsx:36, R13). Column headers are 12/600 muted (StatsRuleTable.tsx:15, GoLiveOrganizations.tsx:17). Rule ids are 12/400 mono (StatsRuleTable.tsx:46). Notes are 14/400 `whitespace-pre-wrap break-words` (GoLiveChecklist.tsx:144). Every number cell is `tabular-nums`.
-- Inherited by contract, not counted: ReportExportCard has `font-medium` buttons (ReportExportCard.tsx:13) and an unsized `h4` that renders at 16px (ReportExportCard.tsx:54), because section 4 says to use the same classes as `ExportCard` (ReportingDashboard.tsx:160-182).
-- Minor: text-button sizes split across the phase. Statistics disclosures are 14/600 (StatsRuleTable.tsx:13, TimeSavedBlock.tsx:11). The checklist's single `TEXT_BUTTON` (GoLiveChecklist.tsx:16, 12/600) is correct for `Record again` (spec 12/600), but it is also used for `Close form`, `Discard note` and `Keep editing`. So `Close form` sits at 12px next to the 14/600 `Record check`. Give the form's text buttons the 14/600 class.
-
-### Pillar 5: Spacing (2/4)
-
-Static layout probe (headless Chromium, live CSS, the same classes as App.tsx:1989/2006/2023, GoLiveOrganizations.tsx:137-161 and StatsRuleTable.tsx:51-86; sidebar open, which is the default at 768 px and above):
-
-| Viewport | main right edge | Organizations table | Lift button right edge | Per-rule table | Simulation column right edge |
-|----------|-----------------|---------------------|------------------------|----------------|------------------------------|
-| 1024 | 1012 | 884 px | 1166 (clipped) | 946 px | 1259 (column gone) |
-| 1100 | 1088 | 884 px | 1166 (clipped, reads "Lift shad") | 946 px | 1259 (column gone) |
-| 1180 | 1168 | 884 px | 1166 (fits main, spills 37 px past the card) | 946 px | 1259 (column gone) |
-| 1240 | 1228 | 884 px | fits | 946 px | 1259 (clipped) |
-| 1280 | 1268 | 922 px | fits | 946 px | 1259 (fits, 1 px to spare) |
-
-Findings:
-- BLOCKER (Organizations) / WARNING (per-rule): the viewport switch (`WIDE_QUERY = '(min-width: 1024px)'`, GoLiveOrganizations.tsx:15, StatsRuleTable.tsx:16) does not match the width the tables need. The content column is the viewport minus about 356 px (shell padding 24, sidebar 256, gap 12, main padding 16, card padding 48). Neither table has an `overflow-x-auto` wrapper (GoLiveOrganizations.tsx:231, StatsRuleTable.tsx:150), and `main` hides horizontal overflow, so the overflowing columns cannot be reached at all. See Top fix 1.
-- WARNING: the per-rule table's budget arithmetic is wrong. Seven count columns at `min-w-[72px]` include the 32px `px-4` padding (border-box), so headers such as `Approved` need about 82px. The measured minimum is about 946px, above the spec's 888px and the 900px budget. Either let the header words wrap inside 72px, or budget 72px of content plus padding and record the real total in the UI-SPEC.
-- Minor: `gap-3` (12px, off the 4/8/16/24 scale) between the shadow action and the test-organization action (GoLiveOrganizations.tsx:127). Use `gap-4`, or `gap-2` to match the reason-line rhythm.
-- Minor: half-step `mt-0.5` icon nudges in new elements (StatsCard.tsx:168, ExportDialog.tsx:125, GoLiveChecklist.tsx:96, GoLiveOrganizations.tsx:89/115, ShadowDialogs.tsx:31, TestOrgDialogs.tsx:31). The spec says "No half-steps in new elements". The idiom is inherited from `HealthNotice` (AutonomousOpsHealthChips.tsx:109), so fix it there once, for example with `items-center` on single-line rows, rather than per file.
-- Accepted per the spec's exceptions: the pill `px-3` (StatsCard.tsx:27), the `FIELD` `px-3` (inherited from AutonomousOpsResponseSettings.tsx:25-26), and the ReportExportCard `px-3 py-1` (copied ExportCard). The arbitrary `min-w-[…px]` values are the spec's declared column minimums.
-- Good: card padding `p-6`, section gaps `gap-6`, readout cells `p-4`, check rows `p-4` with `gap-4`, consequential buttons `min-h-10`, pills `min-h-8`, the textarea `min-h-24` and the typed-name input `min-h-10` all match the spec.
+### Pillar 5: Spacing (3/4)
+- Resolved: the Organizations table (884 px) and per-rule table (946 px) no longer lose columns, since both scroll in their own `overflow-x-auto` region. The card `dl` stacks to one column below sm, fixing the 25 px chip overlap at 320 px. 86-UI-SPEC.md now records the measured widths (884, 946) and the scroll-region rule; the false "888 px inside the 900 px budget" claim is gone.
+- WARNING (residual): the layout switch is still the viewport (`WIDE_QUERY = '(min-width: 1024px)'` at both files, line 15 and 16), so from 1024 up to about 1252 px (Organizations) and 1314 px (per-rule) with the sidebar open the user gets a table that needs a sideways scroll, where cards would have needed none. This is acceptable by the 86-16 decision, but the `Refused` and simulation columns are the least visible content in exactly that range, and nothing signals it.
+- Minor: `gap-3` (12 px, off the 4/8/16/24 scale) at GoLiveOrganizations.tsx:127; `mt-0.5` half-steps at GoLiveOrganizations.tsx:89, 115, StatsCard.tsx:168, ExportDialog.tsx:125, GoLiveChecklist.tsx:96, ShadowDialogs.tsx:31, TestOrgDialogs.tsx:31 (inherited from `HealthNotice`).
+- Good: `p-6` cards, `gap-6` sections, `p-4` cells, `min-h-10` consequential buttons, `min-h-8` pills.
 
 ### Pillar 6: Experience Design (3/4)
-
-State coverage, from code:
-- Statistics (E1 to E3): collapsed `h-4 w-64` and expanded skeletons under `aria-busy` (StatsCard.tsx:106, 139-146). Empty state in place of sections c to e (160-163), red `HealthNotice` with Try again (130-137), shadow-only sentence (TimeSavedBlock.tsx:41), `—` for missing counts (StatsRuleTable.tsx:33-35), show-all past 15 (153-159), glossary disclosure with `aria-expanded`.
-- Export (E4, E5): opens filled (ExportDialog.tsx:38-39), Close takes first focus (73), one in-flight ref (43, 50), Esc off while pending (83), the result block takes focus (47, 85), cut, empty, error and 403 states (86-90, 123-128).
-- Going live (E8 to E12): a single inline form at a time, focus to the textarea and back to the row button (GoLiveChecklist.tsx:52, 185-191), disabled reasons through `aria-describedby` (GoLiveChecklist.tsx:110; GoLiveOrganizations.tsx:83, 109), discard prompt, the server's 409 sentence plus refetch (ShadowDialogs.tsx:62-64), typed exact-name confirmations (ShadowDialogs.tsx:47, TestOrgDialogs.tsx:58).
-- Server strings render as React text only; there is no `dangerouslySetInnerHTML` in any file. Registry audit: no `components.json`, so it was skipped.
-
-Findings:
-- BLOCKER (cross-reference, Pillar 5): at 1024 to about 1175 px the Organizations Action column is clipped, so the go-live task cannot be completed at those widths without collapsing the sidebar.
-- WARNING: the Export button depends on the statistics payload. `showExport` needs `exportRight.can`, which only a successful Statistics load sets (AutonomousOpsActivity.tsx:82, 164). If Statistics fails, `Export activity` vanishes with no reason, even for a user who holds both rights. Show the button with a disabled reason ("Export is unavailable until Statistics loads. Try again.") or read `canExport` from the status payload.
-- WARNING: a refetch after a write that fails leaves stale data on screen without saying so. GoLiveCard keeps the old payload when a reload fails (GoLiveCard.tsx:42-46) and shows nothing, because `showError` needs `!data`. After a successful lift or mark, the toast says it worked while the row may still show the old shadow state. Show a small amber "Couldn't refresh. The list may be out of date. Try again." line when `failed && data`.
-- Minor: refetch failures behave inconsistently. StatsCard throws away the numbers it was showing when a Refresh or period refetch fails (StatsCard.tsx:79-83), while GoLiveCard keeps its data. Pick one behaviour; keeping the data with a notice is the better one.
-- Minor: the record form's textarea and the dialogs' typed-name inputs are `disabled` while pending, but their copied `FIELD` classes (GoLiveChecklist.tsx:17-18, ShadowDialogs.tsx:23-24, TestOrgDialogs.tsx:23-24) drop the shared `disabled:opacity-60` (AutonomousOpsResponseSettings.tsx:26), so nothing looks disabled. Import the shared `FIELD` and add `w-full py-2`.
-- Minor: `RestoreShadowDialog` shows the server's detail for any status (ShadowDialogs.tsx:139), including a 5xx. The record form and the D-23 dialogs only trust `detail` below 500 (GoLiveChecklist.tsx:24, TestOrgDialogs.tsx:44). Align them.
-- Minor: the Reporting card spinner (ReportExportCard.tsx:60, 64) has no `aria-hidden` and the button no `aria-busy`. This is copied from ExportCard.
-- Maintainability, which feeds visual drift: the spec asked for file-local constants to be exported rather than copied. `PILL_BASE/IDLE/ACTIVE` are copied from AutonomousOpsActivityList.tsx:259-261 into StatsCard.tsx:27-29. `OUTLINE_CHIP` is copied 3 times. `TEXT_BUTTON` differs between files. `SECONDARY_BUTTON` was copied into ExportDialog.tsx:25-27 without the shared `gap-2 py-2`. `useWideLayout`, `ErrorBlock`, `WrappedTitle` and `FIELD` are each duplicated across 2 or 3 files. Export each once.
+- State coverage is thorough: loading skeletons under `aria-busy`, empty, error with Try again, partial, disabled reasons via `aria-describedby`, single in-flight export, focus return, typed-name confirmations, the server's 409 sentence plus refetch. No `dangerouslySetInnerHTML`. No `components.json`, so the registry audit was skipped.
+- Resolved: the Action controls (`Lift shadow mode`, `Turn shadow mode back on`, `Use as test organization`, `Clear test mark`) are reachable by scroll or keyboard at every width; the task-breaking behaviour from the previous review is gone. A keyboard user lands on the region first and can scroll with the arrow keys.
+- WARNING: Export hidden without reason when Statistics fails (AutonomousOpsActivity.tsx:82, 164).
+- WARNING: failed refetch after a write leaves stale data with no notice (GoLiveCard.tsx:42-46, 61). StatsCard discards its data on the same failure (StatsCard.tsx:79-83), so the two cards disagree.
+- Minor: copied `FIELD` classes lose `disabled:opacity-60`; `RestoreShadowDialog` trusts server `detail` on 5xx; the Reporting spinner lacks `aria-hidden`; duplicated constants and hooks (`useWideLayout`, `OUTLINE_CHIP`, `TEXT_BUTTON`, `FIELD`) invite drift.
+- Verification gap: the 86-16 tests assert structure only (jsdom has no layout). Real behaviour needs the published build.
 
 ---
 
 ## Files Audited
 
-- components/autonomousOpsStats/StatsCard.tsx, StatsRuleTable.tsx, TimeSavedBlock.tsx, ExportDialog.tsx, ReportExportCard.tsx, reportingCopy.ts
-- components/autonomousOpsGoLive/GoLiveCard.tsx, GoLiveChecklist.tsx, GoLiveOrganizations.tsx, ShadowDialogs.tsx, TestOrgDialogs.tsx, goLiveCopy.ts
-- components/AutonomousOpsActivity.tsx, components/AutonomousOpsActivityList.tsx (onBucketChange, EmptyStateCard re-export), components/AutonomousOpsEmptyStateCard.tsx
-- components/ReportingDashboard.tsx (ExportCard 160-182, mount 558-562)
-- Shared primitives compared against: components/AutonomousOpsHealthChips.tsx, AutonomousOpsHealthCards.tsx, AutonomousOpsResponseSettingsDialogs.tsx, AutonomousOpsResponseSettings.tsx, index.css (`.card`), App.tsx (shell 1989-2023), tailwind.config (darkMode class)
-- Server shape checked for copy: backend/autonomous_ops/reporting/golive.py (observation, _reasons)
-- Context: 86-UI-SPEC.md, 86-CONTEXT.md (D-01..D-23), 86-01..86-15 SUMMARY.md, 86-15-PLAN.md
+- components/autonomousOpsGoLive/GoLiveOrganizations.tsx, GoLiveCard.tsx, GoLiveChecklist.tsx, ShadowDialogs.tsx, TestOrgDialogs.tsx, goLiveCopy.ts
+- components/autonomousOpsStats/StatsRuleTable.tsx, StatsCard.tsx, TimeSavedBlock.tsx, ExportDialog.tsx, ReportExportCard.tsx, reportingCopy.ts
+- components/AutonomousOpsActivity.tsx, App.tsx (shell 2023), index.css (focus-visible rules)
+- Context: 86-UI-SPEC.md, 86-CONTEXT.md, 86-16-SUMMARY.md, .planning/debug/golive-tables-clipped.md, the previous 86-UI-REVIEW.md
