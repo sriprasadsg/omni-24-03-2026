@@ -641,7 +641,7 @@ Plans:
   4. A live stop drill across every actor shows that the platform stop and a tenant stop halt new security decisions, hold back queued instructions, freeze pending approvals and patch rollouts, and pause AI ticket replies (this re-verifies GATE-06 against the actors built in Phases 82–85).
   5. A two-tenant contract test per automatic loop (security response, patch rollouts, service desk, retention) shows nothing crosses tenants, and the live-only checklist (firewall round-trip, reboot gate, watchdog stop/start, alert delivery) is walked and recorded before any tenant is lifted out of shadow mode.
 
-**Plans:** 15/16 plans executed: 15 in 8 waves, and a gap round of 1 plan for UAT gap G-86-5 (planned)
+**Plans:** 16/16 plans executed: 15 in 8 waves, and a gap round of 1 plan for UAT gap G-86-5 (planned)
 
 Plans:
 
@@ -677,7 +677,7 @@ Plans:
 - [x] 86-13-PLAN.md — phase gate on a git archive snapshot, then the user's restart, publish and push, read-only live checks
 
 **Gap closure (UAT test 5, G-86-5):** 1 plan
-- [ ] 86-16-PLAN.md — Going live Organizations table and Statistics per-rule table scroll sideways inside their card (keyboard-focusable overflow-x-auto region, lg switch and App.tsx untouched); structural vitest regression; Organizations card chip fix below sm; UI-SPEC table widths corrected (G-86-5)
+- [x] 86-16-PLAN.md — Going live Organizations table and Statistics per-rule table scroll sideways inside their card (keyboard-focusable overflow-x-auto region, lg switch and App.tsx untouched); structural vitest regression; Organizations card chip fix below sm; UI-SPEC table widths corrected (G-86-5)
 
 **UI hint**: yes
 **Research**: None — UI, tests and copy checks (standard patterns).
@@ -741,7 +741,7 @@ Plans:
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
 | 85. First-Line Service Desk | 42/42 | In Progress | - |
-| 86. Activity Reporting, Hardening & Live Validation | 15/15 | In Progress | - |
+| 86. Activity Reporting, Hardening & Live Validation | 16/16 | In Progress | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
 
 ### Phase 88: Plan-Based Licensing & Network Enrollment Rules
