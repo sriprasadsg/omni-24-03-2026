@@ -43,10 +43,10 @@ afterEach(() => { delete (window as unknown as { matchMedia?: unknown }).matchMe
 // ── the Going live Organizations table ───────────────────────────────────────────────────────────────────
 
 const ACME: GoLiveOrganization = {
-  id: 'acme-id', name: 'Acme', shadow: true, daysObserved: 5, wouldHaveDone: 18, canLift: false,
+  id: 'acme-id', name: 'Acme', shadow: true, daysObserved: 5, wouldHaveDone: 18, canLift: false, testCandidate: true,
   reasons: [{ code: 'checks_missing', recorded: 3 }, { code: 'days_short', days: 5 }],
 };
-const BOLT: GoLiveOrganization = { id: 'bolt-id', name: 'Bolt', shadow: false, daysObserved: 12, wouldHaveDone: 40, canLift: false, reasons: [] };
+const BOLT: GoLiveOrganization = { id: 'bolt-id', name: 'Bolt', shadow: false, daysObserved: 12, wouldHaveDone: 40, canLift: false, testCandidate: true, reasons: [] };
 
 const renderOrgs = () => render(
   <GoLiveOrganizations organizations={[ACME, BOLT]} masterShadow={false} testOrganization={null} onChanged={() => {}} />,

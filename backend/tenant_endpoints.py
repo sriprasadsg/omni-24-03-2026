@@ -67,6 +67,9 @@ class TenantCreate(BaseModel):
     notificationPreferences: Dict[str, Any] = {}
     # None follows the plan's seats (Phase 88, D-03); a number is an override (D-09).
     maxAgents: Optional[int] = Field(None, ge=0, le=licensing.MAX_AGENTS_CEILING)
+    # A go-live test organization may be marked to skip the Autonomous Ops go-live gate (D-23). Set here only,
+    # never by an update, so no customer organization can be turned into one (Phase 86 review WR-04).
+    goLiveTestOrganization: bool = False
 
 @router.get("", dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def get_tenants(current_user = Depends(get_current_user)):
@@ -139,7 +142,9 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
         subscription_tier=terms["plan"], notification_preferences=data.notificationPreferences,
         seat_override=terms["seat_override"], trial=terms["trial"])
     tenant_id = tenant_doc["id"]
-    
+    if data.goLiveTestOrganization:
+        tenant_doc["goLiveTestOrganization"] = True
+
     await mongodb.db.tenants.insert_one(tenant_doc)
 
     await tenant_docs.ensure_tenant_extras(mongodb.db, tenant_id)

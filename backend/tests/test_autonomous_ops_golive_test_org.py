@@ -24,7 +24,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import settings as ao_settings
-from autonomous_ops.reporting import GOLIVE_TEST_ORG, TEST_ORG_DOC_ID, golive_test_org
+from autonomous_ops.reporting import GOLIVE_TEST_ORG, TEST_ORG_DOC_ID, golive, golive_test_org
 from tests._autonomous_ops_http import _env, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_tenant
@@ -48,8 +48,9 @@ async def _clear(gapi, tenant="t1", **extra):
 
 @pytest.fixture
 async def named(gapi):
-    """t1 is ticked and called NAME; t2 is a ticked customer organization."""
+    """t1 is ticked, called NAME and was created as a test organization; t2 is a ticked customer organization."""
     await seed_tenant(gapi.db, "t1", shadow=True, name=NAME)
+    await gapi.db.tenants.update_one({"id": "t1"}, {"$set": {golive.TEST_ORG_FIELD: True}})
     return gapi
 
 
@@ -117,6 +118,7 @@ async def test_the_platform_organization_and_unticked_or_unknown_ones_cannot_be_
 async def test_a_second_mark_is_refused_and_names_the_current_organization(named, audit):
     """protects=PROH-86-14 one at a time; fails_when=a second organization is marked or the sentence omits the name."""
     await seed_tenant(named.db, "t2", shadow=True, name="Second Org")
+    await named.db.tenants.update_one({"id": "t2"}, {"$set": {golive.TEST_ORG_FIELD: True}})
     assert (await _mark(named)).status_code == 201
     again = await _mark(named, "t2", "Second Org")
     assert again.status_code == 409 and NAME in again.json()["detail"]
@@ -125,6 +127,30 @@ async def test_a_second_mark_is_refused_and_names_the_current_organization(named
     docs = await named.db[GOLIVE_TEST_ORG].find({}).to_list(10)
     assert len(docs) == 1 and docs[0]["tenantId"] == "t1"
     assert len(_events(audit, "autonomous_ops.golive_test_org_marked")) == 1
+
+
+async def test_a_customer_organization_cannot_be_marked(named, audit):
+    """protects=D-23 customers keep the full gate (review WR-04); fails_when=a ticked organization that was not
+    created as a test organization is marked, or the refusal stores or audits anything."""
+    await seed_tenant(named.db, "t2", shadow=True, name="Customer Org")
+    refused = await _mark(named, "t2", "Customer Org")
+    assert refused.status_code == 409 and "created as a test organization" in refused.json()["detail"]
+    assert await named.db[GOLIVE_TEST_ORG].count_documents({}) == 0
+    assert _events(audit, "autonomous_ops.golive_test_org_marked") == []
+
+
+async def test_a_mark_stored_on_a_customer_organization_exempts_nothing(named, clock):
+    """protects=WR-04 defence in depth; fails_when=a mark that reached the store on an organization not created as
+    a test organization (one made before this check, or written by hand) lets it skip the gate."""
+    await seed_tenant(named.db, "t2", shadow=True, name="Customer Org")
+    await golive_test_org.mark(named.db, "t2", "Customer Org", OWNER, NOW)
+    resp = await named.call("PUT", f"{PLAT}/tenants/t2/shadow", role="super_admin", json={"shadow": False})
+    assert resp.status_code == 409
+    assert resp.json()["reasons"] == [{"code": "checks_missing", "recorded": 0}, {"code": "no_shadow_records"}]
+    assert await _own_flag(named.db, "t2") is True
+    rows = {o["id"]: o for o in (await named.call("GET", GOLIVE, role="super_admin")).json()["organizations"]}
+    assert rows["t2"]["testOrganization"] is False and rows["t2"]["testCandidate"] is False
+    assert rows["t1"]["testCandidate"] is True
 
 
 async def test_two_marks_racing_for_the_single_slot_leave_one(mongo_db):

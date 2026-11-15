@@ -86,6 +86,19 @@ describe('TenantOnboardingWizard plan step (UI-SPEC S3)', () => {
     expect(addTenant.mock.calls[0][0]).toEqual({ name: 'Globex', subscriptionTier: 'Custom', maxAgents: 40 });
   });
 
+  it('creates a go-live test organization only when the box is ticked, off by default (review WR-04)', async () => {
+    addTenant.mockResolvedValue({ id: 't3', name: 'Walk Org' });
+    open();
+    const box = screen.getByLabelText('Test organization') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    expect(screen.getByText(/Leave this off for a customer; it cannot be changed later\./)).toBeTruthy();
+    fillName('Walk Org');
+    fireEvent.click(box);
+    create();
+    await waitFor(() => expect(addTenant).toHaveBeenCalled());
+    expect(addTenant.mock.calls[0][0]).toEqual({ name: 'Walk Org', subscriptionTier: 'Free', goLiveTestOrganization: true });
+  });
+
   it('a refused create stays on the step with the typed values and the server sentence', async () => {
     addTenant.mockImplementation(async () => { throw new Error('unknown_plan: That plan is not available.'); });
     open();

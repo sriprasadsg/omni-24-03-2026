@@ -32,6 +32,8 @@ export interface GoLiveOrganization {
     reasons: GoLiveReason[];
     /** True for the one organization the Super Admin marked as the go-live test organization (D-23). */
     testOrganization?: boolean;
+    /** True when Add Tenant created it as a test organization; only those may be marked (review WR-04). */
+    testCandidate?: boolean;
 }
 
 /** The go-live test organization as the server reports it, or null when none is marked. */

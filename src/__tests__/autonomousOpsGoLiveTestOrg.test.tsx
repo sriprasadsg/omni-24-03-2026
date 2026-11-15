@@ -47,11 +47,11 @@ const overview = (organizations: unknown[], testOrganization: Mark | null = null
 });
 
 const ACME = {
-  id: 'acme-id', name: 'Acme', shadow: true, daysObserved: 5, wouldHaveDone: 18, canLift: false, testOrganization: false,
+  id: 'acme-id', name: 'Acme', shadow: true, daysObserved: 5, wouldHaveDone: 18, canLift: false, testOrganization: false, testCandidate: true,
   reasons: [{ code: 'checks_missing', recorded: 0 }, { code: 'days_short', days: 5 }],
 };
-const BOLT = { id: 'bolt-id', name: 'Bolt', shadow: true, daysObserved: 0, wouldHaveDone: 0, canLift: false, testOrganization: false, reasons: [{ code: 'no_shadow_records' }] };
-const SANDBOX_ON = { id: 'sandbox-id', name: 'Sandbox', shadow: true, daysObserved: null, wouldHaveDone: 0, canLift: true, testOrganization: true, reasons: [] };
+const BOLT = { id: 'bolt-id', name: 'Bolt', shadow: true, daysObserved: 0, wouldHaveDone: 0, canLift: false, testOrganization: false, testCandidate: true, reasons: [{ code: 'no_shadow_records' }] };
+const SANDBOX_ON = { id: 'sandbox-id', name: 'Sandbox', shadow: true, daysObserved: null, wouldHaveDone: 0, canLift: true, testOrganization: true, testCandidate: true, reasons: [] };
 const SANDBOX_OFF = { ...SANDBOX_ON, shadow: false };
 const SANDBOX_MARK: Mark = { id: 'sandbox-id', name: 'Sandbox', markedBy: 'Pat', markedAt: '2026-11-13T09:00:00' };
 
@@ -93,6 +93,13 @@ describe('marking offers, with no test organization marked', () => {
     expect(within(orgRow('Bolt')).getByRole('button', { name: 'Use as test organization' })).toBeEnabled();
     expect(screen.queryByText('Test organization')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Clear test mark' })).toBeNull();
+  });
+
+  it('never offers marking on an organization that was not created as a test organization (review WR-04)', async () => {
+    const customer = { ...BOLT, id: 'cust-id', name: 'Customer', testCandidate: false };
+    await renderExpanded([ACME, customer]);
+    expect((within(orgRow('Acme')).getByRole('button', { name: 'Use as test organization' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(within(orgRow('Customer')).queryByRole('button', { name: 'Use as test organization' })).toBeNull();
   });
 });
 

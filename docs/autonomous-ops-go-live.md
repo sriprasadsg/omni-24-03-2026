@@ -17,7 +17,9 @@ host name in one.
 ## Before you start
 
 1. **Test organization.** None exists yet. Create one (Super Admin, Add Tenant) with a name that says
-   it is a test, tick Autonomous Ops for it, set its level to **Automatic within limits** (the level
+   it is a test and **Test organization** ticked. That box can only be set when the organization is
+   created, so a customer organization can never become one. Tick Autonomous Ops for it, set its
+   level to **Automatic within limits** (the level
    named undoable_auto in the API), and enrol the disposable test hosts into it. Agent version 2.1.16
    or later is needed for check 1, 2.1.17 or later for check 2.
 2. **Shadow mode must be off for the test organization** for checks 1, 2 and 5, because in shadow mode
@@ -33,8 +35,9 @@ host name in one.
      1. Mark it as the test organization: type its name exactly to confirm, on the Going live card
         where it offers that, or with POST /api/platform/autonomous-ops/golive/test-organization
         (body: tenantId and confirmName). Only one organization can be the test organization at a
-        time. A customer organization, the platform organization and an organization without the
-        Autonomous Ops screen are refused.
+        time. An organization not created with **Test organization** ticked (every customer
+        organization), the platform organization and an organization without the Autonomous Ops
+        screen are refused, and a mark on any of them exempts nothing.
      2. Lift it with **Lift shadow mode**. The five checks and the seven days are not required for
         the test organization, and the lift is written to the audit log as a test-organization lift.
         Every other organization keeps the full gate.

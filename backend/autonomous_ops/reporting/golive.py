@@ -131,6 +131,20 @@ def _is_marked(mark: Optional[Dict[str, Any]], tenant_id: str) -> bool:
     return bool(mark) and mark.get("tenantId") == tenant_id
 
 
+# Set only by Add Tenant (tenant_endpoints.TenantCreate), never by an update: customer organizations keep the
+# full go-live gate (D-23), so only an organization created as a test organization may be marked (review WR-04).
+TEST_ORG_FIELD = "goLiveTestOrganization"
+
+
+async def created_as_test_org(db, tenant_id: str) -> bool:
+    """Whether this organization was created as a go-live test organization; False when unreadable."""
+    try:
+        tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, TEST_ORG_FIELD: 1})
+    except Exception:
+        return False
+    return bool(tenant) and tenant.get(TEST_ORG_FIELD) is True
+
+
 async def _read(db, tenant_id: str, now: datetime):
     """(recorded, observation, is test organization); the first two are None when they could not be read."""
     try:
@@ -141,7 +155,9 @@ async def _read(db, tenant_id: str, now: datetime):
         obs: Optional[Dict[str, Any]] = await observation(db, tenant_id, now)
     except Exception:
         obs = None
-    return recorded, obs, _is_marked(await _test_org_mark(db), tenant_id)
+    # A mark exempts only an organization created as a test organization (WR-04, defence in depth).
+    exempt = _is_marked(await _test_org_mark(db), tenant_id) and await created_as_test_org(db, tenant_id)
+    return recorded, obs, exempt
 
 
 async def lift_decision(db, tenant_id: str, now: datetime):
@@ -196,18 +212,20 @@ async def overview(db, now: datetime) -> Dict[str, Any]:
     mark = await _test_org_mark(db)
     organizations = []
     for tenant_id in await sweep._ticked_tenants(db):
-        tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1})
+        tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1, TEST_ORG_FIELD: 1})
         own = await ao_settings.load(db, tenant_id)
         try:
             obs: Optional[Dict[str, Any]] = await observation(db, tenant_id, now)
         except Exception:
             obs = None
-        marked = _is_marked(mark, tenant_id)
+        candidate = (tenant or {}).get(TEST_ORG_FIELD) is True
+        marked = _is_marked(mark, tenant_id) and candidate
         reasons = _reasons(recorded, obs, marked)
         organizations.append({
             "id": tenant_id, "name": str((tenant or {}).get("name") or tenant_id), "shadow": own.shadow,
             "daysObserved": (obs or {}).get("daysObserved"), "wouldHaveDone": (obs or {}).get("wouldHaveDone", 0),
-            "canLift": bool(own.shadow) and not reasons, "reasons": reasons, "testOrganization": marked})
+            "canLift": bool(own.shadow) and not reasons, "reasons": reasons, "testOrganization": marked,
+            "testCandidate": candidate})
     organizations.sort(key=lambda org: (org["name"].lower(), org["id"]))
     test_organization = None
     if mark:

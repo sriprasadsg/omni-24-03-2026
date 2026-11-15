@@ -62,6 +62,8 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
     // Custom is set per tenant by contract (D-24): its seats are asked for here and sent as maxAgents.
     const [seats, setSeats] = useState('');
     const [seatsError, setSeatsError] = useState('');
+    // A go-live test organization (D-23, review WR-04): set only here, at creation.
+    const [testOrg, setTestOrg] = useState(false);
 
     // Step 2 form
     const [adminName, setAdminName] = useState('');
@@ -70,7 +72,7 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
     const reset = () => {
         setStep('tenant'); setBusy(false); setError(null);
         setCreatedTenant(null); setCreatedApiKey(null);
-        setTenantName(''); setTier('Free'); setSeats(''); setSeatsError('');
+        setTenantName(''); setTier('Free'); setSeats(''); setSeatsError(''); setTestOrg(false);
         setAdminName(''); setAdminEmail('');
     };
 
@@ -86,7 +88,10 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
         setSeatsError('');
         setBusy(true); setError(null);
         try {
-            const tenant = await addTenant({ name: tenantName.trim(), subscriptionTier: tier, ...(custom ? { maxAgents: Number(seats) } : {}) });
+            const tenant = await addTenant({
+                name: tenantName.trim(), subscriptionTier: tier, ...(custom ? { maxAgents: Number(seats) } : {}),
+                ...(testOrg ? { goLiveTestOrganization: true } : {}),
+            });
             setCreatedTenant(tenant);
             setStep('user');
         } catch (e) {
@@ -186,6 +191,16 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
                                     {seatsError && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{seatsError}</p>}
                                 </div>
                             )}
+                            <div className="flex items-start gap-2">
+                                <input id="wizard-test-org" type="checkbox" checked={testOrg} onChange={e => setTestOrg(e.target.checked)}
+                                    aria-describedby="wizard-test-org-help" className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 dark:border-gray-600" />
+                                <div className="min-w-0">
+                                    <label htmlFor="wizard-test-org" className="text-sm font-medium text-gray-700 dark:text-gray-300">Test organization</label>
+                                    <p id="wizard-test-org-help" className="text-xs text-gray-500 dark:text-gray-400">
+                                        For the Autonomous Ops go-live walk only. It can be marked to leave shadow mode without the go-live checks. Leave this off for a customer; it cannot be changed later.
+                                    </p>
+                                </div>
+                            </div>
                             <button onClick={handleCreateTenant} disabled={busy || !tenantName.trim()}
                                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50">
                                 {busy ? <CogIcon size={16} className="animate-spin" /> : <ChevronRightIcon size={16} />}

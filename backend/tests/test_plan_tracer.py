@@ -242,3 +242,13 @@ async def test_ensure_plans_never_overwrites_a_changed_plan(mongo_db):
     await plan_service.ensure_plans(mongo_db)
     assert await mongo_db.plans.count_documents({}) == 4
     assert (await plan_service.plans(mongo_db))["Pro"]["seats"] == 80
+
+
+async def test_only_add_tenant_creates_a_go_live_test_organization(wired):
+    """Phase 86 review WR-04: the marker a go-live test-organization mark needs is set by Add Tenant when asked,
+    never by default, and no update model carries it, so a customer organization cannot be turned into one."""
+    walk = await te.create_tenant(te.TenantCreate(name="Walk Org", goLiveTestOrganization=True), current_user=SUPER)
+    customer = await te.create_tenant(te.TenantCreate(name="Customer Co"), current_user=SUPER)
+    assert (await _stored(wired, walk["id"])).get("goLiveTestOrganization") is True
+    assert "goLiveTestOrganization" not in await _stored(wired, customer["id"])
+    assert "goLiveTestOrganization" not in te.TenantUpdate.model_fields

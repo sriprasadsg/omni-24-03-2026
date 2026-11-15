@@ -145,6 +145,7 @@ async def test_the_gate_reports_the_exemption_from_the_one_mark_read_it_decided_
     """protects=T-86-14-03; fails_when=the exemption is missing from the decision, names another organization,
     outlives an unreadable mark, or the decision reads the mark twice (two reads can disagree)."""
     golive = _golive()
+    await mongo_db.tenants.insert_one({"id": "t1", golive.TEST_ORG_FIELD: True})   # created as a test organization
     await golive_test_org.mark(mongo_db, "t1", NAME, OWNER, NOW)
     assert await golive.lift_decision(mongo_db, "t1", NOW) == ([], True)
     assert await golive.lift_decision(mongo_db, "t2", NOW) == (NOT_MET, False)
@@ -175,6 +176,7 @@ async def test_the_exemption_is_reported_for_the_marked_organization_even_when_t
     await _put_checks(mongo_db, when=NOW - timedelta(days=9))
     await _put_shadow_row(mongo_db, "t1", NOW - timedelta(days=9))
     await _put_shadow_row(mongo_db, "t2", NOW - timedelta(days=9))
+    await mongo_db.tenants.insert_one({"id": "t1", golive.TEST_ORG_FIELD: True})   # created as a test organization
     await golive_test_org.mark(mongo_db, "t1", NAME, OWNER, NOW)
     assert await golive.lift_decision(mongo_db, "t1", NOW) == ([], True)
     assert await golive.lift_decision(mongo_db, "t2", NOW) == ([], False)

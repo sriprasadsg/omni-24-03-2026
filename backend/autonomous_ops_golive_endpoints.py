@@ -132,16 +132,21 @@ async def post_test_organization(
     """Marks one ticked organization as the go-live test organization, which may leave shadow mode before
     the five checks are recorded and without the seven days. The caller types the organization's name as
     confirmation (422 when it differs after trimming). The platform organization answers 409, an unticked
-    or unknown one 404, and marking while another organization is marked answers 409 naming it. Super Admin
-    only, interactive session."""
+    or unknown one 404, an organization not created as a test organization 409 (customer organizations keep
+    the full gate, D-23, review WR-04), and marking while another organization is marked answers 409 naming
+    it. Super Admin only, interactive session."""
     try:
         db = get_database()
         tenant_id = body.tenantId
         if tenant_id == PLATFORM_TENANT_ID:
             raise HTTPException(status_code=409, detail="The platform organization can't be the test organization.")
-        tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1})
+        tenant = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "name": 1, golive.TEST_ORG_FIELD: 1})
         if tenant is None or tenant_id not in await sweep._ticked_tenants(db):
             raise HTTPException(status_code=404, detail="Organization not found")
+        if tenant.get(golive.TEST_ORG_FIELD) is not True:
+            raise HTTPException(status_code=409, detail="Only an organization created as a test organization "
+                                                        "can be marked. Customer organizations keep the full "
+                                                        "go-live gate.")
         name = str(tenant.get("name") or tenant_id)
         if body.confirmName.strip() != name:
             raise HTTPException(status_code=422, detail="Type the organization's name exactly to confirm.")

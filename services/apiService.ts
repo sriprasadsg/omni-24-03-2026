@@ -2472,7 +2472,7 @@ export const registerNewTenant = async (payload: NewTenantPayload) => {
     return { success: true, newUser, newTenant };
 };
 
-export const addTenant = async (tenantData: { name: string; subscriptionTier?: string; enabledFeatures?: string[]; maxAgents?: number }) => {
+export const addTenant = async (tenantData: { name: string; subscriptionTier?: string; enabledFeatures?: string[]; maxAgents?: number; goLiveTestOrganization?: boolean }) => {
     try {
         const response = await authFetch(`${API_BASE}/tenants`, {
             method: 'POST',
@@ -2483,6 +2483,7 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
                 subscriptionTier: tenantData.subscriptionTier || 'Free',
                 ...(typeof tenantData.maxAgents === 'number' ? { maxAgents: tenantData.maxAgents } : {}),
                 ...(tenantData.enabledFeatures ? { enabledFeatures: tenantData.enabledFeatures } : {}),
+                ...(tenantData.goLiveTestOrganization ? { goLiveTestOrganization: true } : {}),
             })
         });
 

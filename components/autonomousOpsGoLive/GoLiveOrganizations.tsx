@@ -95,9 +95,10 @@ const ShadowAction: React.FC<Pick<ActionProps, 'org' | 'idPrefix' | 'onLift' | '
 };
 
 /**
- * The go-live test organization controls (D-23): Use as test organization while nothing is marked, and on the marked row
- * Clear test mark, disabled with its reason while the organization's own shadow mode is off. Which row is marked and
- * whether the mark can be cleared is the server's; a refusal is shown by the dialog.
+ * The go-live test organization controls (D-23): Use as test organization while nothing is marked, only on an
+ * organization created as a test organization (testCandidate, review WR-04), and on the marked row Clear test mark,
+ * disabled with its reason while the organization's own shadow mode is off. Which row is marked and whether the mark
+ * can be cleared is the server's; a refusal is shown by the dialog.
  */
 const TestOrgAction: React.FC<ActionProps> = ({ org, idPrefix, isTest, anyMarked, onMark, onClear }) => {
     if (isTest) {
@@ -119,7 +120,7 @@ const TestOrgAction: React.FC<ActionProps> = ({ org, idPrefix, isTest, anyMarked
             </div>
         );
     }
-    if (anyMarked) return null;
+    if (anyMarked || org.testCandidate !== true) return null;
     return <button type="button" className={SECONDARY_BUTTON} onClick={() => onMark(org)}>{TEST_ORG_USE}</button>;
 };
 
