@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import type { GoLiveOrganization, GoLiveTestOrganization } from '../../services/autonomousOpsGoLive';
 import { EmptyStateCard } from '../AutonomousOpsEmptyStateCard';
+import { ScrollRegion } from '../AutonomousOpsScrollRegion';
 import { SECONDARY_BUTTON } from '../AutonomousOpsHealthCards';
 import { HealthChip, HealthNotice } from '../AutonomousOpsHealthChips';
 import { ClockIcon, FlaskConicalIcon, ShieldCheckIcon } from '../icons';
@@ -135,7 +136,7 @@ const OrganizationAction: React.FC<ActionProps> = props => (
 const isTestRow = (org: GoLiveOrganization, testId: string | null): boolean => org.testOrganization === true || org.id === testId;
 
 const OrganizationTable: React.FC<{ rows: GoLiveOrganization[]; uid: string } & RowHandlers & RowMarks> = ({ rows, uid, testId, anyMarked, ...handlers }) => (
-    <div role="region" aria-label={ORG_CAPTION} tabIndex={0} className="min-w-0 overflow-x-auto">
+    <ScrollRegion label={ORG_CAPTION}>
         <table className="w-full border-collapse text-sm">
             <caption className="sr-only">{ORG_CAPTION}</caption>
             <thead>
@@ -161,7 +162,7 @@ const OrganizationTable: React.FC<{ rows: GoLiveOrganization[]; uid: string } & 
                 ))}
             </tbody>
         </table>
-    </div>
+    </ScrollRegion>
 );
 
 const OrganizationCards: React.FC<{ rows: GoLiveOrganization[]; uid: string } & RowHandlers & RowMarks> = ({ rows, uid, testId, anyMarked, ...handlers }) => (

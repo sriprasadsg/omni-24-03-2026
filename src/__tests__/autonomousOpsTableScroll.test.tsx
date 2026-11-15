@@ -1,7 +1,10 @@
 /**
  * Phase 86 / G-86-5: a structural check that each wide Autonomous Ops table has its own sideways scroll region.
- * jsdom has no layout, so this pins the structure (a labelled, focusable overflow-x-auto ancestor inside the
- * component's own section), not pixels. Without it, main's overflow-x-hidden clips the Action column of the
+ * jsdom has no layout, so this pins the structure (one overflow-x-auto ancestor inside the component's own
+ * section), not pixels, and fakes the widths (setWidths) for the two states of review WR-07 / IN-06: while the
+ * table fits, a plain wrapper with no landmark, tab stop or hint; while it is wider than its card, a region named
+ * "Scrollable: <caption>" with a hint and a right-edge fade, a tab stop only for the Statistics table (no
+ * focusable content of its own). Without the wrapper, main's overflow-x-hidden clips the Action column of the
  * Going live Organizations table and the Refused / Would have done columns of the Statistics per-rule table.
  */
 import React from 'react';
@@ -26,6 +29,7 @@ vi.mock('../../services/autonomousOpsReporting', () => ({
 }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
+import { SCROLL_HINT } from '../../components/AutonomousOpsScrollRegion';
 import { GoLiveOrganizations } from '../../components/autonomousOpsGoLive/GoLiveOrganizations';
 import { StatsRuleTable } from '../../components/autonomousOpsStats/StatsRuleTable';
 import type { GoLiveOrganization } from '../../services/autonomousOpsGoLive';
@@ -38,7 +42,17 @@ const setMatches = (matches: boolean) => {
   })) as unknown as typeof window.matchMedia;
 };
 
-afterEach(() => { delete (window as unknown as { matchMedia?: unknown }).matchMedia; });
+/** jsdom has no layout: every element reports this content width and box width, as a card of that size would. */
+const setWidths = (content: number, box: number) => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => content });
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => box });
+};
+
+afterEach(() => {
+  delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  delete (HTMLElement.prototype as unknown as { scrollWidth?: number }).scrollWidth;
+  delete (HTMLElement.prototype as unknown as { clientWidth?: number }).clientWidth;
+});
 
 // ── the Going live Organizations table ───────────────────────────────────────────────────────────────────
 
@@ -53,25 +67,40 @@ const renderOrgs = () => render(
 );
 
 describe('Going live organizations table (G-86-5)', () => {
-  it('sits in its own labelled, focusable overflow-x-auto region inside the Organizations section', () => {
+  it('is one plain overflow-x-auto wrapper, with no landmark, tab stop or hint, while the table fits (review IN-06)', () => {
     setMatches(true);
+    setWidths(900, 900);
     const { container } = renderOrgs();
-    const table = screen.getByRole('table', { name: 'Shadow mode by organization' });
-    const scroller = table.closest('.overflow-x-auto');
+    const scroller = screen.getByRole('table', { name: 'Shadow mode by organization' }).closest('.overflow-x-auto');
     expect(scroller).not.toBeNull();
-    expect(scroller).toBe(screen.getByRole('region', { name: 'Shadow mode by organization' }));
-    expect(scroller).toHaveAttribute('tabindex', '0');
+    expect(scroller!.getAttribute('role')).toBeNull();
+    expect(scroller!.hasAttribute('tabindex')).toBe(false);
+    expect(screen.queryByText(SCROLL_HINT)).toBeNull();
+    expect(container.querySelector('[data-scroll-fade]')).toBeNull();
+    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1);
+  });
+
+  it('becomes a named region with a hint and a right-edge fade inside the section while it is wider than its card (review WR-07)', () => {
+    setMatches(true);
+    setWidths(1200, 900);
+    const { container } = renderOrgs();
+    const region = screen.getByRole('region', { name: 'Scrollable: Shadow mode by organization' });
+    expect(screen.getByRole('table', { name: 'Shadow mode by organization' }).closest('.overflow-x-auto')).toBe(region);
+    expect(region.hasAttribute('tabindex')).toBe(false);   // its own buttons are the tab stops
+    expect(screen.getByText(SCROLL_HINT)).toBeTruthy();
+    expect(container.querySelector('[data-scroll-fade]')).not.toBeNull();
     const section = screen.getByRole('heading', { level: 3, name: 'Organizations' }).closest('section');
     expect(section).not.toBeNull();
-    expect(section).not.toBe(scroller);
-    expect(section!.contains(scroller)).toBe(true);
+    expect(section).not.toBe(region);
+    expect(section!.contains(region)).toBe(true);
     expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1);
   });
 
   it('keeps the Action header and every action button inside the scroll region', () => {
     setMatches(true);
+    setWidths(1200, 900);
     renderOrgs();
-    const region = screen.getByRole('region', { name: 'Shadow mode by organization' });
+    const region = screen.getByRole('region', { name: 'Scrollable: Shadow mode by organization' });
     expect(within(region).getByRole('columnheader', { name: 'Action' })).toBeInTheDocument();
     expect(within(region).getByRole('button', { name: 'Lift shadow mode' })).toBeInTheDocument();
     expect(within(region).getByRole('button', { name: 'Turn shadow mode back on' })).toBeInTheDocument();
@@ -82,7 +111,7 @@ describe('Going live organizations table (G-86-5)', () => {
     setMatches(false);
     renderOrgs();
     expect(screen.queryByRole('table')).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Shadow mode by organization' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Scrollable: Shadow mode by organization' })).toBeNull();
     expect(screen.getByRole('list', { name: 'Shadow mode by organization' })).toBeInTheDocument();
   });
 
@@ -124,21 +153,34 @@ const CAPTION = 'Decisions by rule, last 30 days';
 const renderRules = (rules: AutonomousOpsRuleStats[]) => render(<StatsRuleTable rules={rules} totals={sumTotals(rules)} days={30} />);
 
 describe('Statistics per-rule table (G-86-5)', () => {
-  it('sits in its own labelled, focusable overflow-x-auto region', () => {
+  it('is a plain wrapper with no landmark, tab stop or hint while the table fits (review IN-06)', () => {
     setMatches(true);
+    setWidths(900, 900);
     const { container } = renderRules(THREE);
-    const table = screen.getByRole('table', { name: CAPTION });
-    const scroller = table.closest('.overflow-x-auto');
+    const scroller = screen.getByRole('table', { name: CAPTION }).closest('.overflow-x-auto');
     expect(scroller).not.toBeNull();
-    expect(scroller).toBe(screen.getByRole('region', { name: CAPTION }));
-    expect(scroller).toHaveAttribute('tabindex', '0');
+    expect(scroller!.getAttribute('role')).toBeNull();
+    expect(scroller!.hasAttribute('tabindex')).toBe(false);
+    expect(screen.queryByText(SCROLL_HINT)).toBeNull();
     expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1);
+  });
+
+  it('becomes a focusable, named region with a hint while it is wider than its card (review WR-07, IN-06)', () => {
+    setMatches(true);
+    setWidths(1200, 900);
+    const { container } = renderRules(THREE);
+    const region = screen.getByRole('region', { name: `Scrollable: ${CAPTION}` });
+    expect(screen.getByRole('table', { name: CAPTION }).closest('.overflow-x-auto')).toBe(region);
+    expect(region.getAttribute('tabindex')).toBe('0');   // no focusable content of its own
+    expect(screen.getByText(SCROLL_HINT)).toBeTruthy();
+    expect(container.querySelector('[data-scroll-fade]')).not.toBeNull();
   });
 
   it('keeps the Refused and simulation headers and the All rules footer inside the scroll region', () => {
     setMatches(true);
+    setWidths(1200, 900);
     renderRules(THREE);
-    const region = screen.getByRole('region', { name: CAPTION });
+    const region = screen.getByRole('region', { name: `Scrollable: ${CAPTION}` });
     expect(within(region).getByRole('columnheader', { name: 'Refused' })).toBeInTheDocument();
     expect(within(region).getByRole('columnheader', { name: /Would have done \(simulation\)/ })).toBeInTheDocument();
     expect(within(region).getByRole('rowheader', { name: 'All rules' })).toBeInTheDocument();
@@ -146,8 +188,9 @@ describe('Statistics per-rule table (G-86-5)', () => {
 
   it('keeps Show all and What the columns mean outside the scroll region', () => {
     setMatches(true);
+    setWidths(1200, 900);
     renderRules(SIXTEEN);
-    const region = screen.getByRole('region', { name: CAPTION });
+    const region = screen.getByRole('region', { name: `Scrollable: ${CAPTION}` });
     const showAll = screen.getByRole('button', { name: 'Show all 16 rules' });
     const glossary = screen.getByRole('button', { name: 'What the columns mean' });
     expect(region.contains(showAll)).toBe(false);
@@ -158,6 +201,6 @@ describe('Statistics per-rule table (G-86-5)', () => {
     setMatches(false);
     renderRules(THREE);
     expect(screen.queryByRole('table', { name: CAPTION })).toBeNull();
-    expect(screen.queryByRole('region', { name: CAPTION })).toBeNull();
+    expect(screen.queryByRole('region', { name: `Scrollable: ${CAPTION}` })).toBeNull();
   });
 });

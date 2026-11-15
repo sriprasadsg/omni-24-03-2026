@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useState } from 'react';
 import type { AutonomousOpsRuleStats, AutonomousOpsStatsTotals } from '../../services/autonomousOpsReporting';
+import { ScrollRegion } from '../AutonomousOpsScrollRegion';
 import { FlaskConicalIcon } from '../icons';
 import {
     ALL_RULES, GLOSSARY, GLOSSARY_HIDE, GLOSSARY_SHOW, MISSING_COUNT, RULES_VISIBLE, RULE_COUNT_COLUMNS, RULE_HEADER,
@@ -48,7 +49,7 @@ const RuleName: React.FC<{ rule: AutonomousOpsRuleStats }> = ({ rule }) => (
 );
 
 const RuleTable: React.FC<{ rules: AutonomousOpsRuleStats[]; totals: Counts; days: number }> = ({ rules, totals, days }) => (
-    <div role="region" aria-label={rulesCaption(days)} tabIndex={0} className="min-w-0 overflow-x-auto">
+    <ScrollRegion label={rulesCaption(days)} focusable>
         <table className="w-full min-w-0 text-sm">
             <caption className="sr-only">{rulesCaption(days)}</caption>
             <thead>
@@ -84,7 +85,7 @@ const RuleTable: React.FC<{ rules: AutonomousOpsRuleStats[]; totals: Counts; day
                 </tr>
             </tfoot>
         </table>
-    </div>
+    </ScrollRegion>
 );
 
 const RuleCards: React.FC<{ rules: AutonomousOpsRuleStats[] }> = ({ rules }) => (
