@@ -24,6 +24,8 @@ _ROUTE_VERBS = {"get", "post", "put", "patch", "delete", "api_route"}
 ALLOW_LIST = [
     ("pending_agents.py", "notify_pending", "refreshes the count in the pending-agents summary notice (system writer)"),
     ("retention_service.py", "cleanup_notifications", "the retention job deletes expired notices of every tenant"),
+    ("migrations/037_ids_check_notice.py", "up",
+     "one-time migration: looks for its own notice so that a second run posts nothing (system writer)"),
 ]
 # The user routes the scan must find (path, function name): the five routes that serve a signed-in reader.
 KNOWN_ROUTES = [

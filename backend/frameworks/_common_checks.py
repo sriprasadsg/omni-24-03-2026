@@ -31,6 +31,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Tuple
 
+import ndr_sensors
+
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -142,6 +144,48 @@ _PRESENCE_CHECKS: Dict[str, Tuple[str, Dict[str, Any]]] = {
     "internal_audit_evidence":        ("cissp_assessments", {"status": "completed"}),
     "pii_disclosure_controlled":      ("data_classifications", {"category": "PII", "access_restricted": True}),
 }
+
+
+_IDS_NOT_VERIFIED = "A firewall IPS is not verified by this platform."
+_IDS_FAIL_REASONS = {
+    ndr_sensors.NEVER_REPORTED: "has never reported",
+    ndr_sensors.NO_RECENT_STATS: "has not reported in 24 hours",
+    ndr_sensors.NO_RULES_LOADED: "has no detection rules loaded",
+    ndr_sensors.NO_PACKET_GROWTH: "saw no packets in 24 hours",
+}
+
+
+async def _ids_ips_enabled(db) -> Tuple[str, str]:
+    """IDS/IPS from the tenant's own network sensors (88.1, D21).
+
+    pass: a sensor watched for the last 24 hours. partial: one watched but dropped 5% of packets or more.
+    fail: anything else. A dead, blind or never-reporting sensor earns nothing, because partial scores half
+    credit and files an evidence record; a retired sensor counts as none. The control used to pass on any
+    security_alerts row, which proved no IDS at all.
+    """
+    moment = datetime.now(timezone.utc)
+    covered = []
+    for sensor, samples in await ndr_sensors.sensors_with_samples(db, ndr_sensors.COVERAGE_SAMPLES):
+        if not sensor.get("retiredAt"):
+            covered.append((sensor, ndr_sensors.day_coverage(sensor, samples, moment)))
+    if not covered:
+        return "fail", f"No network IDS sensor reporting. {_IDS_NOT_VERIFIED}"
+
+    def first(reason):
+        return next(((sensor.get("name") or sensor.get("sensorId"), sensor, cover)
+                     for sensor, cover in covered if cover["reason"] == reason), None)
+
+    if watching := first(None):
+        name, sensor, cover = watching
+        return "pass", (f"Network sensor '{name}' is reporting: {cover['packets']} packets in 24 hours, "
+                        f"{cover['dropRatio']:.1%} dropped, {sensor.get('rulesLoaded')} rules loaded")
+    if lossy := first(ndr_sensors.DROPPING_PACKETS):
+        name, _, cover = lossy
+        return "partial", (f"Network sensor '{name}' is watching but dropped {cover['dropRatio']:.1%} "
+                           f"of packets in 24 hours")
+    sensor, cover = covered[0]
+    name = sensor.get("name") or sensor.get("sensorId")
+    return "fail", f"Network sensor '{name}' {_IDS_FAIL_REASONS[cover['reason']]}. {_IDS_NOT_VERIFIED}"
 
 
 async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
@@ -312,10 +356,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No firewall rules or blocked-traffic evidence found"
 
         if check_type == "ids_ips_enabled":
-            events = await db.security_alerts.count_documents({"created_at": {"$gte": cutoff_7d}})
-            if events > 0:
-                return "pass", f"{events} IDS/IPS alerts in last 7 days"
-            return "fail", "No IDS/IPS alert activity in last 7 days"
+            return await _ids_ips_enabled(db)
 
         if check_type == "malware_protection":
             agents = await db.agents.count_documents({})

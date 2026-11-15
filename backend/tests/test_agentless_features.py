@@ -1,11 +1,10 @@
 """Tests for agentless data-collection and integration features.
 
-Covers: syslog_receiver, ndr_service, threat_feed_sync,
+Covers: syslog_receiver, threat_feed_sync,
         integration_service_siem, integration_service_edr
 """
 import sys
 import os
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,7 +12,6 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import syslog_receiver
-from ndr_service import NDRService, _is_private_ip
 from threat_feed_sync import (
     _normalise_otx_type, _fetch_urlhaus, _fetch_malwarebazaar,
     _upsert_iocs, run_threat_feed_sync,
@@ -59,45 +57,6 @@ def _await_session(*post_responses):
     sess.__aexit__ = AsyncMock(return_value=False)
     sess.post = AsyncMock(side_effect=list(post_responses))
     return sess
-
-
-def _ndr_db(flows=None, prior_count=0, open_count=5, critical_count=2):
-    flows_col = MagicMock()
-    anom_col = MagicMock()
-
-    flow_cur = MagicMock()
-    flow_cur.to_list = AsyncMock(return_value=flows or [])
-    flows_col.find = MagicMock(return_value=flow_cur)
-    flows_col.insert_one = AsyncMock()
-    flows_col.count_documents = AsyncMock(return_value=prior_count)
-
-    anom_limited = MagicMock()
-    anom_limited.to_list = AsyncMock(return_value=[])
-    anom_sorted = MagicMock()
-    anom_sorted.limit = MagicMock(return_value=anom_limited)
-    anom_cur = MagicMock()
-    anom_cur.sort = MagicMock(return_value=anom_sorted)
-    anom_col.find = MagicMock(return_value=anom_cur)
-    anom_col.insert_one = AsyncMock()
-    anom_col.delete_many = AsyncMock()
-    anom_col.count_documents = AsyncMock(side_effect=[open_count, critical_count] * 4)
-
-    db = MagicMock()
-    db.__getitem__ = MagicMock(side_effect=lambda k: {
-        "network_flows": flows_col,
-        "ndr_anomalies": anom_col,
-        "ndr_baselines": MagicMock(),
-    }[k])
-    return db, flows_col, anom_col
-
-
-def _make_flow(src="10.0.0.5", dst="8.8.8.8", dst_port=443,
-               bytes_sent=1024, proto="HTTPS"):
-    return {
-        "src_ip": src, "dst_ip": dst, "dst_port": dst_port,
-        "bytes_sent": bytes_sent, "protocol": proto,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
 
 
 # ── Syslog Receiver ───────────────────────────────────────────────────────────
@@ -163,104 +122,6 @@ class TestSyslogReceiver:
              patch("tenant_context.set_tenant_id"):
             await proto.process_syslog_message("any log", ("10.0.0.1", 514))
         # Must not raise
-
-
-# ── NDR Service — helpers ─────────────────────────────────────────────────────
-
-class TestIsPrivateIp:
-    def test_rfc1918_addresses_private(self):
-        for ip in ("10.0.0.1", "192.168.1.100", "172.16.0.1"):
-            assert _is_private_ip(ip), ip
-
-    def test_public_addresses_not_private(self):
-        for ip in ("8.8.8.8", "1.1.1.1", "45.33.32.156"):
-            assert not _is_private_ip(ip), ip
-
-    def test_invalid_address_treated_as_private(self):
-        assert _is_private_ip("not-an-ip")
-
-
-# ── NDR Service — ingest ──────────────────────────────────────────────────────
-
-class TestNDRIngestFlow:
-    async def test_ingest_returns_doc_with_tenant(self):
-        db, flows_col, _ = _ndr_db()
-        svc = NDRService(db)
-        doc = await svc.ingest_flow("tenant-1", {"src_ip": "10.0.0.1", "dst_ip": "8.8.8.8",
-                                                  "bytes_sent": 1024, "protocol": "HTTPS"})
-        flows_col.insert_one.assert_called_once()
-        assert doc["tenant_id"] == "tenant-1"
-        assert doc["src_ip"] == "10.0.0.1"
-        assert "_id" in doc
-
-    async def test_ingest_fills_defaults_for_missing_fields(self):
-        db, _, _ = _ndr_db()
-        doc = await NDRService(db).ingest_flow("t1", {})
-        assert doc["src_ip"] == ""
-        assert doc["bytes_sent"] == 0
-        assert doc["protocol"] == "TCP"
-
-
-# ── NDR Service — detection ───────────────────────────────────────────────────
-
-class TestNDRDetection:
-    async def test_no_flows_returns_empty(self):
-        db, _, _ = _ndr_db(flows=[])
-        assert await NDRService(db).run_detection("tenant-1") == []
-
-    async def test_port_scan_detected(self):
-        # 16 distinct dst_ports from one source → port_scan
-        flows = [_make_flow(dst="10.0.1.1", dst_port=i, bytes_sent=100) for i in range(1, 17)]
-        db, _, anom_col = _ndr_db(flows=flows)
-        result = await NDRService(db).run_detection("tenant-1")
-        hits = [r for r in result if r["type"] == "port_scan"]
-        assert len(hits) == 1
-        assert hits[0]["severity"] == "high"
-        assert hits[0]["mitre_technique"] == "T1046"
-        anom_col.insert_one.assert_called()
-
-    async def test_data_exfiltration_detected(self):
-        # Two flows totalling >50 MB to external IP
-        flows = [
-            _make_flow(bytes_sent=30 * 1024 * 1024),
-            _make_flow(bytes_sent=25 * 1024 * 1024),
-        ]
-        db, _, _ = _ndr_db(flows=flows)
-        result = await NDRService(db).run_detection("tenant-1")
-        hits = [r for r in result if r["type"] == "data_exfiltration"]
-        assert len(hits) == 1
-        assert hits[0]["severity"] == "critical"
-        assert hits[0]["mitre_technique"] == "T1048"
-
-    async def test_c2_beacon_detected(self):
-        # 12 small periodic flows to same external dst → C2 beacon
-        flows = [_make_flow(bytes_sent=200) for _ in range(12)]
-        db, _, _ = _ndr_db(flows=flows)
-        result = await NDRService(db).run_detection("tenant-1")
-        hits = [r for r in result if r["type"] == "c2_beacon"]
-        assert len(hits) == 1
-        assert hits[0]["severity"] == "critical"
-        assert hits[0]["mitre_technique"] == "T1071"
-
-    async def test_internal_traffic_no_exfil_anomaly(self):
-        # Large bytes but to private IP — no exfiltration
-        flows = [_make_flow(dst="192.168.1.50", bytes_sent=60 * 1024 * 1024)]
-        db, _, _ = _ndr_db(flows=flows)
-        result = await NDRService(db).run_detection("tenant-1")
-        assert not any(r["type"] == "data_exfiltration" for r in result)
-
-
-class TestNDRTrafficSummary:
-    async def test_summary_returns_expected_keys(self):
-        db, flows_col, anom_col = _ndr_db()
-        flows_col.count_documents = AsyncMock(return_value=100)
-        anom_col.count_documents = AsyncMock(side_effect=[7, 3])
-        summary = await NDRService(db).get_traffic_summary("tenant-1")
-        assert summary["flows_24h"] == 100
-        assert summary["open_anomalies"] == 7
-        assert summary["critical_anomalies"] == 3
-        assert summary["detection_running"] is True
-        assert summary["protocols_monitored"] > 0
 
 
 # ── Threat Feed Sync ──────────────────────────────────────────────────────────

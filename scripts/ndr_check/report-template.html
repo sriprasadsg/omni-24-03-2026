@@ -1,0 +1,72 @@
+<!doctype html>
+<!--
+  One-page report for the manual 7-day check. Fill every {{PLACEHOLDER}} by hand from the output of
+  check_tables.py, then delete this comment.
+
+  Paste plain text only. In pasted values, write &amp; for &, &lt; for < and &gt; for >.
+  If no unlisted address triggered a rule, say so in the headline:
+  "No rule fired for an unlisted address in these 7 days. That is not proof that no unlisted device exists."
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>7 days inside your network</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; color: #1a1a1a; max-width: 760px; margin: 32px auto; padding: 0 16px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; }
+  .period { color: #555; margin: 0 0 20px; }
+  .headline { font-size: 18px; border-left: 4px solid #1a1a1a; padding: 4px 12px; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  th { font-weight: 600; }
+  .coverage { border: 1px solid #999; padding: 8px 16px; margin-top: 24px; }
+  .coverage li { margin: 2px 0; }
+  .small { color: #555; font-size: 12px; margin-top: 24px; }
+  @media print { body { margin: 0 auto; } }
+</style>
+</head>
+<body>
+
+<h1>7 days inside your network</h1>
+<p class="period">{{ORGANISATION}} · {{START_DATE}} to {{END_DATE}} · passive check, nothing was blocked</p>
+
+<p class="headline">{{INTERNAL_ONLY_ALERTS}} alerts were between two addresses inside your network.
+A perimeter firewall may not see this traffic: {{TOPOLOGY_NOTE}}</p>
+
+<h2>Addresses not in your asset list</h2>
+<table>
+  <tr><th>Address</th><th>What was seen</th><th>Talked to</th><th>First and last seen</th></tr>
+  <tr><td>{{ADDRESS}}</td><td>{{SIGNATURES}}</td><td>{{PEERS}}</td><td>{{FIRST_LAST}}</td></tr>
+</table>
+
+<h2>Alerts on your listed devices</h2>
+<table>
+  <tr><th>Device</th><th>Owner</th><th>What was seen</th><th>First and last seen</th></tr>
+  <tr><td>{{HOSTNAME}}</td><td>{{OWNER}}</td><td>{{SIGNATURES}}</td><td>{{FIRST_LAST}}</td></tr>
+</table>
+
+<h2>Everything else</h2>
+<p>{{OUTSIDE_ALERTS}} alerts crossed your perimeter; your firewall may also have seen these.
+{{SUPPRESSED_ALERTS}} low-priority, informational and policy alerts are not listed above.</p>
+
+<div class="coverage">
+<h2>What this check covered, and what it did not</h2>
+<ul>
+  <li>The sensor reported on {{DAYS_WITH_STATS}} of 7 days and saw {{PACKETS_SEEN}} packets; it dropped {{DROP_RATIO}} of them.</li>
+  <li>{{RULES_LOADED}} detection rules were loaded (ET Open).</li>
+  <li>Only the mirrored segments were watched: {{MIRRORED_SEGMENTS}}. Segments not mirrored: {{SEGMENTS_NOT_MIRRORED}}.</li>
+  <li>A device that triggers no rule is not listed. This is not a device inventory.</li>
+  <li>Encrypted content was not inspected.</li>
+  <li>Alerts are tied to addresses, not to programs or users.</li>
+  <li>Addresses were matched to your asset list by IP. A listed device that changed its address shows as unlisted.</li>
+  <li>Nothing was blocked. The sensor sat outside your traffic path.</li>
+</ul>
+</div>
+
+<p class="small">Data handling: Suricata on your box logged alert and stats events only. The allowlisted alert
+headers and your asset list were copied to build this report and are deleted within 7 days of its delivery,
+confirmed in writing. Nothing was stored on the Omni-Agent platform.</p>
+
+</body>
+</html>

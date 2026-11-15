@@ -1,0 +1,46 @@
+%YAML 1.1
+---
+# Passive 7-day check: the settings that differ from the stock suricata.yaml.
+#
+# NOT YET RUN AGAINST SURICATA. Validate on the sensor box before the check starts:
+#
+#   suricata -T -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml
+#   suricata --dump-config -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml | grep '^outputs'
+#
+# The dump must show one eve-log output with the types alert and stats, and nothing else enabled.
+# If your Suricata version merges this "outputs" list with the stock one instead of replacing it,
+# switch the other outputs off in suricata.yaml itself (fast.log, stats.log and the other eve types).
+#
+# Start Suricata on the mirror-port interface with the same two files:
+#
+#   suricata -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml -i <mirror-interface>
+#
+# Rules: ET Open, pulled on the box with `suricata-update`.
+
+vars:
+  address-groups:
+    # Replace with the internal networks. Use the same list for check_tables.py --home-net.
+    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
+    # "any", so rules written for $EXTERNAL_NET -> $HOME_NET also match traffic between internal hosts.
+    EXTERNAL_NET: "any"
+
+# Only alert and stats events are written to disk. No payload, packet, HTTP body, DNS, TLS or flow records.
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: false
+      types:
+        - alert:
+            payload: no
+            payload-printable: no
+            packet: no
+            metadata: no
+            http-body: no
+            http-body-printable: no
+            tagged-packets: no
+        - stats:
+            totals: yes
+            threads: no
+            deltas: no
