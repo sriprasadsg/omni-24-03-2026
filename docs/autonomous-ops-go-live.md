@@ -18,7 +18,10 @@ host name in one.
 
 1. **Test organization.** None exists yet. Create one (Super Admin, Add Tenant) with a name that says
    it is a test and **Test organization** ticked. That box can only be set when the organization is
-   created, so a customer organization can never become one. Tick Autonomous Ops for it, set its
+   created, so a customer organization can never become one. Give it a plan that includes Autonomous
+   Ops: as shipped that is Enterprise or Custom, and the wizard starts on Free, where the Autonomous Ops
+   box in Manage Tenant is greyed out ("Not part of the Free plan"). Pick the plan in the wizard, or
+   change it in Manage Tenant before ticking. Tick Autonomous Ops for it, set its
    level to **Automatic within limits** (the level
    named undoable_auto in the API), and enrol the disposable test hosts into it. Agent version 2.1.16
    or later is needed for check 1, 2.1.17 or later for check 2.
