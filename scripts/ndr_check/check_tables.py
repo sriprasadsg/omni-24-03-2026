@@ -4,24 +4,35 @@
     python3 scripts/ndr_check/check_tables.py check-lines.jsonl --home-net 10.0.0.0/8 --assets assets.csv
 
 Prints plain text: sensor health over the period, alerts per list under the current rules, alerts by class,
-severity and signature prefix with what the noise cut hides, row counts per (signature, source, destination)
-group and per device, and the unlisted internal addresses for the IT manager to review. A device count
-includes every address on the list's side of an alert, so a scan's targets count too; "seen as a source"
-counts only the addresses that sent something. The one-page report is
-built from these numbers, and they decide the open questions on device matching (R7), the noise cut (R8) and
-the row shape (R9).
+severity and signature prefix with what the noise cut hides, row counts under both row shapes, device counts,
+and the unlisted internal addresses for the IT manager to review. The one-page report is built from these
+numbers, and they decide the open question on device matching (R7).
+
+Rows (R9): alerts grouped in rolling 24-hour windows two ways, by (signature, source, destination) and by
+(signature, device), where the device is the internal end of the alert, the source first. One host sweeping a
+/24 is about 254 rows the first way and one row the second.
+
+Devices (R9): an unlisted internal address counts as a device only with evidence that something is there: it
+was the source of an alert, or the destination of a TCP alert that names an app_proto (Suricata detects the
+application protocol on TCP only after the handshake). Any other unlisted address was only ever a target, such
+as a scanned address with nothing behind it; those are listed apart and never counted as devices. Lists are
+not changed by this: an alert with an unlisted internal endpoint still lands in Unknown devices.
 
 The list rules are the design's, in this order. Each alert lands in exactly one list:
 
-    Suppressed ............... severity 3 or higher, or the signature starts with "ET INFO " or "ET POLICY ",
-                               or the class is "Not Suspicious Traffic"
+    Suppressed ............... severity 3 or higher (except scan signatures, R8), or the signature starts with
+                               "ET INFO " or "ET POLICY ", or the class is "Not Suspicious Traffic"
     Unknown devices .......... an internal endpoint that is not in the asset list
     Alerts on your devices ... an internal endpoint that is in the asset list
     Outside your networks .... everything else
 
+Scan signatures ("ET SCAN ", "GPL SCAN ") are never hidden for their severity: ET Open files its port-445 and
+port-139 sweep rules as severity 3, and the dry run showed the cut hiding the only alert a sweep raised.
+
 Internal means inside one of the --home-net networks. An IPv4 network's own address and its broadcast address
-are not devices and never count as unknown (a /31 or /32 has neither). The asset list is a CSV with hostname,
-ip (or ip_address) and owner columns; without one, every internal address is unlisted.
+are not devices and never count as unknown (a /31 or /32 has neither), so give each subnet with its real mask
+(10.20.0.0/24, not 10.0.0.0/8) or its broadcast address reads as an address. The asset list is a CSV with
+hostname, ip (or ip_address) and owner columns; without one, every internal address is unlisted.
 """
 import argparse
 import csv
@@ -41,6 +52,8 @@ UNKNOWN = "Unknown devices"
 YOURS = "Alerts on your devices"
 OUTSIDE = "Outside your networks"
 LISTS = (UNKNOWN, YOURS, OUTSIDE, SUPPRESSED)
+SCAN_PREFIXES = ("ET SCAN ", "GPL SCAN ")
+TARGETS_SHOWN = 20
 GROUP_WINDOW = timedelta(hours=24)
 WHOLE_PERIOD = timedelta(days=3650)
 TIME_FORMATS = ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z")
@@ -100,9 +113,20 @@ def endpoint_kind(text, nets, assets):
 def is_suppressed(event):
     alert = event.get("alert") or {}
     severity = alert.get("severity")
-    return ((isinstance(severity, int) and severity >= 3)
-            or str(alert.get("signature", "")).startswith(("ET INFO ", "ET POLICY "))
+    signature = str(alert.get("signature", ""))
+    return ((isinstance(severity, int) and severity >= 3 and not signature.startswith(SCAN_PREFIXES))
+            or signature.startswith(("ET INFO ", "ET POLICY "))
             or alert.get("category") == "Not Suspicious Traffic")
+
+
+def device_evidence(events):
+    """Addresses something is behind: an alert's source, or the destination of a TCP alert naming an app_proto."""
+    seen = set()
+    for event in events:
+        seen.add(event.get("src_ip"))
+        if str(event.get("proto", "")).upper() == "TCP" and event.get("app_proto"):
+            seen.add(event.get("dest_ip"))
+    return seen
 
 
 def assign_list(event, nets, assets):
@@ -117,15 +141,26 @@ def assign_list(event, nets, assets):
     return OUTSIDE
 
 
-def count_groups(timed_alerts):
-    """Rows made by grouping ``(time, alert)`` pairs on (signature, source, destination) in rolling 24-hour
-    windows, each anchored at its group's first alert."""
+def flow_key(event):
+    return (event.get("alert") or {}).get("signature_id"), event.get("src_ip"), event.get("dest_ip")
+
+
+def device_key(event, nets):
+    """(signature, the alert's internal end), the source first; the destination when neither end is internal."""
+    source = _address(event.get("src_ip"))
+    internal = source is not None and any(source in net for net in nets)
+    return (event.get("alert") or {}).get("signature_id"), event.get("src_ip" if internal else "dest_ip")
+
+
+def count_groups(timed_alerts, key=flow_key):
+    """Rows made by grouping ``(time, alert)`` pairs on ``key`` (by default signature, source, destination) in
+    rolling 24-hour windows, each anchored at its group's first alert."""
     anchors = {}
     groups = 0
     for at, event in sorted(timed_alerts, key=lambda pair: pair[0]):
-        key = ((event.get("alert") or {}).get("signature_id"), event.get("src_ip"), event.get("dest_ip"))
-        if key not in anchors or at - anchors[key] > GROUP_WINDOW:
-            anchors[key] = at
+        key_value = key(event)
+        if key_value not in anchors or at - anchors[key_value] > GROUP_WINDOW:
+            anchors[key_value] = at
             groups += 1
     return groups
 
@@ -181,25 +216,35 @@ def summarise(events, nets, assets):
                 row["peers"].add(event.get(other))
                 row["last"] = at
 
-    def devices(name, sides):
+    evidence = device_evidence(event for _, event in alerts)
+
+    def endpoints(name, sides):
         kind = {UNKNOWN: "unknown", YOURS: "known"}.get(name)
-        return len({event.get(side) for _, event in by_list[name] for side in sides
-                    if endpoint_kind(event.get(side), nets, assets) == kind})
+        return {event.get(side) for _, event in by_list[name] for side in sides
+                if endpoint_kind(event.get(side), nets, assets) == kind}
+
+    def list_row(name):
+        seen = endpoints(name, ("src_ip", "dest_ip"))
+        # A listed address is a device by the customer's word; an unlisted one needs evidence.
+        found = seen if name == YOURS else seen & evidence
+        return {"alerts": len(by_list[name]), "groups": count_groups(by_list[name]),
+                "deviceGroups": count_groups(by_list[name], lambda event: device_key(event, nets)),
+                "devices": len(found), "targetsOnly": len(seen - found),
+                "sources": len(endpoints(name, ("src_ip",)))}
 
     return {
         "unreadable": len(events) - len(timed),
         "period": (timed[0][0], timed[-1][0]) if timed else None,
         "health": _sensor_totals([pair for pair in timed if pair[1].get("event_type") == "stats"]),
-        "lists": {name: {"alerts": len(by_list[name]), "groups": count_groups(by_list[name]),
-                         "devices": devices(name, ("src_ip", "dest_ip")), "sources": devices(name, ("src_ip",))}
-                  for name in LISTS},
+        "lists": {name: list_row(name) for name in LISTS},
         "shown": sum(len(by_list[name]) for name in LISTS if name != SUPPRESSED),
         "internalOnly": internal_only,
         "classes": sorted(((category, severity, tally["shown"] + tally["hidden"], tally["hidden"])
                            for (category, severity), tally in classes.items()), key=lambda row: -row[2]),
         "prefixes": sorted(((prefix, tally["shown"] + tally["hidden"], tally["hidden"])
                             for prefix, tally in prefixes.items()), key=lambda row: -row[1]),
-        "unlisted": sorted(({"address": address, "shown": row["shown"], "hidden": row["hidden"],
+        "unlisted": sorted(({"address": address, "device": address in evidence,
+                             "shown": row["shown"], "hidden": row["hidden"],
                              "asSource": row["asSource"], "signatures": len(row["signatures"]),
                              "peers": len(row["peers"]),
                              "first": row["first"], "last": row["last"]} for address, row in unlisted.items()),
@@ -232,10 +277,12 @@ def render(summary, has_assets=True, unreadable_lines=0):
         lines.append("  no asset list given: every internal address counts as unlisted")
     for name in LISTS:
         row = lists[name]
-        devices = ("   %d devices (%d seen as a source)" % (row["devices"], row["sources"])
-                   if name in (UNKNOWN, YOURS) else "")
-        lines.append("  %-24s %6d alerts   %5d rows per signature/source/destination%s"
-                     % (name, row["alerts"], row["groups"], devices))
+        lines.append("  %-24s %6d alerts   rows: %5d by signature/source/destination, %5d by signature/device"
+                     % (name, row["alerts"], row["groups"], row["deviceGroups"]))
+        if name in (UNKNOWN, YOURS):
+            targets = (", plus %d addresses only seen as targets" % row["targetsOnly"]) if name == UNKNOWN else ""
+            lines.append("  %-24s %6s   devices: %d (%d seen as a source)%s"
+                         % ("", "", row["devices"], row["sources"], targets))
     lines.append("  both endpoints internal: %d of %d shown alerts" % (summary["internalOnly"], summary["shown"]))
     if not summary["shown"] and not lists[SUPPRESSED]["alerts"]:
         lines.append("  no alerts in the period")
@@ -246,15 +293,24 @@ def render(summary, has_assets=True, unreadable_lines=0):
     lines += ["", "BY SIGNATURE PREFIX", "  %-32s %7s %7s" % ("prefix", "alerts", "hidden")]
     lines += ["  %-32s %7d %7d" % (prefix[:32], total, hidden) for prefix, total, hidden in summary["prefixes"]]
 
-    lines += ["", "UNLISTED INTERNAL ADDRESSES (for the IT manager to review)",
-              "  an address never seen as a source may only be a scan target, with no device behind it",
-              "  %-40s %6s %6s %6s %5s %5s  %-20s %s"
-              % ("address", "shown", "hidden", "as src", "sigs", "peers", "first", "last")]
-    lines += ["  %-40s %6d %6d %6d %5d %5d  %-20s %s"
-              % (row["address"], row["shown"], row["hidden"], row["asSource"], row["signatures"], row["peers"],
-                 _when(row["first"]), _when(row["last"])) for row in summary["unlisted"]]
-    if not summary["unlisted"]:
-        lines.append("  none")
+    header = ("  %-40s %6s %6s %6s %5s %5s  %-20s %s"
+              % ("address", "shown", "hidden", "as src", "sigs", "peers", "first", "last"))
+
+    def address_rows(rows):
+        return ["  %-40s %6d %6d %6d %5d %5d  %-20s %s"
+                % (row["address"], row["shown"], row["hidden"], row["asSource"], row["signatures"], row["peers"],
+                   _when(row["first"]), _when(row["last"])) for row in rows]
+
+    devices = [row for row in summary["unlisted"] if row["device"]]
+    targets = [row for row in summary["unlisted"] if not row["device"]]
+    lines += ["", "UNLISTED DEVICES (for the IT manager to review)",
+              "  each sent an alert's traffic, or held a TCP session that reached the application layer", header]
+    lines += address_rows(devices) or ["  none"]
+    lines += ["", "ADDRESSES ONLY SEEN AS TARGETS (not counted as devices; there may be nothing behind them)",
+              "  %d addresses%s" % (len(targets), ", the %d with the most alerts:" % TARGETS_SHOWN
+                                    if len(targets) > TARGETS_SHOWN else "")]
+    if targets:
+        lines += [header] + address_rows(targets[:TARGETS_SHOWN])
     return "\n".join(lines) + "\n"
 
 
@@ -280,7 +336,8 @@ def load_events(paths):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Tables for the manual 7-day check.")
     parser.add_argument("lines", nargs="+", help="files written by eve_allowlist.py")
-    parser.add_argument("--home-net", required=True, help="internal networks, comma separated, e.g. 10.0.0.0/8")
+    parser.add_argument("--home-net", required=True,
+                        help="internal subnets with their real masks, comma separated, e.g. 10.20.0.0/24")
     parser.add_argument("--assets", help="asset list CSV with hostname, ip and owner columns")
     args = parser.parse_args(argv)
 

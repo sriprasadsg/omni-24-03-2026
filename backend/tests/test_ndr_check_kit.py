@@ -55,10 +55,10 @@ RAW_STATS = {
 
 
 def _alert(src, dest, at=START, signature="ET SCAN Nmap probe", severity=2, category="Attempted Information Leak",
-           signature_id=2000001):
+           signature_id=2000001, **fields):
     return {"event_type": "alert", "timestamp": at.strftime("%Y-%m-%dT%H:%M:%S.%f%z"), "src_ip": src,
             "dest_ip": dest, "alert": {"signature_id": signature_id, "signature": signature, "severity": severity,
-                                       "category": category}}
+                                       "category": category}, **fields}
 
 
 def _stats(at, packets, uptime, drops=0):
@@ -125,9 +125,15 @@ def test_rotated_gz_files_are_read_and_the_output_is_owner_only(tmp_path):
 
 # --- check_tables.py ----------------------------------------------------------------------------------------
 
+STREAM = "SURICATA STREAM excessive retransmissions"
+
+
 @pytest.mark.parametrize("alert, expected", [
-    (_alert("10.0.1.50", "10.0.1.10", severity=3), tables.SUPPRESSED),
-    (_alert("10.0.1.50", "10.0.1.10", severity=4), tables.SUPPRESSED),
+    (_alert("10.0.1.50", "10.0.1.10", severity=3, signature=STREAM), tables.SUPPRESSED),
+    (_alert("10.0.1.50", "10.0.1.10", severity=4, signature=STREAM), tables.SUPPRESSED),
+    (_alert("10.0.1.50", "10.0.1.10", severity=3, signature="ET SCAN Behavioral Unusual Port 445 traffic"),
+     tables.UNKNOWN),
+    (_alert("10.0.1.50", "10.0.1.10", severity=3, signature="GPL SCAN nmap XMAS"), tables.UNKNOWN),
     (_alert("10.0.1.50", "10.0.1.10", severity=1, signature="ET INFO Something seen"), tables.SUPPRESSED),
     (_alert("10.0.1.50", "10.0.1.10", severity=1, signature="ET POLICY Something seen"), tables.SUPPRESSED),
     (_alert("10.0.1.50", "10.0.1.10", severity=1, category="Not Suspicious Traffic"), tables.SUPPRESSED),
@@ -160,20 +166,53 @@ def test_a_group_takes_alerts_for_24_hours_then_a_new_one_starts():
     assert tables.count_groups([at(timedelta(0)), at(timedelta(hours=24, seconds=1))]) == 2
 
 
-def test_one_host_sweeping_twenty_addresses_is_twenty_rows_and_one_source():
+def test_one_host_sweeping_twenty_addresses_is_one_device_and_one_row_per_signature():
     sweep = [_alert("10.0.1.50", "10.0.1.%d" % host, START + timedelta(seconds=host)) for host in range(100, 120)]
 
     unknown = tables.summarise(sweep, NETS, ASSETS)["lists"][tables.UNKNOWN]
 
-    assert (unknown["alerts"], unknown["groups"]) == (20, 20)
-    assert (unknown["devices"], unknown["sources"]) == (21, 1)
+    assert (unknown["alerts"], unknown["groups"], unknown["deviceGroups"]) == (20, 20, 1)
+    assert (unknown["devices"], unknown["targetsOnly"], unknown["sources"]) == (1, 20, 1)
+
+
+def test_only_a_source_or_an_application_layer_tcp_destination_counts_as_a_device():
+    events = [
+        _alert("8.8.8.8", "10.0.1.60", proto="TCP", app_proto="http"),
+        _alert("8.8.8.8", "10.0.1.61", proto="UDP", app_proto="snmp"),
+        _alert("8.8.8.8", "10.0.1.62", proto="TCP"),
+        _alert("10.0.1.63", "8.8.8.8", proto="UDP"),
+    ]
+
+    summary = tables.summarise(events, NETS, ASSETS)
+
+    unknown = summary["lists"][tables.UNKNOWN]
+    assert (unknown["alerts"], unknown["devices"], unknown["targetsOnly"]) == (4, 2, 2)
+    assert {row["address"]: row["device"] for row in summary["unlisted"]} == {
+        "10.0.1.60": True, "10.0.1.61": False, "10.0.1.62": False, "10.0.1.63": True}
+
+
+def test_a_device_row_is_keyed_on_the_internal_end_source_first():
+    assert tables.device_key(_alert("10.0.1.50", "10.0.1.10"), NETS) == (2000001, "10.0.1.50")
+    assert tables.device_key(_alert("8.8.8.8", "10.0.1.10"), NETS) == (2000001, "10.0.1.10")
+
+
+def test_the_targets_section_shows_twenty_and_counts_the_rest():
+    sweep = [_alert("10.0.1.50", "10.0.1.%d" % host, START + timedelta(seconds=host)) for host in range(100, 130)]
+
+    text = tables.render(tables.summarise(sweep, NETS, ASSETS))
+
+    devices_part, targets_part = text.split("ADDRESSES ONLY SEEN AS TARGETS")
+    assert "devices: 1 (1 seen as a source), plus 30 addresses only seen as targets" in devices_part
+    assert "\n  10.0.1.50 " in devices_part.split("UNLISTED DEVICES")[1]
+    assert "30 addresses, the 20 with the most alerts:" in targets_part
+    assert sum(line.startswith("  10.0.1.1") for line in targets_part.splitlines()) == 20
 
 
 def test_the_summary_counts_lists_classes_and_unlisted_addresses():
     events = [
         _alert("10.0.1.50", "10.0.1.10"),
-        _alert("10.0.1.50", "10.0.1.10", START + timedelta(minutes=1), signature="ET SCAN Behavioral 445",
-               severity=3, category="Misc activity", signature_id=2001569),
+        _alert("10.0.1.50", "10.0.1.10", START + timedelta(minutes=1), signature=STREAM,
+               severity=3, category="Generic Protocol Command Decode", signature_id=2210054),
         _alert("10.0.1.10", "8.8.8.8", START + timedelta(minutes=2)),
         {"event_type": "alert", "timestamp": "not a time", "src_ip": "10.0.1.50", "dest_ip": "10.0.1.10"},
     ]
@@ -183,8 +222,8 @@ def test_the_summary_counts_lists_classes_and_unlisted_addresses():
     assert {name: row["alerts"] for name, row in summary["lists"].items()} == {
         tables.UNKNOWN: 1, tables.YOURS: 1, tables.OUTSIDE: 0, tables.SUPPRESSED: 1}
     assert (summary["shown"], summary["internalOnly"], summary["unreadable"]) == (2, 1, 1)
-    assert ("Misc activity", 3, 1, 1) in summary["classes"]
-    assert ("ET SCAN", 3, 1) in summary["prefixes"]
+    assert ("Generic Protocol Command Decode", 3, 1, 1) in summary["classes"]
+    assert ("ET SCAN", 2, 0) in summary["prefixes"] and ("SURICATA STREAM", 1, 1) in summary["prefixes"]
     assert [(row["address"], row["shown"], row["hidden"], row["asSource"], row["signatures"], row["peers"])
             for row in summary["unlisted"]] == [("10.0.1.50", 1, 1, 2, 2, 1)]
 
@@ -220,3 +259,17 @@ def test_an_empty_period_renders_without_numbers_to_divide():
     assert "no readable events" in text
     assert "no alerts in the period" in text
     assert "every internal address counts as unlisted" in text
+
+
+# --- enable.conf --------------------------------------------------------------------------------------------
+
+def test_enable_conf_lists_the_sids_its_header_promises():
+    with open(os.path.join(KIT_DIR, "enable.conf"), encoding="utf-8") as handle:
+        lines = [line.strip() for line in handle]
+    sids = [line for line in lines if line and not line.startswith("#")]
+    promised = next(line for line in lines if 'say "Enabled ' in line)
+
+    assert all(sid.isdigit() for sid in sids) and len(set(sids)) == len(sids)
+    assert 'say "Enabled %d rules"' % len(sids) in promised
+    assert {"2009582", "2001569"} <= set(sids)
+    assert not {"2002911", "2001329"} & set(sids)

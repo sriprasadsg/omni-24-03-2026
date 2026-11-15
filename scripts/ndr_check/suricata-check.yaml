@@ -17,11 +17,13 @@
 #
 #   suricata -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml -i <mirror-interface>
 #
-# Rules: ET Open, pulled on the box with `suricata-update`.
+# Rules: ET Open, pulled on the box with `suricata-update`, after copying this kit's enable.conf to
+# /etc/suricata/enable.conf (it switches on the scan rules ET Open ships disabled).
 
 vars:
   address-groups:
-    # Replace with the internal networks. Use the same list for check_tables.py --home-net.
+    # Replace with the internal subnets, each with its real mask (10.20.0.0/24, not 10.0.0.0/8), and give the
+    # same list to check_tables.py --home-net, which then skips each subnet's network and broadcast address.
     HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
     # "any", so rules written for $EXTERNAL_NET -> $HOME_NET also match traffic between internal hosts.
     EXTERNAL_NET: "any"
