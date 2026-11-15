@@ -162,7 +162,8 @@ class ExportControlMiddleware:
             await send(message)
 
         await self.app(scope, receive, counting_send)
-        if 200 <= seen["status"] < 300:
+        # An empty answer (204, or no body) handed nothing out: it uses no allowance and is not audited (review IN-03).
+        if 200 <= seen["status"] < 300 and seen["bytes"] > 0:
             try:
                 await _record(who, scope["path"], seen["bytes"], seen["rows"], now)
             except Exception as exc:  # the response is already sent; never fail it here

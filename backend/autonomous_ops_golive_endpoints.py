@@ -147,7 +147,8 @@ async def post_test_organization(
             raise HTTPException(status_code=409, detail="Only an organization created as a test organization "
                                                         "can be marked. Customer organizations keep the full "
                                                         "go-live gate.")
-        name = str(tenant.get("name") or tenant_id)
+        # Both sides trimmed: a stored name with stray spaces could otherwise never be confirmed (review IN-02).
+        name = str(tenant.get("name") or tenant_id).strip()
         if body.confirmName.strip() != name:
             raise HTTPException(status_code=422, detail="Type the organization's name exactly to confirm.")
         actor = await views.actor_for(db, await views.build_caller(user))

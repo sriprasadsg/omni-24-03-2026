@@ -129,6 +129,15 @@ async def test_a_second_mark_is_refused_and_names_the_current_organization(named
     assert len(_events(audit, "autonomous_ops.golive_test_org_marked")) == 1
 
 
+async def test_a_stored_name_with_stray_spaces_is_confirmed_by_its_trimmed_name(named, audit):
+    """protects=review IN-02; fails_when=an organization whose stored name has leading or trailing spaces can never
+    be confirmed, since the UI sends the trimmed text."""
+    await seed_tenant(named.db, "t4", shadow=True, name="  Padded Org ")
+    await named.db.tenants.update_one({"id": "t4"}, {"$set": {golive.TEST_ORG_FIELD: True}})
+    assert (await _mark(named, "t4", "Padded Org")).status_code == 201
+    assert (await _stored_mark(named.db))["tenantName"] == "Padded Org"
+
+
 async def test_a_customer_organization_cannot_be_marked(named, audit):
     """protects=D-23 customers keep the full gate (review WR-04); fails_when=a ticked organization that was not
     created as a test organization is marked, or the refusal stores or audits anything."""

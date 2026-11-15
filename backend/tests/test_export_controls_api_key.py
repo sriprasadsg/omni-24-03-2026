@@ -16,13 +16,13 @@ def _scope(headers):
     return {"type": "http", "method": "GET", "path": EXPORT, "headers": headers}
 
 
-async def _run(scope):
+async def _run(scope, status=200, body=b"a,b\n1,2\n"):
     sent, routed = [], []
 
     async def route(scope, receive, send):
         routed.append(True)
-        await send({"type": "http.response.start", "status": 200, "headers": [(b"x-export-rows", b"3")]})
-        await send({"type": "http.response.body", "body": b"a,b\n1,2\n"})
+        await send({"type": "http.response.start", "status": status, "headers": [(b"x-export-rows", b"3")]})
+        await send({"type": "http.response.body", "body": body})
 
     async def send(message):
         sent.append(message)
@@ -72,6 +72,14 @@ async def test_a_failed_key_lookup_never_fails_the_request(controls, monkeypatch
     sent, routed = await _run(_scope([(b"x-api-key", b"omni_key")]))
 
     assert routed and sent[0]["status"] == 200
+    controls.assert_not_awaited()
+
+
+async def test_an_empty_export_uses_no_allowance_and_is_not_audited(controls):
+    """Review IN-03: a 204 (nothing matched) hands nothing out."""
+    sent, routed = await _run(_scope([(b"x-api-key", b"omni_key")]), status=204, body=b"")
+
+    assert routed and sent[0]["status"] == 204
     controls.assert_not_awaited()
 
 
