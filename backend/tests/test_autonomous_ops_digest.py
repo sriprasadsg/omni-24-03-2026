@@ -277,6 +277,32 @@ async def test_a_row_finished_exactly_at_07_00_belongs_to_the_next_digest(world)
     assert (undone.total, waiting.total, simulation.total) == (0, 0, 0)
 
 
+async def test_a_row_verified_after_the_window_is_counted_once_on_the_day_it_ran(world):
+    """Review WR-06: executed -> verified used to rewrite finishedAt to the verification time."""
+    from autonomous_ops import ledger
+    await _ready(world, "t1")
+    row = await seed(world, "t1", "block_ip", "executed", finished=_at(6, 55))
+
+    assert await ledger.transition(world, "t1", row["id"], ("executed",), "verified") is not None
+
+    stored = await world.autonomy_actions.find_one({"id": row["id"]})
+    assert stored["state"] == "verified" and stored["finishedAt"].replace(tzinfo=UTC) == _at(6, 55)
+    ran, _, _, _ = await digest.gather(world, "t1", DAY, NOW)
+    next_day, _, _, _ = await digest.gather(world, "t1", "2026-11-13", NOW + timedelta(days=1))
+    assert [i.id for i in ran.items] == [row["id"]] and next_day.total == 0
+
+
+async def test_an_undo_still_stamps_the_time_it_was_undone(world):
+    from autonomous_ops import ledger
+    await _ready(world, "t1")
+    row = await seed(world, "t1", "block_ip", "executed", finished=_at(6, 55))
+
+    assert await ledger.transition(world, "t1", row["id"], ("executed",), "undone") is not None
+
+    stored = await world.autonomy_actions.find_one({"id": row["id"]})
+    assert stored["finishedAt"].replace(tzinfo=UTC) > _at(6, 55)
+
+
 async def test_the_digest_counts_the_organizations_rows_and_stores_one_notice_for_its_admins(world):
     await _ready(world, "t1", "t2")
     for _ in range(2):

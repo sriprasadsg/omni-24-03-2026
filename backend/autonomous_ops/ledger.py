@@ -129,7 +129,11 @@ async def transition(db, tenant_id: str, action_id: str, from_states: Iterable[s
         flt.update(where)
     now = _now()
     sets: Dict[str, Any] = {"state": to_state, "updatedAt": now, **fields}
-    if to_state in TERMINAL_STATES:
+    # Verifying an executed action checks one that already finished: its finishedAt stays the time it ran, or
+    # the digest counts it on the day of the check, or twice (Phase 86 review WR-06). Undo and every other move
+    # into a terminal state still stamps its own time.
+    verifies_only = to_state == "verified" and set(from_states) <= {"executed"}
+    if to_state in TERMINAL_STATES and not verifies_only:
         sets.setdefault("finishedAt", now)
     doc = await _actions(db).find_one_and_update(flt, {"$set": sets}, return_document=ReturnDocument.AFTER)
     if doc is None:
