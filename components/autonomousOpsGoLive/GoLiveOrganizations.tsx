@@ -202,9 +202,10 @@ interface GoLiveOrganizationsProps {
 
 /**
  * Organizations (86-UI-SPEC section 6c, D-15, D-16): every organization with Autonomous Ops switched on, its shadow state,
- * days observed, the separate simulation count and the action. A real table at lg and wider, stacked cards below; when the card is narrower than the table (about 884 px) the
- * table scrolls sideways inside the card (G-86-5). Whether a
- * lift is allowed is read from the server's answer, never recomputed here; the dialog still handles a refusal.
+ * days observed, the separate simulation count and the action. A real table at lg and wider, stacked cards below; when the
+ * card is narrower than the sum of the columns' min-w classes, the table scrolls sideways inside the card with a cue
+ * (G-86-5, ScrollRegion). Whether a lift is allowed is read from the server's answer, never recomputed here; the dialog
+ * still handles a refusal.
  */
 export const GoLiveOrganizations: React.FC<GoLiveOrganizationsProps> = ({ organizations, masterShadow, testOrganization, onChanged }) => {
     const uid = useId();

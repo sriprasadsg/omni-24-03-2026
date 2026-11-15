@@ -139,7 +139,7 @@ interface StatsRuleTableProps {
 
 /**
  * Section 2e: decisions by rule. A real table at lg and wider, stacked cards below; when the card is narrower than the
- * table (about 946 px) the table scrolls sideways inside the card (G-86-5).
+ * sum of the columns' min-w classes, the table scrolls sideways inside the card with a cue (G-86-5, ScrollRegion).
  * The "Would have done (simulation)" column is set apart by a dashed rule so a simulation is never read as a real count (ACTV-05).
  * Also a totals row, show-all past 15 rules and a glossary of every column. Rule names and ids are server text
  * and render as React text only.
