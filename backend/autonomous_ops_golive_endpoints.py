@@ -193,7 +193,16 @@ async def delete_test_organization(
                                "cleared: %s", tenantId, exc)
                 refusal = _clear_refusal(name, None)
             if refusal:
-                await golive_test_org.restore(db, mark)
+                try:
+                    restored = await golive_test_org.restore(db, mark)
+                except Exception as exc:  # 86-SECURITY R3: a failed put-back counts as a slot already taken
+                    logger.error("autonomous_ops: the test mark for %s could not be put back: %s", tenantId, exc)
+                    restored = False
+                if not restored:
+                    # 86-SECURITY R1, R3: the mark is gone and a lift may have landed, so shadow mode goes back on;
+                    # an organization is never left lifted without the exemption that let it lift.
+                    actor = await views.actor_for(db, await views.build_caller(user))
+                    await ao_settings.set_shadow(db, tenantId, True, actor=actor)
                 raise HTTPException(status_code=409, detail=refusal)
             await _audit_test_org("autonomous_ops.golive_test_org_cleared", user, tenantId, name)
         return {"testOrganization": None}

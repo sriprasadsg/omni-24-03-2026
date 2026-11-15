@@ -255,6 +255,27 @@ async def test_clearing_is_refused_when_the_stored_shadow_flag_is_not_a_boolean(
     assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
 
 
+@pytest.mark.parametrize("failure", ["taken", "raises"])
+async def test_a_mark_that_cannot_be_put_back_turns_shadow_mode_back_on(named, audit, monkeypatch, failure):
+    """protects=86-SECURITY R1 (another organization took the slot) and R3 (the put-back raised); fails_when=a lift
+    that landed during the clear is left standing with no mark, or the refusal becomes a 503."""
+    assert (await _mark(named)).status_code == 201
+    real_clear = golive_test_org.clear
+
+    async def clear_then_lift(db, tenant_id):
+        removed = await real_clear(db, tenant_id)
+        await db.autonomy_settings.update_one({"tenantId": tenant_id}, {"$set": {"shadow": False}})
+        return removed
+
+    restore = AsyncMock(return_value=False) if failure == "taken" else AsyncMock(side_effect=RuntimeError("db"))
+    monkeypatch.setattr(golive_test_org, "clear", clear_then_lift)
+    monkeypatch.setattr(golive_test_org, "restore", restore)
+    refused = await _clear(named)
+    assert refused.status_code == 409
+    assert await _own_flag(named.db) is True
+    assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+
+
 async def test_a_lift_that_lands_during_the_clear_puts_the_mark_back(named, audit, monkeypatch):
     """protects=PROH-86-14 race; fails_when=the shadow flag went off between the check and the delete and the
     mark stays removed, is put back changed, or the clear is audited."""
