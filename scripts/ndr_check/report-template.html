@@ -6,6 +6,8 @@
   Paste plain text only. In pasted values, write &amp; for &, &lt; for < and &gt; for >.
   If no unlisted address triggered a rule, say so in the headline:
   "No rule fired for an unlisted address in these 7 days. That is not proof that no unlisted device exists."
+  Fill the unlisted table from UNLISTED DEVICES only. ADDRESSES ONLY SEEN AS TARGETS go in the count below it,
+  never in the table: a scan of a /24 makes about 254 of them, most with nothing behind them.
 -->
 <html lang="en">
 <head>
@@ -34,11 +36,13 @@
 <p class="headline">{{INTERNAL_ONLY_ALERTS}} alerts were between two addresses inside your network.
 A perimeter firewall may not see this traffic: {{TOPOLOGY_NOTE}}</p>
 
-<h2>Addresses not in your asset list</h2>
+<h2>Devices not in your asset list</h2>
 <table>
   <tr><th>Address</th><th>What was seen</th><th>Talked to</th><th>First and last seen</th></tr>
   <tr><td>{{ADDRESS}}</td><td>{{SIGNATURES}}</td><td>{{PEERS}}</td><td>{{FIRST_LAST}}</td></tr>
 </table>
+<p>{{TARGET_ONLY_ADDRESSES}} more unlisted addresses were only the targets of a scan or probe. They are not
+counted as devices, and there may be nothing behind them.</p>
 
 <h2>Alerts on your listed devices</h2>
 <table>
