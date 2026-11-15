@@ -1,5 +1,8 @@
-"""DLP export scan (Phase 86 review CR-01): a block policy must fire wherever its match sits in the export,
-on the characters the admin wrote, and however many policies the tenant has."""
+"""DLP export scan (Phase 86 review CR-01, WR-03): a block policy must fire wherever its match sits in the
+export, on the characters the admin wrote, and however many policies the tenant has; an admin pattern never
+runs without a timeout."""
+import os
+import time
 from types import SimpleNamespace
 
 import dlp_service
@@ -88,6 +91,29 @@ def test_a_built_in_key_seen_in_two_chunks_is_reported_once():
     _, alerting = dlp_service._scan_export_rows(rows, [], limit=60)
 
     assert [f["type"] for f in alerting] == ["AWS_KEY"]
+
+
+def test_a_backtracking_pattern_times_out_and_fails_closed():
+    started = time.monotonic()
+
+    # The regex module defuses (a+)+$; this one still backtracks exponentially on it (measured 2026-11-15).
+    blocking, _ = dlp_service._scan_export_rows([{"v": "a" * 40 + "b"}], [_block("slow", r"(a|aa)+$")])
+
+    assert [(f["type"], f["policy_id"]) for f in blocking] == [("POLICY_UNEVALUATED", "slow")]
+    assert time.monotonic() - started < 5
+
+
+def test_without_the_regex_module_a_block_policy_fails_closed_instead_of_running_unbounded(monkeypatch):
+    monkeypatch.setattr(dlp_service, "_policy_re", None)
+
+    blocking, _ = dlp_service._scan_export_rows([{"v": "SECRET"}], [_block("b", r"SECRET")])
+
+    assert [(f["type"], f["policy_id"]) for f in blocking] == [("POLICY_UNEVALUATED", "b")]
+
+
+def test_regex_is_a_declared_dependency():
+    with open(os.path.join(os.path.dirname(dlp_service.__file__), "requirements.txt"), encoding="utf-8") as handle:
+        assert any(line.split("#")[0].strip().startswith("regex>=") for line in handle)
 
 
 def test_chunks_split_only_between_rows_and_keep_every_row():

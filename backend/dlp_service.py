@@ -15,9 +15,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from database import get_database
 
-try:  # admin-written policy patterns run with a timeout when the regex module is present
+try:  # admin-written policy patterns run only with the regex module's timeout (a requirements.txt entry)
     import regex as _policy_re
-except ImportError:  # pragma: no cover - the backend venv ships it
+except ImportError:  # pragma: no cover - without it every admin pattern counts as unevaluable
     _policy_re = None
 
 logger = logging.getLogger(__name__)
@@ -169,14 +169,14 @@ async def check_bulk_export(user_id: str, tenant_id: Optional[str], record_count
 
 
 def _policy_hits(pattern: Optional[str], text: str) -> Optional[bool]:
-    """Whether an admin-written pattern matches; None when it is invalid or runs too long."""
-    if not pattern:
+    """Whether an admin-written pattern matches; None when it is invalid, runs too long, or cannot be run
+    with a timeout. Plain re has no timeout and holds the GIL, so one backtracking pattern would stall
+    every tenant's requests (WR-03); without the regex module the pattern is unevaluable instead."""
+    if not pattern or _policy_re is None:
         return None
     try:
-        if _policy_re is not None:
-            return _policy_re.search(pattern, text, timeout=_POLICY_TIMEOUT_S) is not None
-        return re.search(pattern, text) is not None
-    except (TimeoutError, re.error, Exception):
+        return _policy_re.search(pattern, text, timeout=_POLICY_TIMEOUT_S) is not None
+    except Exception:
         return None
 
 
