@@ -27,7 +27,7 @@ from autonomous_ops import PLATFORM_TENANT_ID, settings as ao_settings, sweep, v
 from autonomous_ops.reporting import GOLIVE_CHECK_IDS, NOTE_MAX, NOTE_MIN, golive, golive_test_org
 from autonomous_ops.scope import raw
 from autonomous_ops_endpoints import _require_interactive_session, _unavailable
-from autonomous_ops_platform_endpoints import _require_platform_autonomy_control
+from autonomous_ops_platform_endpoints import _audit_shadow_change, _require_platform_autonomy_control
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -203,6 +203,9 @@ async def delete_test_organization(
                     # an organization is never left lifted without the exemption that let it lift.
                     actor = await views.actor_for(db, await views.build_caller(user))
                     await ao_settings.set_shadow(db, tenantId, True, actor=actor)
+                    # D-21: every restore is audited, this forced one included (eng review R2).
+                    await _audit_shadow_change(db, user, tenantId, True, golive.clock(),
+                                               reason="test_mark_not_restored")
                 raise HTTPException(status_code=409, detail=refusal)
             await _audit_test_org("autonomous_ops.golive_test_org_cleared", user, tenantId, name)
         return {"testOrganization": None}

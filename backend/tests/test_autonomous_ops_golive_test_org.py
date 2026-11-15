@@ -274,6 +274,9 @@ async def test_a_mark_that_cannot_be_put_back_turns_shadow_mode_back_on(named, a
     assert refused.status_code == 409
     assert await _own_flag(named.db) is True
     assert _events(audit, "autonomous_ops.golive_test_org_cleared") == []
+    restored = _events(audit, "autonomous_ops.shadow_restored")   # D-21: the forced restore is audited (R2)
+    assert len(restored) == 1 and restored[0].args[1] == "t1"
+    assert restored[0].kwargs["reason"] == "test_mark_not_restored" and restored[0].kwargs["shadow"] is True
 
 
 async def test_a_lift_that_lands_during_the_clear_puts_the_mark_back(named, audit, monkeypatch):

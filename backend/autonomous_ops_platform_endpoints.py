@@ -268,11 +268,14 @@ async def put_shadow(
         raise _unavailable(exc) from exc
 
 
-async def _audit_shadow_change(db, user, tenant: str, shadow: bool, now) -> None:
+async def _audit_shadow_change(db, user, tenant: str, shadow: bool, now, *, reason: str | None = None) -> None:
     """The audit event for a lift or a restore, in the organization's chain. The flag change stands even
-    when the event cannot be written."""
+    when the event cannot be written. ``reason`` names a change no person asked for directly (a restore
+    forced by a failed test-mark put-back)."""
     try:
         fields = {} if shadow else await golive.lift_evidence(db, tenant, now)
+        if reason:
+            fields = {**fields, "reason": reason}
         action = ("autonomous_ops.shadow_restored" if shadow
                   else "autonomous_ops.shadow_lifted")
         await audit_ledger.event(
