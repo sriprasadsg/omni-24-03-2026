@@ -76,7 +76,15 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
         setAdminName(''); setAdminEmail('');
     };
 
-    const handleClose = () => { reset(); onClose(); };
+    // The parent adds the organization to its list and closes the wizard on onComplete. It is told when the wizard
+    // closes, not when the last step is reached: the Done step (and an API key that is shown only once) stays on
+    // screen until then, and the next time the wizard opens it starts empty.
+    const handleClose = () => {
+        const made = createdTenant;
+        reset();
+        if (made) onComplete(made);
+        onClose();
+    };
 
     const handleCreateTenant = async () => {
         if (!tenantName.trim()) { setError('Organization name is required'); return; }
@@ -118,13 +126,12 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
             const result = await generateApiKey(createdTenant?.id, `${tenantName}-agent-key`, 'wizard');
             setCreatedApiKey(result.key || result.api_key || result.value || JSON.stringify(result));
             setStep('done');
-            onComplete(createdTenant);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to generate API key');
         } finally { setBusy(false); }
     };
 
-    const handleSkipKey = () => { setError(null); setStep('done'); onComplete(createdTenant); };
+    const handleSkipKey = () => { setError(null); setStep('done'); };
 
     const copyKey = () => {
         if (!createdApiKey) return;

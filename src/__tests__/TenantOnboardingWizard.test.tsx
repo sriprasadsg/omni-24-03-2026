@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const addTenant = vi.fn();
+const generateApiKey = vi.fn();
 vi.mock('../../services/apiService', () => ({
   addTenant: (...args: unknown[]) => addTenant(...args),
   addUser: vi.fn(),
-  generateApiKey: vi.fn(),
+  generateApiKey: (...args: unknown[]) => generateApiKey(...args),
 }));
 
 import { TenantOnboardingWizard } from '../../components/TenantOnboardingWizard';
@@ -22,7 +23,7 @@ const fillName = (name: string) => fireEvent.change(screen.getByPlaceholderText(
 const plan = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
 const create = () => fireEvent.click(screen.getByRole('button', { name: /Create Organization/ }));
 
-beforeEach(() => { addTenant.mockReset(); addTenant.mockResolvedValue({ id: 't0', name: 'x' }); });
+beforeEach(() => { addTenant.mockReset(); addTenant.mockResolvedValue({ id: 't0', name: 'x' }); generateApiKey.mockReset(); });
 afterEach(cleanup);
 
 describe('TenantOnboardingWizard plan step (UI-SPEC S3)', () => {
@@ -122,5 +123,65 @@ describe('TenantOnboardingWizard plan step (UI-SPEC S3)', () => {
     fireEvent.click(container.firstChild as HTMLElement);
     expect(onClose).toHaveBeenCalled();
     expect(plan('Free').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+/**
+ * The parent closes the wizard on onComplete, so the wizard reports the new organization when it closes. Reporting
+ * it on reaching the last step hid the Done step, and a generated key with it, until Add New Tenant was pressed again.
+ * no_claim=the parent (App) and the real API (apiService is mocked).
+ */
+describe('TenantOnboardingWizard Done step', () => {
+  const toKeyStep = async (tenant: { id: string; name: string }) => {
+    addTenant.mockResolvedValue(tenant);
+    fillName(tenant.name);
+    create();
+    await waitFor(() => screen.getByText(/Add a first admin user/));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+  };
+
+  it('stays on Setup Complete after the last step and reports the organization once, on Close', async () => {
+    const onComplete = vi.fn();
+    const onClose = vi.fn();
+    open({ onComplete, onClose });
+    await toKeyStep({ id: 't9', name: 'Acme' });
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(screen.getByText('Setup Complete!')).toBeTruthy();
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith({ id: 't9', name: 'Acme' });
+    expect(onClose).toHaveBeenCalled();
+    // The next organization starts from an empty form, not from this one's Done step.
+    expect(screen.queryByText('Setup Complete!')).toBeNull();
+    expect((screen.getByPlaceholderText('Acme Corp') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Test organization') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('shows a generated API key before it reports the organization', async () => {
+    generateApiKey.mockResolvedValue({ key: 'omni_key_shown_once' });
+    const onComplete = vi.fn();
+    open({ onComplete });
+    await toKeyStep({ id: 't10', name: 'Globex' });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Key' }));
+    await waitFor(() => screen.getByText('omni_key_shown_once'));
+    expect(screen.getByText('Setup Complete!')).toBeTruthy();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('reports an organization that was created even when the wizard is closed before the last step', async () => {
+    const onComplete = vi.fn();
+    const { container } = open({ onComplete });
+    await toKeyStep({ id: 't11', name: 'Initech' });
+    fireEvent.click(container.firstChild as HTMLElement);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith({ id: 't11', name: 'Initech' });
+  });
+
+  it('reports nothing when no organization was created', () => {
+    const onComplete = vi.fn();
+    const { container } = open({ onComplete });
+    fireEvent.click(container.firstChild as HTMLElement);
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });
