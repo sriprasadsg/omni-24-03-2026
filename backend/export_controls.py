@@ -3,8 +3,10 @@
 Each signed-in user gets a daily export allowance (count and size, reset at 00:00 UTC);
 every successful export is written to the audit ledger; and the user's exports in the last
 10 minutes are checked for a bulk export, which opens a DLP incident (dlp_service).
-Agent tokens and requests without a valid token pass through untouched, so the route
-itself answers them (401/403).
+A request with no bearer token but a valid X-API-Key counts against the key owner's
+allowance (a legacy tenant key against its tenant's "api-key" identity). Agent tokens and
+requests without valid credentials pass through untouched, so the route itself answers
+them (401/403).
 """
 import json
 import logging
@@ -38,11 +40,30 @@ DAILY_BYTES = int(float(os.getenv("EXPORT_DAILY_MB_PER_USER", "500")) * 1024 * 1
 _usage_index_ready = False
 
 
-def _caller(scope) -> Optional[Dict[str, Any]]:
-    """The signed-in user behind a bearer token; None for agents and missing/invalid tokens."""
-    token = bearer_token(next((v.decode("latin-1") for k, v in scope.get("headers") or [] if k == b"authorization"), ""))
-    if not token:
+def _header(scope, name: bytes) -> str:
+    return next((v.decode("latin-1") for k, v in scope.get("headers") or [] if k == name), "")
+
+
+async def _api_key_caller(api_key: str) -> Optional[Dict[str, Any]]:
+    """The owner behind a valid X-API-Key, resolved the way the routes resolve it (WR-01)."""
+    try:
+        from api_key_auth import resolve_api_key
+        found = await resolve_api_key(api_key)
+    except Exception as exc:  # the route resolves the key again and answers for itself
+        logger.error("Export caller lookup by API key failed: %s", exc)
         return None
+    if found is None or not found.username:
+        return None
+    return {"email": found.username, "role": found.role, "tenantId": found.tenant_id}
+
+
+async def _caller(scope) -> Optional[Dict[str, Any]]:
+    """The signed-in user behind a bearer token, else the owner of a valid X-API-Key; None for agents
+    and missing or invalid credentials."""
+    token = bearer_token(_header(scope, b"authorization"))
+    if not token:
+        api_key = _header(scope, b"x-api-key").strip()
+        return await _api_key_caller(api_key) if api_key else None
     try:
         import jwt
         from authentication_service import ALGORITHM, SECRET_KEY, is_agent_payload
@@ -110,7 +131,7 @@ class ExportControlMiddleware:
         if (scope["type"] != "http" or scope.get("method") not in ("GET", "POST")
                 or not EXPORT_PATHS.match(scope.get("path", ""))):
             return await self.app(scope, receive, send)
-        who = _caller(scope)
+        who = await _caller(scope)
         if who is None:
             return await self.app(scope, receive, send)
 

@@ -254,32 +254,39 @@ class APIKeyService:
 api_key_service = APIKeyService()
 
 
+async def resolve_api_key(api_key: str) -> Optional[TokenData]:
+    """The caller behind an X-API-Key value, or None when it is not a valid key. It leaves the request's
+    tenant context alone, so the export middleware can identify an API-key caller before the route runs
+    (Phase 86 review WR-01)."""
+    # New user-scoped tokens (ITAM-USR-05) — tried first.
+    token_data = await api_key_service.authenticate(api_key)
+    if token_data is not None:
+        return token_data
+
+    # Legacy tenant-scoped keys (tenant_endpoints.py generate_api_key) —
+    # unchanged fallback so already-issued tenant keys keep working.
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    tenant_doc = await mongodb.db.tenants.find_one({"apiKeys.keyHash": key_hash}, {"id": 1, "apiKeys.$": 1})
+    if not tenant_doc:
+        return None
+
+    # Check if the key is revoked (apiKeys.$ operator ensures we only get the matched element)
+    matched_key = tenant_doc["apiKeys"][0] if "apiKeys" in tenant_doc and tenant_doc["apiKeys"] else None
+    if not matched_key or matched_key.get("revoked", False):
+        return None
+    return TokenData(tenant_id=tenant_doc["id"], role="api-integration", username="api-key")
+
+
 async def get_current_user_or_api_key(
     api_key: Optional[str] = Security(_api_key_header),
     token: Optional[str] = Depends(_oauth2_optional)
 ) -> TokenData:
     if api_key:
-        # New user-scoped tokens (ITAM-USR-05) — tried first.
-        token_data = await api_key_service.authenticate(api_key)
-        if token_data is not None:
-            set_tenant_id(token_data.tenant_id or "platform-admin")
-            return token_data
-
-        # Legacy tenant-scoped keys (tenant_endpoints.py generate_api_key) —
-        # unchanged fallback so already-issued tenant keys keep working.
-        key_hash = hashlib.sha256(api_key.encode()).hexdigest()
-        tenant_doc = await mongodb.db.tenants.find_one({"apiKeys.keyHash": key_hash}, {"id": 1, "apiKeys.$": 1})
-
-        if not tenant_doc:
+        token_data = await resolve_api_key(api_key)
+        if token_data is None:
             raise HTTPException(status_code=401, detail="Invalid or expired API Key")
-
-        # Check if the key is revoked (apiKeys.$ operator ensures we only get the matched element)
-        matched_key = tenant_doc["apiKeys"][0] if "apiKeys" in tenant_doc and tenant_doc["apiKeys"] else None
-        if not matched_key or matched_key.get("revoked", False):
-             raise HTTPException(status_code=401, detail="Invalid or expired API Key")
-
-        set_tenant_id(tenant_doc["id"])
-        return TokenData(tenant_id=tenant_doc["id"], role="api-integration", username="api-key")
+        set_tenant_id(token_data.tenant_id or "platform-admin")
+        return token_data
     elif token:
         return await verify_token_async(token, allow_agent=False)
     else:
