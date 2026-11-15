@@ -116,6 +116,21 @@ def test_regex_is_a_declared_dependency():
         assert any(line.split("#")[0].strip().startswith("regex>=") for line in handle)
 
 
+def test_two_different_keys_with_the_same_redacted_form_are_two_findings():
+    """Eng review R4: repeats across chunks are dropped on the full value, not on the redacted one."""
+    rows = [{"v": "AKIAAAAAAAAAAAAAAAZZ"}, {"pad": "x" * 80}, {"v": "AKIABBBBBBBBBBBBBBZZ"}]
+
+    _, alerting = dlp_service._scan_export_rows(rows, [], limit=60)
+
+    assert [f["type"] for f in alerting] == ["AWS_KEY", "AWS_KEY"]
+    assert len({f["redacted_value"] for f in alerting}) == 1
+
+
+def test_only_the_two_kept_built_in_checks_run_on_an_export():
+    assert sorted(p["type"] for p in dlp_service._EXPORT_BUILTIN_PATTERNS) == ["AWS_KEY", "PRIVATE_KEY"]
+    assert dlp_service._scan_export_rows([{"ssn": "123-45-6789", "mail": "a@example.test"}], []) == ([], [])
+
+
 def test_chunks_split_only_between_rows_and_keep_every_row():
     rows = [{"i": i, "v": "y" * 30} for i in range(10)]
 

@@ -78,13 +78,18 @@ def scan_text_for_pii(text: str) -> list[dict]:
             key = f"{pattern_def['type']}:{hashlib.sha256(value.encode()).hexdigest()[:16]}"
             if key not in seen:
                 seen.add(key)
-                findings.append({
-                    "type": pattern_def["type"],
-                    "name": pattern_def["name"],
-                    "severity": pattern_def["severity"],
-                    "redacted_value": value[:4] + "****" + value[-2:] if len(value) > 6 else "****",
-                })
+                findings.append(_pii_finding(pattern_def, value))
     return findings
+
+
+def _pii_finding(pattern_def: dict, value: str) -> dict:
+    """One finding for a matched value; only its redacted form is kept."""
+    return {
+        "type": pattern_def["type"],
+        "name": pattern_def["name"],
+        "severity": pattern_def["severity"],
+        "redacted_value": value[:4] + "****" + value[-2:] if len(value) > 6 else "****",
+    }
 
 
 def classify_sensitivity(text: str) -> str:
@@ -140,6 +145,7 @@ BULK_EXPORT_BYTES = int(float(os.getenv("DLP_BULK_EXPORT_MB", "50")) * 1024 * 10
 # Built-in patterns precise enough to apply to every export (the SSN/phone/date ones match
 # ordinary numbers in audit logs and inventories, so they stay on the file scanner only).
 _EXPORT_BUILTIN_TYPES = frozenset({"AWS_KEY", "PRIVATE_KEY"})
+_EXPORT_BUILTIN_PATTERNS = tuple(p for p in PII_PATTERNS if p["type"] in _EXPORT_BUILTIN_TYPES)
 _EXPORT_SCAN_MAX_CHARS = 2_000_000  # size of one export-scan chunk; every chunk is scanned
 _POLICY_TIMEOUT_S = 0.5
 _export_index_ready = False
@@ -224,11 +230,13 @@ def _scan_export_rows(rows: list, policies: list, limit: int = _EXPORT_SCAN_MAX_
                 finding["type"], finding["name"] = "POLICY_UNEVALUATED", f"{finding['name']} (could not be evaluated)"
             (blocking if policy.get("action") == "block" else alerting).append(finding)
         pending = still_pending
-        for finding in scan_text_for_pii(text):
-            key = (finding["type"], finding["redacted_value"])
-            if finding["type"] in _EXPORT_BUILTIN_TYPES and key not in builtin_seen:
-                builtin_seen.add(key)
-                alerting.append(finding)
+        for pattern_def in _EXPORT_BUILTIN_PATTERNS:      # only the kept checks run (eng review R4)
+            for match in re.findall(pattern_def["pattern"], text):
+                value = match if isinstance(match, str) else match[0]
+                key = (pattern_def["type"], value)        # the full value, in memory only: never stored or logged
+                if key not in builtin_seen:               # two keys with one redacted form are two findings
+                    builtin_seen.add(key)
+                    alerting.append(_pii_finding(pattern_def, value))
     return blocking, alerting
 
 
