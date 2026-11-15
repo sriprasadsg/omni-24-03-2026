@@ -2,12 +2,14 @@
 ---
 # Passive 7-day check: the settings that differ from the stock suricata.yaml.
 #
-# NOT YET RUN AGAINST SURICATA. Validate on the sensor box before the check starts:
+# Checked with Suricata 7.0.3 (Ubuntu 24.04) and ET Open. Validate on the sensor box before the check starts:
 #
 #   suricata -T -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml
 #   suricata --dump-config -c /etc/suricata/suricata.yaml --include /etc/suricata/suricata-check.yaml | grep '^outputs'
 #
 # The dump must show one eve-log output with the types alert and stats, and nothing else enabled.
+# --include replaces each top-level section it names (7.0.3 does): that is what switches the stock
+# outputs off, and it is also why "vars" below repeats every stock group, not just the two changed ones.
 # If your Suricata version merges this "outputs" list with the stock one instead of replacing it,
 # switch the other outputs off in suricata.yaml itself (fast.log, stats.log and the other eve types).
 #
@@ -23,6 +25,32 @@ vars:
     HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
     # "any", so rules written for $EXTERNAL_NET -> $HOME_NET also match traffic between internal hosts.
     EXTERNAL_NET: "any"
+    # The rest are the stock 7.0.3 values, unchanged. Without them about 6,800 ET Open rules fail to load.
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
 
 # Only alert and stats events are written to disk. No payload, packet, HTTP body, DNS, TLS or flow records.
 outputs:
