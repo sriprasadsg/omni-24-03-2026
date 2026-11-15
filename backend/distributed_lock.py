@@ -115,10 +115,11 @@ async def lock_with_renewal(db, name: str, ttl_seconds: int = DEFAULT_LOCK_TTL_S
     finally:
         task.cancel()
         try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        try:
-            await release_lock(db, name, token)
-        except Exception as exc:
-            logger.warning("[distributed_lock] releasing %s failed (TTL will expire it): %s", name, exc)
+            # gather() turns the renew task's own cancellation into a result; a cancellation of the
+            # caller that lands while it waits here is raised, so a loop being shut down really stops.
+            await asyncio.gather(task, return_exceptions=True)
+        finally:
+            try:
+                await release_lock(db, name, token)
+            except Exception as exc:
+                logger.warning("[distributed_lock] releasing %s failed (TTL will expire it): %s", name, exc)
