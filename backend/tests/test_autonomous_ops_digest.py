@@ -292,6 +292,39 @@ async def test_a_row_verified_after_the_window_is_counted_once_on_the_day_it_ran
     assert [i.id for i in ran.items] == [row["id"]] and next_day.total == 0
 
 
+async def test_the_run_time_is_written_once_and_survives_verify_undo_and_a_failed_undo(world):
+    """Eng review R3: ranAt is stamped when an action first becomes done and nothing later moves it, so a failed
+    undo days later no longer makes the digest count the action as having run that day."""
+    from autonomous_ops import ledger
+    await _ready(world, "t1")
+    row = await seed(world, "t1", "block_ip", "dispatching")
+    assert await ledger.transition(world, "t1", row["id"], ("dispatching",), "executed") is not None
+    first = (await world.autonomy_actions.find_one({"id": row["id"]}))["ranAt"]
+    assert first is not None
+
+    for move in ((("executed",), "verified"), (("verified",), "undone"), (("undone",), "verified")):
+        assert await ledger.transition(world, "t1", row["id"], *move) is not None
+    stored = await world.autonomy_actions.find_one({"id": row["id"]})
+    assert stored["ranAt"] == first and stored["finishedAt"] > first
+
+
+async def test_a_failed_undo_on_a_later_day_does_not_count_the_action_as_ran_again(world):
+    from autonomous_ops import ledger
+    await _ready(world, "t1")
+    row = await seed(world, "t1", "block_ip", "executed", finished=_at(6, 55))
+    await world.autonomy_actions.update_one({"id": row["id"]}, {"$set": {"ranAt": _at(6, 55)}})
+
+    assert await ledger.transition(world, "t1", row["id"], ("executed",), "undone") is not None
+    assert await ledger.transition(world, "t1", row["id"], ("undone",), "executed") is not None   # the undo failed
+
+    ran, _, _, _ = await digest.gather(world, "t1", DAY, NOW)
+    assert [i.id for i in ran.items] == [row["id"]] and ran.items[0].at.replace(tzinfo=UTC) == _at(6, 55)
+    today = datetime.now(UTC)
+    for day in (today, today + timedelta(days=1)):        # whichever digest window holds the failed undo
+        later, _, _, _ = await digest.gather(world, "t1", day.strftime("%Y-%m-%d"), day)
+        assert later.total == 0
+
+
 async def test_an_undo_still_stamps_the_time_it_was_undone(world):
     from autonomous_ops import ledger
     await _ready(world, "t1")

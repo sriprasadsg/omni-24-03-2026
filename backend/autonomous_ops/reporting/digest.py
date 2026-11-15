@@ -42,39 +42,45 @@ def window(day: str) -> Tuple[datetime, datetime]:
 
 
 async def ensure_indexes(db) -> None:
-    """The once-per-day claim index and the finishedAt index the window queries use (the same definition twice is a
-    no-op, so this is safe on every first pass)."""
+    """The once-per-day claim index and the finishedAt and ranAt indexes the window queries use (the same definition
+    twice is a no-op, so this is safe on every first pass)."""
     rdb = raw(db)
     await rdb[DIGESTS].create_index([("tenantId", 1), ("day", 1)], unique=True, name="digest_once_per_day")
     await rdb.autonomy_actions.create_index([("tenantId", 1), ("finishedAt", -1)], name="tenant_finished")
+    await rdb.autonomy_actions.create_index([("tenantId", 1), ("ranAt", -1)], name="tenant_ran")
 
 
-async def _group(db, tenant_id: str, flt: Dict[str, Any], by: str, now: datetime) -> Group:
-    """The count of rows matching ``flt`` and the newest DIGEST_SECTION_CAP of them as digest items."""
+async def _group(db, tenant_id: str, flt: Dict[str, Any], by: str, now: datetime, *, fallback: str = "") -> Group:
+    """The count of rows matching ``flt`` and the newest DIGEST_SECTION_CAP of them as digest items. ``fallback``
+    is the time field of a row that has no ``by`` field (rows written before ``ranAt`` existed sort after the
+    newer ones)."""
     rdb = raw(db)
     full = {"tenantId": tenant_id, "kind": {"$nin": list(EXCLUDED_KINDS)}, **flt}
     total = await rdb.autonomy_actions.count_documents(full)
     if not total:
         return Group(0, [])
-    found = rdb.autonomy_actions.find(full, {"_id": 0}).sort([(by, -1), ("id", -1)]).limit(DIGEST_SECTION_CAP)
+    found = rdb.autonomy_actions.find(full, {"_id": 0}).sort([(by, -1)] + ([(fallback, -1)] if fallback else []) + [("id", -1)]).limit(DIGEST_SECTION_CAP)
     rows = [ledger._normalize(r) async for r in found]
     hosts = await views._host_names(db, tenant_id, rows)
     items: List[DigestItem] = []
     for row in rows:
         shown = views.present_row(row, viewer_is_platform_staff=False, now=now,
                                   host=hosts.get(str(row["targets"][0])) if row.get("targets") else None)
-        items.append(DigestItem(id=str(row.get("id")), at=row.get(by), action_label=shown.get("actionLabel") or "",
+        items.append(DigestItem(id=str(row.get("id")), at=row.get(by) or row.get(fallback or by), action_label=shown.get("actionLabel") or "",
                                 target=shown.get("host") or shown.get("target"), rule_id=shown.get("ruleId"),
                                 command=row.get("command")))
     return Group(total, items)
 
 
 async def gather(db, tenant_id: str, day: str, now: datetime) -> Tuple[Group, Group, Group, Group]:
-    """(ran, undone, waiting, simulation) for one organization. Ran and undone are by finishedAt in the window,
+    """(ran, undone, waiting, simulation) for one organization. Ran is by ranAt in the window (the write-once time
+    an action first became done; finishedAt for a row from before that field), undone by finishedAt in the window,
     simulation by createdAt in the window, waiting is the screen's own Needs your decision set at ``now``."""
     start, end = window(day)
     span = {"$gte": start, "$lt": end}
-    ran = await _group(db, tenant_id, {"state": {"$in": list(DONE_STATES)}, "finishedAt": span}, "finishedAt", now)
+    ran_when = [{"ranAt": span}, {"ranAt": None, "finishedAt": span}]     # None matches a missing field too
+    ran = await _group(db, tenant_id, {"state": {"$in": list(DONE_STATES)}, "$or": ran_when}, "ranAt", now,
+                       fallback="finishedAt")
     undone = await _group(db, tenant_id, {"state": {"$in": list(UNDONE_STATES)}, "finishedAt": span}, "finishedAt", now)
     waiting = await _group(db, tenant_id, {"$or": incident_views._waiting_filter(now)}, "createdAt", now)
     simulation = await _group(db, tenant_id, {"state": SHADOW_STATE, "createdAt": span}, "createdAt", now)

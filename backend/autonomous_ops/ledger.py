@@ -49,6 +49,10 @@ def _aware(value):
     return value.replace(tzinfo=timezone.utc) if isinstance(value, datetime) and value.tzinfo is None else value
 
 
+_RAN_STATES = ("executed", "verified")                         # reporting.DONE_STATES; kept here to avoid a cycle
+_ALREADY_RAN = frozenset(_RAN_STATES + ("undone", "rolled_back"))
+
+
 def _normalize(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Datetimes come back naive from a default Motor client; make them aware (UTC)."""
     if doc is None:
@@ -108,6 +112,8 @@ async def create_intent(db, row: Dict[str, Any]) -> Dict[str, Any]:
     doc.setdefault("createdAt", now)
     doc.setdefault("updatedAt", doc["createdAt"])
     doc.setdefault("finishedAt", doc["createdAt"] if doc.get("state") in TERMINAL_STATES else None)
+    if doc.get("state") in _RAN_STATES:
+        doc.setdefault("ranAt", doc["createdAt"])
     try:
         await _actions(db).insert_one(doc)
     except DuplicateKeyError:
@@ -124,6 +130,7 @@ async def transition(db, tenant_id: str, action_id: str, from_states: Iterable[s
     """Move a row from one of ``from_states`` to ``to_state`` in one atomic update. Returns the
     updated row, or None when no row matched (lost the race, wrong state or wrong tenant).
     Exactly one audit event is written per successful change."""
+    from_states = tuple(from_states)
     flt: Dict[str, Any] = {"id": action_id, "tenantId": tenant_id, "state": {"$in": list(from_states)}}
     if where:
         flt.update(where)
@@ -135,7 +142,14 @@ async def transition(db, tenant_id: str, action_id: str, from_states: Iterable[s
     verifies_only = to_state == "verified" and set(from_states) <= {"executed"}
     if to_state in TERMINAL_STATES and not verifies_only:
         sets.setdefault("finishedAt", now)
-    doc = await _actions(db).find_one_and_update(flt, {"$set": sets}, return_document=ReturnDocument.AFTER)
+    update: Dict[str, Any] = {"$set": sets}
+    if to_state in _RAN_STATES and not set(from_states) & _ALREADY_RAN:
+        # ranAt is when the action first became done, written once ($min keeps the earliest) and never moved by a
+        # later verification, undo or failed undo; the digest counts "ran" by it (eng review R3). A row coming
+        # back from a state that means it already ran is not stamped, so a row from before this field keeps
+        # falling back to finishedAt.
+        update["$min"] = {"ranAt": now}
+    doc = await _actions(db).find_one_and_update(flt, update, return_document=ReturnDocument.AFTER)
     if doc is None:
         return None
     doc = _normalize(doc)
