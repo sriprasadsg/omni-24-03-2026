@@ -140,7 +140,7 @@ BULK_EXPORT_BYTES = int(float(os.getenv("DLP_BULK_EXPORT_MB", "50")) * 1024 * 10
 # Built-in patterns precise enough to apply to every export (the SSN/phone/date ones match
 # ordinary numbers in audit logs and inventories, so they stay on the file scanner only).
 _EXPORT_BUILTIN_TYPES = frozenset({"AWS_KEY", "PRIVATE_KEY"})
-_EXPORT_SCAN_MAX_CHARS = 2_000_000
+_EXPORT_SCAN_MAX_CHARS = 2_000_000  # size of one export-scan chunk; every chunk is scanned
 _POLICY_TIMEOUT_S = 0.5
 _export_index_ready = False
 
@@ -188,30 +188,59 @@ def validate_policy_pattern(pattern: str) -> None:
         raise ValueError(f"Invalid pattern: {exc}") from exc
 
 
-def _scan_export_text(text: str, policies: list) -> tuple:
-    blocking, alerting = [], []
-    for policy in policies:
-        hit = _policy_hits(policy.get("pattern"), text)
-        if not hit and not (hit is None and policy.get("action") == "block"):
-            continue
-        finding = {"type": "POLICY", "name": policy.get("name") or "DLP policy",
-                   "severity": policy.get("severity", "medium"), "policy_id": policy.get("policy_id")}
-        if hit is None:  # a block policy that cannot be evaluated blocks (fail closed)
-            finding["type"], finding["name"] = "POLICY_UNEVALUATED", f"{finding['name']} (could not be evaluated)"
-        (blocking if policy.get("action") == "block" else alerting).append(finding)
-    alerting += [f for f in scan_text_for_pii(text) if f["type"] in _EXPORT_BUILTIN_TYPES]
+def _export_chunks(rows: list, limit: int = _EXPORT_SCAN_MAX_CHARS):
+    """The rows as JSON lines with their original characters, in chunks of about ``limit`` characters.
+    Chunks split only between rows, so a pattern inside one row is never cut in two."""
+    buf, size = [], 0
+    for row in rows:
+        line = json.dumps(row, default=str, ensure_ascii=False)
+        if buf and size + len(line) > limit:
+            yield "\n".join(buf)
+            buf, size = [], 0
+        buf.append(line)
+        size += len(line) + 1
+    if buf:
+        yield "\n".join(buf)
+
+
+def _scan_export_rows(rows: list, policies: list, limit: int = _EXPORT_SCAN_MAX_CHARS) -> tuple:
+    """(blocking, alerting) over every chunk of the rows (CR-01: nothing past the first 2 MB used to be
+    scanned). A policy is settled by its first hit, or by a pattern that cannot be evaluated, and is not
+    run again, so each finding is reported once and a slow pattern times out at most once per export."""
+    blocking, alerting, builtin_seen = [], [], set()
+    pending = list(policies)
+    for text in _export_chunks(rows, limit):
+        still_pending = []
+        for policy in pending:
+            hit = _policy_hits(policy.get("pattern"), text)
+            if hit is False:
+                still_pending.append(policy)
+                continue
+            if hit is None and policy.get("action") != "block":
+                continue  # an alert policy that cannot be evaluated raises nothing, as before
+            finding = {"type": "POLICY", "name": policy.get("name") or "DLP policy",
+                       "severity": policy.get("severity", "medium"), "policy_id": policy.get("policy_id")}
+            if hit is None:  # a block policy that cannot be evaluated blocks (fail closed)
+                finding["type"], finding["name"] = "POLICY_UNEVALUATED", f"{finding['name']} (could not be evaluated)"
+            (blocking if policy.get("action") == "block" else alerting).append(finding)
+        pending = still_pending
+        for finding in scan_text_for_pii(text):
+            key = (finding["type"], finding["redacted_value"])
+            if finding["type"] in _EXPORT_BUILTIN_TYPES and key not in builtin_seen:
+                builtin_seen.add(key)
+                alerting.append(finding)
     return blocking, alerting
 
 
 async def scan_export(rows: list, tenant_id: Optional[str]) -> tuple:
-    """(blocking, alerting) findings for exported rows: the tenant's enabled DLP policies plus
-    the precise built-in patterns. Runs off the event loop; admin patterns have a timeout."""
-    text = "\n".join(json.dumps(r, default=str) for r in rows)[:_EXPORT_SCAN_MAX_CHARS]
+    """(blocking, alerting) findings for exported rows: every enabled DLP policy of the tenant, with no
+    cap on how many, plus the precise built-in patterns, over every row. Runs off the event loop; admin
+    patterns have a timeout."""
     policies = []
     if tenant_id:
         policies = await get_database()._db.dlp_policies.find(
-            {"tenant_id": tenant_id, "enabled": True}, {"_id": 0}).to_list(100)
-    return await asyncio.to_thread(_scan_export_text, text, policies)
+            {"tenant_id": tenant_id, "enabled": True}, {"_id": 0}).to_list(None)
+    return await asyncio.to_thread(_scan_export_rows, rows, policies)
 
 
 async def record_export_incident(user_id: str, tenant_id: Optional[str], source: str,
