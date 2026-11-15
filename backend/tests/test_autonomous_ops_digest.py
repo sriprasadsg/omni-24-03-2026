@@ -4,7 +4,7 @@ Value: protects=each organization's admins get one honest digest a day (what ran
 for approval, and, kept apart, what shadow mode would have done), only they can read it, and a restart, a
 second worker or a failing mail server never makes it a second one; fails_when=a count or section differs from
 the screen, a simulation item is counted as ran, the notice reaches on-call, the platform feed or a reader the
-tenant_admins audience does not admit, a quiet day sends something, or one day sends twice; no_claim=real mail
+autonomous_ops_admins audience does not admit, a quiet day sends something, or one day sends twice; no_claim=real mail
 (email_service.send_email is always a mock), the live database and the live backend.
 
 Real-MongoDB cases use the throwaway database of tests/_mongo_test_db.py (set MONGO_TEST_URL, MONGODB_URL and
@@ -323,7 +323,7 @@ async def test_the_digest_counts_the_organizations_rows_and_stores_one_notice_fo
     assert notices[0]["title"] == "Autonomous Ops daily digest" and notices[0]["severity"] == "info"
     meta = notices[0]["metadata"]
     assert meta["source"] == "autonomous_ops" and meta["event"] == "autonomous_ops.daily_digest"
-    assert meta["audience"] == "tenant_admins" and meta["day"] == DAY
+    assert meta["audience"] == "autonomous_ops_admins" and meta["day"] == DAY
     assert meta["counts"] == {"ran": 2, "undone": 1, "waiting": 1, "simulation": 3}
     assert "Ran (3)" not in notices[0]["message"]            # PROH-86-02: simulation is never counted as ran
     assert [n async for n in world.notifications.find({"tenantId": "platform-admin"})] == []
@@ -333,7 +333,9 @@ async def test_the_digest_counts_the_organizations_rows_and_stores_one_notice_fo
     assert claim["state"] == "sent" and claim["counts"] == meta["counts"] and claim["sentAt"]
 
 
-async def test_the_notice_is_read_only_by_users_the_tenant_admins_audience_admits(world):
+async def test_the_notice_is_read_only_by_admins_who_also_see_autonomous_ops(world):
+    """Review IN-05: manage:agents alone no longer reads the digest; it lists hosts and rules of a screen the reader
+    may not have."""
     await _ready(world, "t1")
     await seed(world, "t1", "block_ip", "executed", finished=_at(5))
     await digest.send_for_tenant(world, "t1", DAY, NOW)
@@ -345,7 +347,9 @@ async def test_the_notice_is_read_only_by_users_the_tenant_admins_audience_admit
         return await world.notifications.count_documents(query)
 
     assert await readable(["view:overview"]) == 0
-    assert await readable(["manage:agents"]) == 1
+    assert await readable(["manage:agents"]) == 0
+    assert await readable(["view:autonomous_ops"]) == 0
+    assert await readable(["manage:agents", "view:autonomous_ops"]) == 1
     assert await readable(["*"]) == 1
 
 
@@ -460,6 +464,20 @@ async def test_a_failing_email_never_blocks_the_notice(world, monkeypatch, how):
                                  patches=[patch.object(digest, "EMAIL_TIMEOUT", 0.05)])
     assert result == "sent" and len(await _notices(world, "t1")) == 1
     assert (await world[DIGESTS].find_one({"tenantId": "t1", "day": DAY}))["email"] == {"sent": 0, "failed": 2}
+
+
+async def test_a_digest_whose_notice_and_every_email_failed_is_recorded_as_failed(world, monkeypatch):
+    """Review IN-01: a digest that reached nobody is not recorded as sent; it is still never sent twice."""
+    await _ready(world, "t1")
+    await _admins(world)
+    await seed(world, "t1", "block_ip", "executed", finished=_at(5))
+    monkeypatch.setenv("FRONTEND_URL", FRONTEND)
+    _, result = await _with_mail(lambda: digest.send_for_tenant(world, "t1", DAY, NOW),
+                                 send=AsyncMock(return_value={"success": False}),
+                                 patches=[patch.object(digest, "_post_notice", AsyncMock(return_value=False))])
+    claim = await world[DIGESTS].find_one({"tenantId": "t1", "day": DAY})
+    assert result == "failed" and claim["state"] == "failed" and claim["email"] == {"sent": 0, "failed": 2}
+    assert await digest.send_for_tenant(world, "t1", DAY, NOW) == "already_claimed"
 
 
 @pytest.mark.parametrize("frontend,smtp", [("", SMTP), ("app.example", SMTP), (FRONTEND, None)])

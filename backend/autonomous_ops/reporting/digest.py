@@ -2,8 +2,9 @@
 
 ``send_for_tenant`` claims (tenantId, day) first (a unique index: at most once per organization and UTC day,
 across restarts and workers), counts what the last 24 hours held, and stays quiet when there is nothing to say.
-Otherwise it stores ONE in-app notice addressed to the organization's admins (the ``tenant_admins`` audience:
-only readers holding ``*`` or manage:agents see it) and emails the admin-role users when mail is configured.
+Otherwise it stores ONE in-app notice addressed to the organization's admins (the ``autonomous_ops_admins``
+audience: only readers holding ``*``, or manage:agents together with view:autonomous_ops, see it; review IN-05) and
+emails the admin-role users when mail is configured.
 It never uses the general notice helper or the pending-agents recipients fan-out: those page the on-call channel
 and copy into the platform feed, and a digest must reach neither.
 
@@ -93,9 +94,10 @@ async def _post_notice(db, tenant_id: str, message: str, meta: Dict[str, Any]) -
     """One notice for the organization's admins only (audience tag), never for on-call or the platform feed."""
     try:
         import pending_agents  # lazy: it imports other notice modules lazily too
+        from notification_audience import AUTONOMOUS_OPS_ADMINS_AUDIENCE
         await pending_agents._post_in_app(
             raw(db), tenant_id, text.notice_title(), message, "info",
-            {"source": "autonomous_ops", "event": EVENT, "audience": pending_agents.TENANT_ADMIN_AUDIENCE, **meta})
+            {"source": "autonomous_ops", "event": EVENT, "audience": AUTONOMOUS_OPS_ADMINS_AUDIENCE, **meta})
         return True
     except Exception as exc:
         logger.warning("autonomous_ops digest: the notice for %s was not stored: %s", tenant_id, type(exc).__name__)
@@ -160,9 +162,10 @@ async def _send_emails(db, tenant_id: str, day: str, sections, counts: Dict[str,
 
 
 async def send_for_tenant(db, tenant_id: str, day: str, now: datetime) -> str:
-    """One digest for one organization and UTC day: 'already_claimed', 'quiet' or 'sent' ('skipped' for the platform
-    organization). Claims first, so a restart, a retry or a second worker never sends a second one (at most once:
-    a crash between the claim and the notice loses that day's digest, and the claim stays 'claimed')."""
+    """One digest for one organization and UTC day: 'already_claimed', 'quiet', 'sent', or 'failed' when neither the
+    notice nor any email went out ('skipped' for the platform organization). Claims first, so a restart, a retry or a
+    second worker never sends a second one (at most once: a crash between the claim and the notice loses that day's
+    digest, and the claim stays 'claimed'; a failed one is recorded as such and not retried, review IN-01)."""
     if not tenant_id or tenant_id == PLATFORM_TENANT_ID:
         return "skipped"
     if not await _claim(db, tenant_id, day, now):
@@ -179,11 +182,12 @@ async def send_for_tenant(db, tenant_id: str, day: str, now: datetime) -> str:
         return "quiet"
     noticed = await _post_notice(db, tenant_id, text.notice_text(*sections), {"day": day, "counts": counts})
     emailed = await _send_emails(db, tenant_id, day, sections, counts)
+    state = "sent" if noticed or emailed.get("sent", 0) > 0 else "failed"
     try:
         await claims.update_one({"tenantId": tenant_id, "day": day}, {"$set": {
-            "state": "sent", "sentAt": datetime.now(timezone.utc), "counts": counts, "email": emailed,
+            "state": state, "sentAt": datetime.now(timezone.utc), "counts": counts, "email": emailed,
             "notice": noticed}})
     except Exception as exc:
         logger.warning("autonomous_ops digest: the record for %s on %s was not updated: %s", tenant_id, day,
                        type(exc).__name__)
-    return "sent"
+    return state
