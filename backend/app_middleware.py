@@ -181,6 +181,15 @@ _PAGE_SIZE_PARAMS = frozenset({"limit", "page_size", "per_page", "pageSize", "ma
 MAX_PAGE_SIZE = int(os.getenv("API_MAX_PAGE_SIZE", "2000"))
 
 
+def _over_page_cap(value: str) -> bool:
+    """True when ``value`` reads as a number above MAX_PAGE_SIZE. Anything int() cannot read ('²' passes
+    isdigit() but not int(), WR-02) is left for the route's own validation instead of raising here."""
+    try:
+        return int(value.strip()) > MAX_PAGE_SIZE
+    except ValueError:
+        return False
+
+
 class PageSizeCapMiddleware:
     """Clamp page-size query parameters to MAX_PAGE_SIZE: no list endpoint hands out more rows
     than that per request, including the ones whose own parameter declares no upper bound."""
@@ -192,8 +201,8 @@ class PageSizeCapMiddleware:
         query = scope.get("query_string") or b""
         if scope["type"] == "http" and query:
             pairs = parse_qsl(query.decode("latin-1"), keep_blank_values=True)
-            capped = [(k, str(MAX_PAGE_SIZE) if k in _PAGE_SIZE_PARAMS and v.strip().isdigit()
-                       and int(v) > MAX_PAGE_SIZE else v) for k, v in pairs]
+            capped = [(k, str(MAX_PAGE_SIZE) if k in _PAGE_SIZE_PARAMS and _over_page_cap(v) else v)
+                      for k, v in pairs]
             if capped != pairs:
                 scope = dict(scope, query_string=urlencode(capped).encode("latin-1"))
         await self.app(scope, receive, send)
