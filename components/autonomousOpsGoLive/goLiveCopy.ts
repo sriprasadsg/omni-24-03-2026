@@ -171,6 +171,9 @@ export const TEST_ORG_CANCEL = 'Cancel';
 export const TEST_ORG_KEEP = 'Keep test mark';
 export const TEST_ORG_MARKING = 'Marking...';
 export const TEST_ORG_CLEARING = 'Clearing...';
+/** The marked organization has no row (its Autonomous Ops screen is off or it was removed), review WR-05. */
+export const unlistedTestOrg = (name: string): string =>
+    `${name} is still the test organization, but it is not listed above because Autonomous Ops is off for it. Clear the mark to choose another organization.`;
 
 export const markTitle = (name: string): string => `Use ${name} as the go-live test organization?`;
 export const MARK_BODY =

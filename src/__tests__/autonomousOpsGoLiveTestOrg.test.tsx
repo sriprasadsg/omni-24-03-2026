@@ -103,6 +103,21 @@ describe('marking offers, with no test organization marked', () => {
   });
 });
 
+describe('a marked test organization with no row (review WR-05)', () => {
+  it('gets its own line with Clear test mark, which opens the clear dialog for it', async () => {
+    await renderExpanded([ACME], SANDBOX_MARK);
+    expect(screen.getByText(/Sandbox is still the test organization, but it is not listed above/)).toBeTruthy();
+    expect(within(orgRow('Acme')).queryByRole('button', { name: 'Use as test organization' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear test mark' }));
+    expect(screen.getByRole('dialog', { name: 'Clear the test mark on Sandbox?' })).toBeTruthy();
+  });
+
+  it('adds no extra line while the marked organization has its own row', async () => {
+    await renderExpanded([ACME, SANDBOX_ON], SANDBOX_MARK);
+    expect(screen.queryByText(/is still the test organization, but it is not listed above/)).toBeNull();
+  });
+});
+
 describe('a marked test organization', () => {
   it('shows the Test organization label as text on that row only and offers marking on no row', async () => {
     await renderExpanded([ACME, SANDBOX_ON], SANDBOX_MARK);

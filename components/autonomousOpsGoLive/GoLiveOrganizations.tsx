@@ -9,7 +9,7 @@ import { ClearTestOrgDialog, MarkTestOrgDialog } from './TestOrgDialogs';
 import {
     COL_ACTION, COL_DAYS, COL_ORGANIZATION, COL_SHADOW, COL_SIMULATION, CHIP_SHADOW_LIFTED, CHIP_SHADOW_ON, LIFT_BUTTON, MASTER_NOTICE,
     ORG_CAPTION, ORG_EMPTY_BODY, ORG_EMPTY_HEADING, ORG_HEADING, ORG_HELPER, RESTORE_BUTTON, TEST_ORG_CLEAR, TEST_ORG_CLEAR_REASON,
-    TEST_ORG_LABEL, TEST_ORG_USE, daysLabel, reasonSentence,
+    TEST_ORG_LABEL, TEST_ORG_USE, daysLabel, reasonSentence, unlistedTestOrg,
 } from './goLiveCopy';
 
 const WIDE_QUERY = '(min-width: 1024px)';
@@ -217,6 +217,13 @@ export const GoLiveOrganizations: React.FC<GoLiveOrganizationsProps> = ({ organi
     const testId = testOrganization?.id ?? null;
     const anyMarked = testId !== null || rows.some(r => r.testOrganization === true);
     const rowProps = { rows, uid, testId, anyMarked, onLift: setLifting, onRestore: setRestoring, onMark: setMarking, onClear: setClearing };
+    // A mark whose organization has no row (Autonomous Ops unticked, or the tenant removed) would leave no Clear and no
+    // Use anywhere (review WR-05); it gets its own line. Whether the clear is allowed is still the server's to answer.
+    const unlisted = testOrganization && !rows.some(r => r.id === testOrganization.id) ? testOrganization : null;
+    const clearUnlisted = () => unlisted && setClearing({
+        id: unlisted.id, name: unlisted.name, shadow: true, daysObserved: null, wouldHaveDone: 0, canLift: false,
+        reasons: [], testOrganization: true,
+    });
 
     return (
         <section className="flex flex-col gap-2">
@@ -236,7 +243,13 @@ export const GoLiveOrganizations: React.FC<GoLiveOrganizationsProps> = ({ organi
                     {wide ? <OrganizationTable {...rowProps} /> : <OrganizationCards {...rowProps} />}
                 </div>
             )}
-            {lifting && <LiftShadowDialog org={lifting} onClose={() => setLifting(null)} onDone={done} />}
+            {unlisted && (
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className={`min-w-0 break-words text-sm ${MUTED}`}>{unlistedTestOrg(unlisted.name)}</p>
+                    <button type="button" className={SECONDARY_BUTTON} onClick={clearUnlisted}>{TEST_ORG_CLEAR}</button>
+                </div>
+            )}
+            {lifting &&<LiftShadowDialog org={lifting} onClose={() => setLifting(null)} onDone={done} />}
             {restoring && <RestoreShadowDialog org={restoring} onClose={() => setRestoring(null)} onDone={done} />}
             {marking && <MarkTestOrgDialog org={marking} onClose={() => setMarking(null)} onDone={done} />}
             {clearing && <ClearTestOrgDialog org={clearing} onClose={() => setClearing(null)} onDone={done} />}
