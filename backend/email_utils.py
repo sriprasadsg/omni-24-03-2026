@@ -17,9 +17,11 @@ async def send_email_async(
     body_text: str | None = None,
 ) -> bool:
     """
-    Send an asynchronous email via SMTP.
+    Send an asynchronous email via SMTP. False, never an exception, when mail is not configured (SMTP_HOST unset),
+    a header cannot be built (a subject or address with a line break) or the send fails (review IN-04). Logs carry
+    the recipient count, not the addresses.
     """
-    smtp_host = os.getenv("SMTP_HOST", "localhost")
+    smtp_host = os.getenv("SMTP_HOST", "")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
@@ -27,22 +29,22 @@ async def send_email_async(
     use_tls = os.getenv("SMTP_USE_TLS", "false").lower() in ("true", "1", "yes")
     start_tls = os.getenv("SMTP_STARTTLS", "true").lower() in ("true", "1", "yes")
 
+    recipients = len(to_email) if isinstance(to_email, list) else 1
     if not smtp_host:
-        logger.warning("[Email] SMTP_HOST not configured. Email to %s skipped.", to_email)
+        logger.warning("[Email] SMTP_HOST not configured. Email to %d recipient(s) skipped.", recipients)
         return False
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = smtp_from
-    msg["To"] = ", ".join(to_email) if isinstance(to_email, list) else to_email
-
-    if body_text:
-        msg.set_content(body_text)
-        msg.add_alternative(body_html, subtype="html")
-    else:
-        msg.set_content(body_html, subtype="html")
-
     try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = smtp_from
+        msg["To"] = ", ".join(to_email) if isinstance(to_email, list) else to_email
+        if body_text:
+            msg.set_content(body_text)
+            msg.add_alternative(body_html, subtype="html")
+        else:
+            msg.set_content(body_html, subtype="html")
+
         await aiosmtplib.send(
             msg,
             hostname=smtp_host,
@@ -52,8 +54,8 @@ async def send_email_async(
             use_tls=use_tls,
             start_tls=start_tls,
         )
-        logger.info("[Email] Successfully sent email to %s (Subject: %s)", to_email, subject)
+        logger.info("[Email] Sent email to %d recipient(s)", recipients)
         return True
     except Exception as e:
-        logger.error("[Email] Failed to send email to %s: %s", to_email, e)
+        logger.error("[Email] Failed to send email to %d recipient(s): %s", recipients, type(e).__name__)
         return False
