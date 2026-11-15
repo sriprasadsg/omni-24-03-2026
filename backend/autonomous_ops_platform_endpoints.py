@@ -245,6 +245,10 @@ async def put_shadow(
             if reasons:
                 return JSONResponse(status_code=409, content={"detail": golive.blocker_sentence(reasons),
                                                               "reasons": reasons})
+        if body.shadow is False and not lifting:
+            # Already lifted: change and audit nothing (86-SECURITY R2). Writing here let a stale request turn the
+            # flag off again, ungated, after a restore or a clear landed between its read and its write.
+            return await views.status_payload(db, caller, tenant)
         actor = await views.actor_for(db, caller)
         out = await settings.set_shadow(db, tenant, body.shadow, actor=actor)
         if out["status"] != "ok":

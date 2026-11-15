@@ -138,6 +138,20 @@ async def test_a_stored_name_with_stray_spaces_is_confirmed_by_its_trimmed_name(
     assert (await _stored_mark(named.db))["tenantName"] == "Padded Org"
 
 
+async def test_lifting_an_already_lifted_organization_changes_and_audits_nothing(named, audit, clock, monkeypatch):
+    """protects=86-SECURITY R2; fails_when=a lift request for an organization already lifted writes the flag or
+    audits a second lift (a stale one could otherwise turn the flag off again, ungated, after a restore)."""
+    assert (await _mark(named)).status_code == 201
+    assert (await _lift(named)).status_code == 200 and await _own_flag(named.db) is False
+    audit.reset_mock()
+    writes = AsyncMock(wraps=ao_settings.set_shadow)
+    monkeypatch.setattr(ao_settings, "set_shadow", writes)
+    again = await _lift(named)
+    assert again.status_code == 200 and await _own_flag(named.db) is False
+    writes.assert_not_awaited()
+    assert _events(audit, "autonomous_ops.shadow_lifted") == []
+
+
 async def test_a_customer_organization_cannot_be_marked(named, audit):
     """protects=D-23 customers keep the full gate (review WR-04); fails_when=a ticked organization that was not
     created as a test organization is marked, or the refusal stores or audits anything."""
