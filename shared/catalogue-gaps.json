@@ -402,12 +402,6 @@
       "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
     },
     {
-      "module": "export_report_endpoint",
-      "group": "dashboards",
-      "maxUnguardedRoutes": 1,
-      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
-    },
-    {
       "module": "file_share_endpoints",
       "group": "governance",
       "maxUnguardedRoutes": 3,
@@ -580,12 +574,6 @@
       "group": "governance",
       "maxUnguardedRoutes": 1,
       "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
-    },
-    {
-      "module": "reporting_endpoints",
-      "group": "dashboards",
-      "maxUnguardedRoutes": 5,
-      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
     },
     {
       "module": "risk_endpoints",
