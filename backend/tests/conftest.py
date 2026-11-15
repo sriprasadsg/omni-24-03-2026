@@ -15,6 +15,11 @@ os.environ.setdefault("ENVIRONMENT", "test")
 import tempfile as _tempfile
 os.environ["AUDIT_SPOOL_PATH"] = os.path.join(_tempfile.mkdtemp(prefix="omni_test_audit_"), "audit-spool.ndjson")
 
+# Never the live Redis: an empty value (set, so load_dotenv cannot fill it from backend/.env) means "not configured"
+# to every reader, so rate limits stay in memory per process (a second run of a suite no longer starts with the
+# last run's counters and answers 429), Celery uses its Mongo broker and Socket.IO publishes to no shared channel.
+os.environ["REDIS_URL"] = ""
+
 
 @pytest.fixture(autouse=True)
 def _tenant_features_all_on(request, monkeypatch):
