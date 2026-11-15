@@ -178,12 +178,17 @@ class APIKeyService:
     def _to_model(key_doc: Dict[str, Any]) -> APIKeyModel:
         return APIKeyModel(**{k: v for k, v in key_doc.items() if k in _MODEL_FIELDS})
 
-    async def _validate_and_touch(self, api_key: str) -> Optional[Dict[str, Any]]:
+    async def _validate_and_touch(self, api_key: str, *, touch: bool = True) -> Optional[Dict[str, Any]]:
         """Internal: prefix lookup + bcrypt verify + revoked/expired check +
         rate limit + lastUsedAt touch, in one DB round trip. Returns
         {"key": APIKeyModel, "owner_email": str, "owner_role": str,
         "owner_tenant_id": str} or None. Raises HTTPException 429 if the key
-        is otherwise valid but over its rate limit."""
+        is otherwise valid but over its rate limit.
+
+        ``touch=False`` only identifies the key: no rate-limit unit is counted and
+        lastUsedAt is not written. The export limiter uses it, so one export costs
+        one unit (the route's own lookup) and a key over its limit is still
+        identified (eng review R7)."""
         if not api_key or len(api_key) < 12:
             return None
         prefix = api_key[:12]
@@ -211,15 +216,16 @@ class APIKeyService:
             except ValueError:
                 pass
 
-        if not _check_rate_limit(key_doc["id"], key_doc.get("rateLimit", 60)):
-            raise HTTPException(status_code=429, detail="API key rate limit exceeded")
+        if touch:
+            if not _check_rate_limit(key_doc["id"], key_doc.get("rateLimit", 60)):
+                raise HTTPException(status_code=429, detail="API key rate limit exceeded")
 
-        touched_at = _now_iso()
-        await mongodb.db.users.update_one(
-            {"apiKeys.id": key_doc["id"]},
-            {"$set": {"apiKeys.$.lastUsedAt": touched_at}},
-        )
-        key_doc["lastUsedAt"] = touched_at
+            touched_at = _now_iso()
+            await mongodb.db.users.update_one(
+                {"apiKeys.id": key_doc["id"]},
+                {"$set": {"apiKeys.$.lastUsedAt": touched_at}},
+            )
+            key_doc["lastUsedAt"] = touched_at
 
         return {
             "key": self._to_model(key_doc),
@@ -234,12 +240,12 @@ class APIKeyService:
         found = await self._validate_and_touch(api_key)
         return found["key"] if found else None
 
-    async def authenticate(self, api_key: str) -> Optional[TokenData]:
+    async def authenticate(self, api_key: str, *, touch: bool = True) -> Optional[TokenData]:
         """Validate api_key and build the TokenData used for request
         authentication: scopes narrowed to exactly the key's own scopes,
         auth_source='api_key' — rbac_service.has_permission()/require_role()
         intersect these with the owning user's role permissions (Task 3)."""
-        found = await self._validate_and_touch(api_key)
+        found = await self._validate_and_touch(api_key, touch=touch)
         if not found:
             return None
         return TokenData(
@@ -254,12 +260,13 @@ class APIKeyService:
 api_key_service = APIKeyService()
 
 
-async def resolve_api_key(api_key: str) -> Optional[TokenData]:
+async def resolve_api_key(api_key: str, *, touch: bool = True) -> Optional[TokenData]:
     """The caller behind an X-API-Key value, or None when it is not a valid key. It leaves the request's
     tenant context alone, so the export middleware can identify an API-key caller before the route runs
-    (Phase 86 review WR-01)."""
+    (Phase 86 review WR-01). ``touch=False`` identifies the key without counting a rate-limit unit or
+    writing lastUsedAt; the route's own lookup does both."""
     # New user-scoped tokens (ITAM-USR-05) — tried first.
-    token_data = await api_key_service.authenticate(api_key)
+    token_data = await api_key_service.authenticate(api_key, touch=touch)
     if token_data is not None:
         return token_data
 

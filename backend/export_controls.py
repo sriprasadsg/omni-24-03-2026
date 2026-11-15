@@ -4,9 +4,11 @@ Each signed-in user gets a daily export allowance (count and size, reset at 00:0
 every successful export is written to the audit ledger; and the user's exports in the last
 10 minutes are checked for a bulk export, which opens a DLP incident (dlp_service).
 A request with no bearer token but a valid X-API-Key counts against the key owner's
-allowance (a legacy tenant key against its tenant's "api-key" identity). Agent tokens and
-requests without valid credentials pass through untouched, so the route itself answers
-them (401/403).
+allowance (a legacy tenant key against its tenant's "api-key" identity). A request that
+sends both an Authorization header and X-API-Key is refused with 400: with one credential
+per request this middleware and the route cannot disagree on who the caller is. Agent
+tokens and requests without valid credentials pass through untouched, so the route itself
+answers them (401/403).
 """
 import json
 import logging
@@ -48,7 +50,7 @@ async def _api_key_caller(api_key: str) -> Optional[Dict[str, Any]]:
     """The owner behind a valid X-API-Key, resolved the way the routes resolve it (WR-01)."""
     try:
         from api_key_auth import resolve_api_key
-        found = await resolve_api_key(api_key)
+        found = await resolve_api_key(api_key, touch=False)  # the route's lookup counts and stamps the use
     except Exception as exc:  # the route resolves the key again and answers for itself
         logger.error("Export caller lookup by API key failed: %s", exc)
         return None
@@ -121,6 +123,17 @@ async def _record(who: Dict[str, Any], path: str, size: int, rows: Optional[int]
         await dlp_service.open_bulk_export_incident(who["email"], who.get("tenantId"), path)
 
 
+BOTH_CREDENTIALS = "Send either an Authorization header or an API key with an export request, not both."
+
+
+async def _answer(send, status: int, detail: str) -> None:
+    body = json.dumps({"detail": detail}).encode()
+    await send({"type": "http.response.start", "status": status,
+                "headers": [(b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode())]})
+    await send({"type": "http.response.body", "body": body})
+
+
 class ExportControlMiddleware:
     """Enforces the daily export allowance and records each export (see the module docstring)."""
 
@@ -131,6 +144,10 @@ class ExportControlMiddleware:
         if (scope["type"] != "http" or scope.get("method") not in ("GET", "POST")
                 or not EXPORT_PATHS.match(scope.get("path", ""))):
             return await self.app(scope, receive, send)
+        if _header(scope, b"authorization").strip() and _header(scope, b"x-api-key").strip():
+            # Export routes differ in which credential they accept (most take a bearer token only), so no
+            # order of preference here can match them all; a request with both is refused (eng review R1).
+            return await _answer(send, 400, BOTH_CREDENTIALS)
         who = await _caller(scope)
         if who is None:
             return await self.app(scope, receive, send)
@@ -142,12 +159,7 @@ class ExportControlMiddleware:
             logger.error("Export allowance lookup failed for %s: %s", who["email"], exc)
             refusal = "Exports are unavailable right now; try again shortly."
         if refusal:
-            body = json.dumps({"detail": refusal}).encode()
-            await send({"type": "http.response.start", "status": 429,
-                        "headers": [(b"content-type", b"application/json"),
-                                    (b"content-length", str(len(body)).encode())]})
-            await send({"type": "http.response.body", "body": body})
-            return
+            return await _answer(send, 429, refusal)
 
         seen = {"status": 0, "bytes": 0, "rows": None}
 
