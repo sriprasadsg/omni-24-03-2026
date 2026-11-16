@@ -225,3 +225,193 @@ async def test_summary_has_data_convention(mongo_db):
     assert priced["summary"]["purchaseTotal"] == {"cents": 105000, "hasData": True}
     assert priced["summary"]["bookValueTotal"] == nothing
     assert priced["summary"]["coverage"]["priced"] == 2 and priced["summary"]["coverage"]["valued"] == 0
+
+
+# ---------------------------------------------------------------- guards (78-09 Task 2)
+
+def _floats_in(value):
+    if isinstance(value, float):
+        return [value]
+    if isinstance(value, dict):
+        return [f for v in value.values() for f in _floats_in(v)]
+    if isinstance(value, (list, tuple)):
+        return [f for v in value for f in _floats_in(v)]
+    return []
+
+
+@pytest.mark.parametrize("cost", ["100000", 100000.5, 100000.0, -5, True, False, [1], {"c": 1}])
+def test_malformed_cost_is_unreadable_never_a_float(cost):
+    row = svc.compute_asset_cost(_asset(cost=cost, date=D), _model(), NOW)
+    assert row["reason"] == svc.REASON_UNREADABLE_COST
+    assert row["purchaseCostCents"] is None and row["priced"] is False and row["valued"] is False
+    assert _floats_in(row) == []
+
+
+@pytest.mark.parametrize("model", [
+    {"id": "m", "usefulLifeYears": True, "salvageValueCents": 0},
+    {"id": "m", "usefulLifeYears": 0, "salvageValueCents": 0},
+    {"id": "m", "usefulLifeYears": 3.0, "salvageValueCents": 0},
+    {"id": "m", "usefulLifeYears": 3, "salvageValueCents": 0.0},
+    {"id": "m", "usefulLifeYears": "3", "salvageValueCents": 0},
+])
+def test_malformed_policy_is_no_policy(model):
+    row = svc.compute_asset_cost(_asset(cost=100000, date=D), model, NOW)
+    assert row["reason"] == svc.REASON_NO_DEPRECIATION_POLICY
+    assert row["priced"] is True and row["bookValueCents"] is None
+    assert _floats_in(row) == []
+
+
+@pytest.mark.parametrize("date", [datetime(2024, 3, 1), datetime(2024, 3, 1, tzinfo=timezone.utc), "not-a-date",
+                                  "", True, 20240301, b"2024-03-01"])
+def test_malformed_date_is_unreadable_and_only_strings_are_echoed(date):
+    asset = _asset(cost=100000, date=D)
+    asset["purchaseDate"] = date
+    row = svc.compute_asset_cost(asset, _model(), NOW)
+    assert row["reason"] == svc.REASON_UNREADABLE_DATE
+    # only a string is echoed back; any other type (a datetime object, a bool) is reported as null
+    assert row["purchaseDate"] == (date if isinstance(date, str) else None)
+    assert row["bookValueCents"] is None and row["priced"] is True
+    assert _floats_in(row) == []
+
+
+@pytest.mark.parametrize("status", [["deployed"], {"s": "disposed"}, 5, 1.5, True, ""])
+def test_malformed_lifecycle_status_reads_as_default(status):
+    asset = _asset(cost=100000, date=D)
+    asset["lifecycleStatus"] = status
+    row = svc.compute_asset_cost(asset, _model(), NOW)
+    assert row["lifecycleStatus"] == "deployable"
+    assert row["reason"] is None and row["valued"] is True
+
+
+def test_empty_document_never_raises():
+    row = svc.compute_asset_cost({}, None, NOW)
+    assert row["reason"] == svc.REASON_NO_PURCHASE_RECORD and row["priced"] is False and row["valued"] is False
+
+
+async def test_malformed_documents_do_not_fail_the_tenant_read(mongo_db):
+    assets = [
+        _asset("OK", cost=100000, date=D, name="ok"),
+        {**_asset("L", cost=100000, date=D, name="listy"), "lifecycleStatus": ["deployed"]},
+        {**_asset("N", cost=100000, date=D), "name": 123, "assetTag": 456},
+        {**_asset("C", date=D, name="cost-float"), "purchaseCostCents": 99.5},
+        {**_asset("T", cost=100000, name="date-obj"), "purchaseDate": datetime(2024, 3, 1)},
+    ]
+    result = await _tenant_costs(mongo_db, "t1", assets, [_model()])
+    assert {r["assetId"] for r in result["rows"]} == {"OK", "L", "N", "C", "T"}
+    cov = result["summary"]["coverage"]
+    assert cov["valued"] + sum(cov["reasons"].values()) == cov["total"] == 5
+    assert _floats_in(result["rows"]) == [] and _floats_in(result["summary"]) == []
+
+
+class _Untouchable:
+    """A database stand-in that fails the test when anything reads from it."""
+
+    def __getattr__(self, name):
+        raise AssertionError(f"the refused call reached the database ({name})")
+
+
+@pytest.mark.parametrize("bad", ["", None, "platform-admin"], ids=["empty", "none", "platform-admin"])
+@pytest.mark.parametrize("call", [
+    lambda db, t: svc.compute_tenant_costs(db, t),
+    lambda db, t: svc.load_tenant_assets(db, t),
+    lambda db, t: svc.load_models_by_id(db, t, [{"modelId": "m1"}]),
+    lambda db, t: svc.load_agents_by_asset(db, t, ["A1"]),
+], ids=["compute_tenant_costs", "load_tenant_assets", "load_models_by_id", "load_agents_by_asset"])
+async def test_require_tenant_refuses_platform_admin_and_empty(call, bad):
+    with pytest.raises(ValueError):
+        await call(_Untouchable(), bad)
+
+
+async def test_explicit_tenant_filter_under_platform_admin_ambient(mongo_db):
+    await mongo_db.asset_models.insert_many([
+        {"tenantId": "tenant-a", "id": "m1", "usefulLifeYears": 3, "salvageValueCents": 0},
+        {"tenantId": "tenant-b", "id": "m1", "usefulLifeYears": 1, "salvageValueCents": 0},
+    ])
+    await mongo_db.assets.insert_many([
+        {**_asset("A1", cost=100000, date=D), "tenantId": "tenant-a"},
+        {**_asset("A2", cost=50000, date=D), "tenantId": "tenant-a"},
+        {**_asset("B1", cost=777000, date=D), "tenantId": "tenant-b"},
+    ])
+    await mongo_db.agents.insert_many([
+        {"tenantId": "tenant-a", "id": "ga", "assetId": "A1", "hostname": "a-host", "status": "Online"},
+        {"tenantId": "tenant-b", "id": "gb", "assetId": "A1", "hostname": "b-host", "status": "Online"},
+    ])
+    wrapped = database.TenantIsolatedDatabase(mongo_db)
+    with ambient("platform-admin"):
+        # the premise: under this ambient the wrapper adds no tenant filter of its own
+        assert len(await wrapped.assets.find({}).to_list(length=None)) == 3
+        result = await svc.compute_tenant_costs(wrapped, "tenant-a", with_agents=True, now=NOW)
+    assert {r["assetId"] for r in result["rows"]} == {"A1", "A2"}
+    assert result["summary"]["tenantId"] == "tenant-a"
+    assert result["summary"]["coverage"]["total"] == 2
+    assert result["summary"]["purchaseTotal"]["cents"] == 150000
+    by_id = {r["assetId"]: r for r in result["rows"]}
+    assert by_id["A1"]["agent"]["agentId"] == "ga"  # tenant-b's agent naming A1 is not joined
+    # tenant-a's own policy (3 years), not tenant-b's model of the same id (1 year)
+    assert by_id["A1"]["yearsElapsed"] == 2 and by_id["A1"]["bookValueCents"] == 100000 - 2 * (100000 // 3)
+
+
+def test_sort_order_valued_then_not_tracked_with_tiebreaks():
+    def row(asset_id, book, name, tag):
+        return {"assetId": asset_id, "bookValueCents": book, "name": name, "assetTag": tag}
+
+    expected = [
+        row("v1", 90000, "zeta", "T9"),
+        row("v2", 50000, "alpha", "T5"),
+        row("v3", 50000, "beta", "T1"),
+        row("v4", 50000, "beta", "T2"),
+        row("v5", 50000, "beta", "T2"),  # same name and tag: asset id decides
+        row("v6", 0, "alpha", "T1"),     # a real 0 outranks every not-tracked row
+        row("n1", None, "alpha", "T1"),
+        row("n2", None, "alpha", "T2"),
+        row("n3", None, "beta", "T0"),
+    ]
+    import random
+    for seed in range(5):
+        shuffled = list(expected)
+        random.Random(seed).shuffle(shuffled)
+        assert [r["assetId"] for r in svc.sort_cost_rows(shuffled)] == [r["assetId"] for r in expected]
+
+
+def test_sort_tolerates_non_string_names_tags_and_ids():
+    rows = [
+        {"assetId": "b", "bookValueCents": 5, "name": "abc", "assetTag": None},
+        {"assetId": "a", "bookValueCents": 5, "name": 123, "assetTag": 456},
+        {"assetId": 7, "bookValueCents": None, "name": None, "assetTag": ["x"]},
+    ]
+    assert [r["assetId"] for r in svc.sort_cost_rows(rows)] == ["a", "b", 7]
+
+
+async def test_one_utc_now_per_computation(mongo_db, monkeypatch):
+    calls = []
+
+    def counting_clock():
+        calls.append(1)
+        return NOW
+
+    monkeypatch.setattr(svc, "utc_now", counting_clock)
+    await mongo_db.assets.insert_many([
+        {**_asset(f"A{i}", cost=100000, date=D), "tenantId": "t1"} for i in range(4)
+    ])
+    await mongo_db.asset_models.insert_one({**_model(), "tenantId": "t1"})
+    wrapped = database.TenantIsolatedDatabase(mongo_db)
+    with ambient("t1"):
+        result = await svc.compute_tenant_costs(wrapped, "t1", with_agents=True)
+        assert len(calls) == 1
+        assert result["summary"]["computedAt"] == NOW.isoformat(timespec="milliseconds")
+        await svc.compute_asset_cost_detail(wrapped, "t1", "A0")
+    assert len(calls) == 2  # one more, from the one detail computation
+
+
+def test_cost_modules_have_no_forbidden_constructs():
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[1]
+    forbidden = ["$lookup", "@cached", "cache_service", "finance_filtered", "* 100", "/ 100", "float(", "db._db"]
+    for name in ("itam_cost_service.py", "itam_tenant_scope.py", "itam_cost_endpoints.py"):
+        source = (backend / name).read_text(encoding="utf-8")
+        assert "def " in source, f"{name} was not read"
+        found = [token for token in forbidden if token in source]
+        assert found == [], f"{name} contains {found}"
+    service_source = (backend / "itam_cost_service.py").read_text(encoding="utf-8")
+    assert "from fastapi" not in service_source and "import fastapi" not in service_source
