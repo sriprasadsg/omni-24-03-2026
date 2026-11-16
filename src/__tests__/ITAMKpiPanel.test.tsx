@@ -53,6 +53,8 @@ function fullKpis(overrides: Record<string, any> = {}) {
       hasData: true,
       totalBookValueCents: 500000,
       assetCount: 12,
+      inScopeAssetCount: 11,
+      valuedCount: 10,
       withoutPolicyCount: 2,
       statusBreakdown: [
         { status: 'in_stock', label: 'In_stock', count: 3 },
@@ -140,7 +142,95 @@ describe('ItamKpiPanel', () => {
     render(<ItamKpiPanel onDrillDown={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText('$5,000')).toBeInTheDocument());
-    expect(screen.getByText('12 assets')).toBeInTheDocument();
+    expect(screen.getByText('Valued 10 of 11 assets')).toBeInTheDocument();
+    expect(screen.queryByText('12 assets')).not.toBeInTheDocument();
+  });
+
+  // Phase 78 plan 02 (D-13, D-14): the selected tenant travels with the KPI
+  // request and an unknown book value is "Not tracked", never a fabricated $0.
+  it('passes the tenantId prop to fetchItamKpis, and undefined when none is given', async () => {
+    fetchItamKpis.mockResolvedValue(fullKpis());
+    const { unmount } = render(<ItamKpiPanel onDrillDown={vi.fn()} tenantId="t-1" />);
+    await waitFor(() => expect(fetchItamKpis).toHaveBeenCalledWith('t-1'));
+    unmount();
+
+    fetchItamKpis.mockClear();
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(fetchItamKpis).toHaveBeenCalledTimes(1));
+    expect(fetchItamKpis.mock.calls[0][0]).toBeUndefined();
+  });
+
+  it('a null book value renders "Not tracked" and "Valued 0 of 12 assets", never $0', async () => {
+    fetchItamKpis.mockResolvedValue(fullKpis({
+      assetValue: {
+        hasData: true,
+        totalBookValueCents: null,
+        assetCount: 12,
+        inScopeAssetCount: 12,
+        valuedCount: 0,
+        withoutPolicyCount: 12,
+        statusBreakdown: [{ status: 'deployed', label: 'Deployed', count: 12 }],
+        drilldownReportKey: 'asset_value',
+      },
+    }));
+    const { container } = render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Not tracked')).toBeInTheDocument());
+    expect(screen.getByText('Valued 0 of 12 assets')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\$0/);
+  });
+
+  it('a valued total shows the Valued line from valuedCount and inScopeAssetCount', async () => {
+    fetchItamKpis.mockResolvedValue(fullKpis({
+      assetValue: {
+        hasData: true,
+        totalBookValueCents: 500000,
+        assetCount: 12,
+        inScopeAssetCount: 12,
+        valuedCount: 10,
+        withoutPolicyCount: 2,
+        statusBreakdown: [{ status: 'deployed', label: 'Deployed', count: 12 }],
+        drilldownReportKey: 'asset_value',
+      },
+    }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('$5,000')).toBeInTheDocument());
+    expect(screen.getByText('Valued 10 of 12 assets')).toBeInTheDocument();
+  });
+
+  it('uses the singular "asset" when the in-scope count is 1', async () => {
+    fetchItamKpis.mockResolvedValue(fullKpis({
+      assetValue: {
+        hasData: true,
+        totalBookValueCents: 12300,
+        assetCount: 1,
+        inScopeAssetCount: 1,
+        valuedCount: 1,
+        withoutPolicyCount: 0,
+        statusBreakdown: [{ status: 'deployed', label: 'Deployed', count: 1 }],
+        drilldownReportKey: 'asset_value',
+      },
+    }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Valued 1 of 1 asset')).toBeInTheDocument());
+  });
+
+  it('an older response without valuedCount and inScopeAssetCount still renders', async () => {
+    fetchItamKpis.mockResolvedValue(fullKpis({
+      assetValue: {
+        hasData: true,
+        totalBookValueCents: 500000,
+        assetCount: 12,
+        withoutPolicyCount: 2,
+        statusBreakdown: [{ status: 'deployed', label: 'Deployed', count: 12 }],
+        drilldownReportKey: 'asset_value',
+      },
+    }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Valued 0 of 12 assets')).toBeInTheDocument());
   });
 
   it('renders the status-breakdown segments in the payload array order, never re-sorted by count', async () => {
