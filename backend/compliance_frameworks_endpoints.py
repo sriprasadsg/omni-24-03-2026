@@ -80,7 +80,8 @@ def _score(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     partial = sum(1 for r in results if r["status"] == "partial")
     failed = sum(1 for r in results if r["status"] == "fail")
     na = sum(1 for r in results if r["status"] == "not_applicable")
-    coverage = total - na
+    not_assessed = sum(1 for r in results if r["status"] == "not_assessed")   # no evidence yet (_db_eval)
+    coverage = total - na - not_assessed
     score = round((passed + partial * 0.5) / coverage * 100, 1) if coverage else 0
     return {
         "score": score,
@@ -88,6 +89,8 @@ def _score(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "partial": partial,
         "failed": failed,
         "not_applicable": na,
+        "not_assessed": not_assessed,
+        "assessed": coverage,
         "total": total,
     }
 

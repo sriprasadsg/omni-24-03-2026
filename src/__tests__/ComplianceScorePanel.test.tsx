@@ -30,7 +30,7 @@ const payload = {
 };
 
 describe('ComplianceScorePanel coverage', () => {
-  beforeEach(() => fetchComplianceScore.mockReset());
+  beforeEach(() => { fetchComplianceScore.mockReset(); });
 
   it('shows how many controls the overall score covers', async () => {
     fetchComplianceScore.mockResolvedValue(payload);

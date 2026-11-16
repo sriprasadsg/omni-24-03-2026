@@ -9,7 +9,8 @@ interface ControlResult {
   id: string;
   title: string;
   description: string;
-  status: 'pass' | 'fail' | 'partial' | 'not_applicable';
+  /** not_assessed: no recent evidence (seeded frameworks); left out of the score like not_applicable. */
+  status: 'pass' | 'fail' | 'partial' | 'not_applicable' | 'not_assessed';
   evidence: string;
   evaluated_at: string;
   function?: string;
@@ -27,6 +28,9 @@ interface FrameworkResult {
   partial: number;
   failed: number;
   not_applicable: number;
+  not_assessed?: number;
+  /** Controls with a pass, partial or fail result. Absent from a server older than 2026-11-16. */
+  assessed?: number;
   total: number;
   controls: ControlResult[];
   evaluated_at: string;
@@ -40,6 +44,8 @@ interface FrameworkSummary {
     partial: number;
     failed: number;
     not_applicable: number;
+    not_assessed?: number;
+    assessed?: number;
     total: number;
   };
 }
@@ -106,6 +112,7 @@ function StatusBadge({ status }: { status: string }) {
     partial: { bg: semanticBg('partial', .12), color: SEMANTIC.partial.text, label: 'Partial', icon: <AlertTriangle size={11} /> },
     fail: { bg: semanticBg('fail', .12), color: SEMANTIC.fail.text, label: 'Fail', icon: <XCircle size={11} /> },
     not_applicable: { bg: 'rgba(148,163,184,.1)', color: 'var(--ink-muted)', label: 'N/A', icon: null },
+    not_assessed: { bg: 'rgba(148,163,184,.1)', color: 'var(--ink-muted)', label: 'Not assessed', icon: null },
   };
   const c = cfg[status] || cfg.not_applicable;
   return (
@@ -312,7 +319,9 @@ export function ComplianceFrameworksDashboard() {
               borderRadius: RADIUS.lg, padding: `${SPACING.xxxl}px ${SPACING.section}px`, cursor: 'pointer', transition: 'all 0.2s',
               display: 'flex', alignItems: 'center', gap: SPACING.xxxl,
             }}>
-              {s ? <ScoreRing score={Math.round(s.score)} color={color} /> : <div style={{ width: 70, height: 70, background: 'var(--ink-surface-2)', borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />}
+              {s && s.assessed === 0
+                ? <div style={{ width: 70, height: 70, borderRadius: '50%', border: '6px solid var(--ink-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: FONT.xs, color: 'var(--ink-muted)', lineHeight: 1.1, flexShrink: 0 }}>Not assessed</div>
+                : s ? <ScoreRing score={Math.round(s.score)} color={color} /> : <div style={{ width: 70, height: 70, background: 'var(--ink-surface-2)', borderRadius: '50%', animation: 'pulse 1.5s ease-in-out infinite' }} />}
               <div>
                 <div style={{ fontWeight: WEIGHT.bold, fontSize: FONT.md, marginBottom: SPACING.xs }}>{s?.name || fid}</div>
                 {s && (
@@ -320,6 +329,11 @@ export function ComplianceFrameworksDashboard() {
                     <span style={{ color: SEMANTIC.pass.text }}>✓ {s.passed}</span>
                     <span style={{ color: SEMANTIC.partial.text }}>~ {s.partial}</span>
                     <span style={{ color: SEMANTIC.fail.text }}>✗ {s.failed}</span>
+                  </div>
+                )}
+                {s && s.assessed !== undefined && (
+                  <div style={{ fontSize: FONT.xs, color: 'var(--ink-muted)', marginTop: SPACING.xs }}>
+                    {s.assessed} of {s.total} assessed
                   </div>
                 )}
                 {loading && <span style={{ color: 'var(--ink-muted)', fontSize: FONT.sm }}>Evaluating…</span>}
@@ -352,15 +366,17 @@ export function ComplianceFrameworksDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.xl }}>
               <Shield size={16} color={colorForFramework(selected)} />
               <span style={{ fontWeight: WEIGHT.bold }}>{detail.framework_name} v{detail.version}</span>
-              <span style={{ fontSize: FONT.sm, color: 'var(--ink-muted)' }}>{detail.total} controls · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}</span>
+              <span style={{ fontSize: FONT.sm, color: 'var(--ink-muted)' }}>
+                {detail.total} controls{detail.assessed !== undefined ? ` · ${detail.assessed} assessed` : ''} · evaluated {new Date(detail.evaluated_at).toLocaleTimeString()}
+              </span>
             </div>
             <div style={{ display: 'flex', gap: SPACING.md }}>
-              {['all', 'fail', 'partial', 'pass'].map(f => (
+              {['all', 'fail', 'partial', 'pass', ...(detail.not_assessed ? ['not_assessed'] : [])].map(f => (
                 <button key={f} onClick={() => setFilterStatus(f)} style={{
                   background: filterStatus === f ? semanticBg('primary', .2) : 'transparent',
                   border: '1px solid var(--ink-line)', color: filterStatus === f ? SEMANTIC.primary.text : 'var(--ink-muted)',
                   borderRadius: RADIUS.sm, padding: `${SPACING.xs}px ${SPACING.xl}px`, cursor: 'pointer', fontSize: FONT.sm, fontWeight: WEIGHT.medium, textTransform: 'capitalize',
-                }}>{f === 'all' ? `All (${detail.total})` : f === 'fail' ? `Fail (${detail.failed})` : f === 'partial' ? `Partial (${detail.partial})` : `Pass (${detail.passed})`}</button>
+                }}>{f === 'all' ? `All (${detail.total})` : f === 'fail' ? `Fail (${detail.failed})` : f === 'partial' ? `Partial (${detail.partial})` : f === 'not_assessed' ? `Not assessed (${detail.not_assessed})` : `Pass (${detail.passed})`}</button>
               ))}
             </div>
           </div>
