@@ -4,7 +4,8 @@ Computes the four D-16 KPIs the dashboard tile grid consumes — asset value
 (with lifecycle-status breakdown), license seat utilisation, warranty
 expirations (with a 12-month timeline), and overdue check-in/audit counts —
 all tenant-scoped and all derived from the exact functions the Finance,
-Licences and Lifecycle tabs already call (`itam_finance_service.compute_book_value`
+Licences and Lifecycle tabs already call (`itam_cost_service.compute_asset_cost`
+(the Phase 78 shared per-asset computation over `itam_finance_service.compute_book_value`)
 /`compute_warranty_status`/`get_warranty_alert_window`,
 `itam_lifecycle_endpoints._overdue_query`), never re-derived, so a KPI tile
 and its source tab can never disagree.
@@ -19,14 +20,15 @@ Every KPI object carries `hasData` (bool) and `drilldownReportKey` (the
 fabricated 0 or 100% that would read as a real measurement (ITAM-REP-04
 prohibition).
 """
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import itam_cost_service
+from itam_cost_service import INACTIVE_STATUSES, compute_asset_cost, load_models_by_id
 from itam_finance_service import (
     WARRANTY_STATUS_ACTIVE,
     WARRANTY_STATUS_EXPIRED,
     WARRANTY_STATUS_EXPIRING,
-    compute_book_value,
     compute_warranty_status,
     get_warranty_alert_window,
 )
@@ -50,16 +52,24 @@ def _status_breakdown(assets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-async def _compute_asset_value_kpi(db, assets: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Total book value and lifecycle-status breakdown across every tenant
-    asset. Each asset's value is computed with the exact input resolution
-    `itam_finance_endpoints.get_asset_book_value` uses (policy from a single
-    batched `asset_models` lookup, never a per-asset query). An asset with
-    no purchase record, no matching depreciation policy, or whose inputs
-    raise ValueError is counted in `assetCount` and `statusBreakdown` but
-    contributes nothing to `totalBookValueCents`, and is tallied in
-    `withoutPolicyCount` instead — never silently dropped, never failing the
-    whole KPI (must_haves truth)."""
+async def _compute_asset_value_kpi(
+    db, tenant_id: str, assets: List[Dict[str, Any]], now: datetime,
+) -> Dict[str, Any]:
+    """Total book value and lifecycle-status breakdown for one tenant.
+
+    Every per-asset value comes from `itam_cost_service.compute_asset_cost`
+    (models from one `load_models_by_id` read), the same function the cost
+    summary and the Asset value report use, so for the same tenant and `now`
+    the tile equals `bookValueTotal` (Phase 78 SC3, COST-01).
+
+    `statusBreakdown` and `assetCount` count every asset of every status (the
+    lifecycle pie is an inventory count, D-04). Disposed and retired assets
+    are out of scope for money (D-01): they add nothing to
+    `totalBookValueCents` and are left out of `inScopeAssetCount`. Of the
+    in-scope assets, `valuedCount` have a book value and `withoutPolicyCount`
+    (= inScopeAssetCount - valuedCount) do not. When nothing is valued the
+    total is None, never a fabricated 0 (D-10); `hasData` stays True whenever
+    the tenant has any asset so the tile can show Not tracked."""
     status_breakdown = _status_breakdown(assets)
     asset_count = len(assets)
     if asset_count == 0:
@@ -67,58 +77,25 @@ async def _compute_asset_value_kpi(db, assets: List[Dict[str, Any]]) -> Dict[str
             "hasData": False,
             "totalBookValueCents": None,
             "assetCount": 0,
+            "inScopeAssetCount": None,
+            "valuedCount": None,
             "withoutPolicyCount": None,
             "statusBreakdown": status_breakdown,
             "drilldownReportKey": "asset_value",
         }
 
-    model_ids = sorted({a["modelId"] for a in assets if a.get("modelId")})
-    models_by_id: Dict[str, Dict[str, Any]] = {}
-    if model_ids:
-        model_docs = await db.asset_models.find(
-            {"id": {"$in": model_ids}},
-            {"_id": 0, "id": 1, "usefulLifeYears": 1, "salvageValueCents": 1},
-        ).to_list(length=None)
-        models_by_id = {m["id"]: m for m in model_docs}
-
-    now = datetime.now(timezone.utc)
-    total_book_value_cents = 0
-    without_policy_count = 0
-    for asset in assets:
-        purchase_cost = asset.get("purchaseCostCents")
-        purchase_date = asset.get("purchaseDate")
-        if purchase_cost is None or purchase_date is None:
-            without_policy_count += 1
-            continue
-
-        model_doc = models_by_id.get(asset.get("modelId"))
-        if (
-            not model_doc
-            or model_doc.get("usefulLifeYears") is None
-            or model_doc.get("salvageValueCents") is None
-        ):
-            without_policy_count += 1
-            continue
-
-        try:
-            result = compute_book_value(
-                purchase_date=purchase_date,
-                purchase_cost_cents=purchase_cost,
-                useful_life_years=model_doc["usefulLifeYears"],
-                salvage_value_cents=model_doc["salvageValueCents"],
-                now=now,
-            )
-        except ValueError:
-            without_policy_count += 1
-            continue
-
-        total_book_value_cents += result["bookValueCents"]
+    models_by_id = await load_models_by_id(db, tenant_id, assets)
+    rows = [compute_asset_cost(a, models_by_id.get(a.get("modelId")), now) for a in assets]
+    in_scope = [r for r in rows if r["lifecycleStatus"] not in INACTIVE_STATUSES]
+    valued = [r["bookValueCents"] for r in in_scope if r["valued"]]
 
     return {
         "hasData": True,
-        "totalBookValueCents": total_book_value_cents,
+        "totalBookValueCents": sum(valued) if valued else None,
         "assetCount": asset_count,
-        "withoutPolicyCount": without_policy_count,
+        "inScopeAssetCount": len(in_scope),
+        "valuedCount": len(valued),
+        "withoutPolicyCount": len(in_scope) - len(valued),
         "statusBreakdown": status_breakdown,
         "drilldownReportKey": "asset_value",
     }
@@ -291,11 +268,14 @@ async def compute_itam_kpis(db, tenant_id) -> Dict[str, Any]:
     `db.licenses`/`db.license_assignments` independently since it shares no
     input with the asset-derived KPIs. All reads go through the caller-
     supplied tenant-isolated `db` handle, so a second tenant's data can never
-    contribute to these numbers (must_haves truth)."""
-    now = datetime.now(timezone.utc)
+    contribute to these numbers (must_haves truth). The clock is read once
+    here (itam_cost_service.utc_now, a single call) and that one `now` feeds every KPI
+    (Phase 78 Pitfall 9); the assets read carries an explicit tenantId filter
+    next to the wrapper's own scoping."""
+    now = itam_cost_service.utc_now()
 
     assets = await db.assets.find(
-        {},
+        {"tenantId": tenant_id},
         {
             "_id": 0, "id": 1, "assetTag": 1, "name": 1, "lifecycleStatus": 1,
             "modelId": 1, "purchaseCostCents": 1, "purchaseDate": 1,
@@ -303,7 +283,7 @@ async def compute_itam_kpis(db, tenant_id) -> Dict[str, Any]:
         },
     ).to_list(length=None)
 
-    asset_value = await _compute_asset_value_kpi(db, assets)
+    asset_value = await _compute_asset_value_kpi(db, tenant_id, assets, now)
     license_utilization = await _compute_license_utilization_kpi(db)
     warranty_expirations = await _compute_warranty_kpi(db, tenant_id, assets, now)
     overdue = await _compute_overdue_kpi(db, assets, now)

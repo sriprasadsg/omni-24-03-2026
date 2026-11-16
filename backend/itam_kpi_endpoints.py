@@ -13,12 +13,13 @@ manage:assets), unlike the write-gated itam_*_endpoints.py routers (D-07).
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from auth_types import TokenData
 from database import get_database
 from itam_asset_endpoints import _require_itam_viewer
 from itam_reporting_kpis import compute_itam_kpis
+from itam_tenant_scope import resolve_itam_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +27,20 @@ router = APIRouter(prefix="/api/itam/kpis", tags=["ITAM KPIs"])
 
 
 @router.get("", response_model=Dict[str, Any])
-async def get_itam_kpis(current_user: TokenData = Depends(_require_itam_viewer)):
-    """Returns the four D-16 KPI payloads for the caller's tenant.
+async def get_itam_kpis(request: Request, current_user: TokenData = Depends(_require_itam_viewer)):
+    """Returns the four D-16 KPI payloads for exactly one tenant.
 
-    403 when the caller has no tenant id — mirrors
-    itam_lifecycle_endpoints.overdue_audit_report's own guard. An unexpected
+    The tenant comes from `resolve_itam_tenant` (Phase 78, D-13): a tenant user
+    reads their own tenant, a Platform Owner session reads the X-Tenant-ID
+    tenant, and a platform-admin or empty context gets 400 "Select a tenant"
+    instead of a total summed over every tenant (D-15, amended 2026-11-16).
+    The resolver also re-aligns the ambient tenant, so the licence, warranty
+    and overdue reads below are scoped to the resolved tenant. An unexpected
     exception inside KPI computation is converted into a 500 with a generic
     detail rather than leaking internals (T-72-10), matching the existing
     itam_reporting_endpoints.py error-handling convention.
     """
-    tenant_id = current_user.tenant_id
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tenant ID not found for the current user.",
-        )
+    tenant_id = resolve_itam_tenant(request, current_user)
 
     db = get_database()
     try:
