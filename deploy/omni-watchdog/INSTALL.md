@@ -158,19 +158,37 @@ sudo install -o root -g root -m 0644 deploy/omni-watchdog/polkit/49-omni-watchdo
   /etc/polkit-1/rules.d/49-omni-watchdog.rules
 ```
 
-polkit reloads its rules on change. Verify it with `pkcheck` as the watchdog user. Replace nothing;
-run both commands exactly:
+polkit reloads its rules on change. Verify it with `pkcheck`. polkit lets only root pass the unit
+and verb details, so the check runs as root and asks about a process that belongs to the watchdog
+user (a `sleep`). Replace nothing; run the lines exactly:
 
 ```bash
-sudo -u omni-watchdog bash -c 'pkcheck --action-id org.freedesktop.systemd1.manage-units --details unit nginx.service --details verb restart --process $$; echo $?'
-sudo -u omni-watchdog bash -c 'pkcheck --action-id org.freedesktop.systemd1.manage-units --details unit ssh.service --details verb restart --process $$; echo $?'
+sudo -u omni-watchdog sleep 60 &
+sleep 1; P=$(pgrep -u omni-watchdog -x sleep | head -1)
+sudo pkcheck --action-id org.freedesktop.systemd1.manage-units --process $P -d unit nginx.service -d verb restart; echo $?
+sudo pkcheck --action-id org.freedesktop.systemd1.manage-units --process $P -d unit ssh.service -d verb restart; echo $?
+sudo pkcheck --action-id org.freedesktop.systemd1.manage-units --process $P -d unit nginx.service -d verb stop; echo $?
+sudo pkill -u omni-watchdog -x sleep
 ```
 
-The first (`nginx.service restart`) must print `0` (allowed). The second (`ssh.service restart`)
-must print a non-zero number (refused). If the first is refused, polkit is not passing the unit with
-its `.service` suffix as assumed, or the rule file has a problem: check
-`journalctl -u polkit -n 50`, fix the rule, and do not enable the timer until the first command
-prints `0`.
+The first (`nginx.service restart`) must print `0` (allowed). The second (`ssh.service restart`) and
+the third (`nginx.service stop`) must print a non-zero number (refused). Spell the option `-d`:
+polkit 124 (Ubuntu 24.04) rejects `--details unit ...` with "Unexpected argument", and a check run as
+the watchdog user itself fails with "Only trusted callers ... can use CheckAuthorization() and pass
+details" whatever the rule says.
+
+Then one real call, which changes nothing on a running unit:
+
+```bash
+sudo -u omni-watchdog systemctl reset-failed nginx.service; echo $?
+sudo -u omni-watchdog systemctl reset-failed ssh.service; echo $?
+```
+
+The first must print `0`; the second must print "Access denied" and a non-zero number.
+
+If `nginx.service restart` is refused, polkit is not passing the unit with its `.service` suffix as
+assumed, or the rule file has a problem: check `journalctl -u polkit -n 50`, fix the rule, and do
+not enable the timer until that check prints `0`.
 
 ### Ollama (only where Ollama is expected)
 
