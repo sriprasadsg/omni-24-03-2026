@@ -3,7 +3,7 @@ status: partial
 phase: 86-activity-reporting-hardening-live-validation
 source: [86-VERIFICATION.md]
 started: 2026-11-14T11:48:57Z
-updated: 2026-11-14T12:53:03.725Z
+updated: 2026-11-16T09:12:00.000Z
 ---
 
 ## Current Test
@@ -34,10 +34,10 @@ note: "Round 1 (2026-11-14): pass on server evidence. The first digest pass ran 
 
 ### 4. As a tenant admin: open the Statistics card, change period, expand the time-saved table, export CSV and PDF from the Activity header and from Reporting > Autonomous Ops Activity; open both files
 expected: Per-rule table matches the Activity list, 'Estimate' chip beside the time-saved figure, simulation shown apart, file holds the nine columns / summary page, one autonomous_ops.export audit entry per download; Export absent or disabled for a user without export:reports
-result: blocked
-blocked_by: server
-reason: "Round 2: user typed 'pass', but at 12:35 UTC 2026-11-14 the server still had 0 autonomous_ops.export audit entries (newest audit entry 11:04 UTC, finops_recalculation) and no nginx request to any autonomous-ops, statistics or export endpoint that day. Recorded as blocked, same as the user's choice for test 1."
-note: "Round 1 (2026-11-14): blocked. The server had 0 autonomous_ops.export audit entries and 0 nginx requests to any autonomous-ops endpoint that day."
+result: pass
+source: automated-headless
+evidence: "Round 3, 2026-11-16 09:01-09:08 UTC, on the build deployed that morning (npx 0b0e5492c, backend restarted 08:57:50 UTC, UI index-CCy72xqN.js). At the user's choice Claude ran it in headless Chromium (chrome-headless-shell 1254) against https://127.0.0.1 with two temporary MFA-enrolled ABC accounts (uat86r3-admin, Tenant Admin; uat86r3-analyst, Analyst: view:autonomous_ops without export:reports). Found first: no organization on this server could export. ABC had Autonomous Ops but neither Reporting nor export:reports, and the one organization with Reporting had no Autonomous Ops, so the admin's sign-in carried no export:reports. With the user's go, view:reporting, export:reports and screen:reporting were added to ABC's enabledFeatures for 33 s (09:06:58-09:07:31 UTC) and removed again; the list is identical to before. 25 of 25 checks passed, 0 page errors. Admin: the 7, 30 and 90 day pills each press and the server answers for that period (3 decisions, 3 done, 0 undone in each); the four readouts equal the server's totals; the 'Estimate' chip sits beside Time saved (0 min, shadow mode on); the simulation line is apart from the real counts; 'Show minutes per kind of action' expands; the per-rule table (service_desk:handoff: fired 3, done 3) equals the rows of the Activity list. The Export activity dialog opens on CSV and the Statistics period and names the audit log. CSV and PDF downloaded from the Activity header and from Reporting > Data Export Center > Autonomous Ops Activity: 4 files, each 3 of 3 rows, not truncated. Files opened: both CSVs hold the nine columns and 3 rows; both PDFs have 2 pages, a summary page (organization, generated time, filter line, counts, Time saved (estimate), per-rule table) and a rows page with the nine headers. Audit: exactly 4 autonomous_ops.export entries, one per download (csv and pdf with entry screen, csv and pdf with entry registry), each rows 3, total 3, truncated false. Analyst: the Statistics card shows, Export activity is absent (canExport false), both export routes answer 403, and with Reporting on the card's CSV and PDF buttons are disabled with 'Needs permission to export reports.'. Results, the 4 files, 7 screenshots and the archived account rows are in ~/omni-archives/uat86-r3-t4/ (no credentials); both accounts and their login, export-usage and DLP export rows were removed afterwards (users back to 5); 17 hash-chained audit_logs entries stay."
+note: "Round 2 (2026-11-14): blocked. The user typed 'pass', but at 12:35 UTC the server had 0 autonomous_ops.export audit entries and no nginx request to any autonomous-ops, statistics or export endpoint that day. Round 1 (2026-11-14): blocked for the same reason. Open after round 3: on this server a real tenant admin still cannot export, because no organization has both Autonomous Ops and Reporting with export:reports."
 
 ### 5. G-86-5 re-check on the published build: at 1024, 1100, 1280 and 1440 px, sidebar open and collapsed, light and dark, open Going live > Organizations and Statistics > per-rule table; also at 320 px
 expected: Each wide table scrolls sideways inside its card; Tab reaches the labelled region and shows a visible focus ring; Action column (Lift shadow mode, Turn shadow mode back on, Use as test organization) and Refused / Would have done (simulation) columns are reachable by scrolling; no horizontal page scroll at 320 px; the Organizations card chip no longer overlaps Days observed at 320-366 px
@@ -49,10 +49,10 @@ note: "Round 1 (2026-11-14): issue G-86-5 (major), diagnosed in .planning/debug/
 ## Summary
 
 total: 5
-passed: 2
+passed: 3
 issues: 0
 pending: 0
 skipped: 0
-blocked: 3
+blocked: 2
 
 ## Gaps
