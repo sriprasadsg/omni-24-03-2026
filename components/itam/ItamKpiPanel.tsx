@@ -52,6 +52,7 @@ interface KpiTileProps {
   entity: string;
   tab: string;
   onDrillDown: (reportKey: string) => void;
+  describedBy?: string;
   children?: React.ReactNode;
 }
 
@@ -59,12 +60,13 @@ interface KpiTileProps {
 // entity/tab-specific next step when the KPI reports hasData=false (or the
 // whole fetch failed) — never a fabricated 0% or 100%, and never a
 // dashboard-wide error banner for a single tile's failure.
-function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, tab, onDrillDown, children }: KpiTileProps) {
+function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, tab, onDrillDown, describedBy, children }: KpiTileProps) {
   return (
     <button
       type="button"
       onClick={() => onDrillDown(drilldownReportKey)}
       aria-label={`${title} — view report`}
+      aria-describedby={describedBy}
       className="text-left w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-cyan-600 transition-colors"
     >
       <div className="flex items-center gap-2 mb-3">
@@ -85,32 +87,67 @@ function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, ta
   );
 }
 
-export function ItamKpiPanel({ onDrillDown, tenantId }: ItamKpiPanelProps) {
+// R5: the server answers a missing tenant with a 400 whose detail starts "Select a tenant".
+const SELECT_TENANT_RE = /^Select a tenant/i;
+
+export function ItamKpiPanel({ onDrillDown, tenantId, needsTenant, onGoToTenants }: ItamKpiPanelProps) {
   const [data, setData] = useState<ItamKpis | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!needsTenant);
   const [failed, setFailed] = useState(false);
+  const [tenantRejected, setTenantRejected] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     // R3: never leave the previous tenant's figures on screen while the new request runs.
     setData(null);
     setFailed(false);
+    setTenantRejected(false);
+    if (needsTenant) {
+      // D-17: no request while the Platform Owner has no tenant selected.
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
     setLoading(true);
     fetchItamKpis(tenantId)
       .then((kpis) => { if (!cancelled) setData(kpis); })
-      .catch(() => { if (!cancelled) setFailed(true); })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        // The detail is only pattern-matched, never rendered (T-78-07).
+        const message = err instanceof Error ? err.message : '';
+        if (SELECT_TENANT_RE.test(message)) setTenantRejected(true);
+        else setFailed(true);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [tenantId]);
+  }, [tenantId, needsTenant]);
 
   const assetValue = data?.assetValue;
   // UI-SPEC section 2: an older response without the new fields still renders.
   const valued = assetValue?.valuedCount ?? 0;
   const inScope = assetValue?.inScopeAssetCount ?? assetValue?.assetCount ?? 0;
   const bookValue = assetValue?.totalBookValueCents;
+  const excluded = Math.max((assetValue?.assetCount ?? 0) - inScope, 0);
   const licenseUtilization = data?.licenseUtilization;
   const warrantyExpirations = data?.warrantyExpirations;
   const overdue = data?.overdue;
+
+  if (needsTenant || tenantRejected) {
+    return (
+      <div role="status" className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center mb-6">
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{ITAM_KPI_COPY.selectTenantHeading}</h4>
+        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-prose mx-auto mt-1">{ITAM_KPI_COPY.selectTenantBody}</p>
+        {onGoToTenants && (
+          <button
+            type="button"
+            onClick={onGoToTenants}
+            className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline py-2 mt-2"
+          >
+            {ITAM_KPI_COPY.goToTenants}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -123,6 +160,7 @@ export function ItamKpiPanel({ onDrillDown, tenantId }: ItamKpiPanelProps) {
         entity="an asset"
         tab="Catalog"
         onDrillDown={onDrillDown}
+        describedBy={!loading && !failed && assetValue?.hasData ? 'itam-kpi-asset-value-summary' : undefined}
       >
         {assetValue?.hasData && (
           <>
@@ -132,7 +170,12 @@ export function ItamKpiPanel({ onDrillDown, tenantId }: ItamKpiPanelProps) {
               ) : (
                 <p className="text-2xl font-semibold text-gray-500 dark:text-gray-400 mb-1">{ITAM_KPI_COPY.notTracked}</p>
               )}
-              <p className="text-xs text-gray-500 dark:text-gray-400">{ITAM_KPI_COPY.valued(valued, inScope)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {inScope === 0 ? ITAM_KPI_COPY.nothingActive : ITAM_KPI_COPY.valued(valued, inScope)}
+              </p>
+              {excluded > 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ITAM_KPI_COPY.excluded(excluded)}</p>
+              )}
               {typeof bookValue !== 'number' && inScope > 0 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ITAM_KPI_COPY.notTrackedHint}</p>
               )}
