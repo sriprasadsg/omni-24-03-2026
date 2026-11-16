@@ -6103,6 +6103,9 @@ export interface ItamAssetValueKpi {
     hasData: boolean;
     totalBookValueCents: number | null;
     assetCount: number;
+    // Phase 78 D-14 / UI-SPEC R2: optional so an older response still renders (valued -> 0, in scope -> assetCount).
+    inScopeAssetCount?: number | null;
+    valuedCount?: number | null;
     withoutPolicyCount: number | null;
     statusBreakdown: ItamKpiStatusBreakdownEntry[];
     drilldownReportKey: string;
@@ -6146,8 +6149,9 @@ export interface ItamKpis {
     overdue: ItamOverdueKpi;
 }
 
-export const fetchItamKpis = async (): Promise<ItamKpis> => {
-    const res = await authFetch(`${API_BASE}/itam/kpis`);
+export const fetchItamKpis = async (tenantId?: string | null): Promise<ItamKpis> => {
+    // Phase 78 D-13: a Platform Owner's selected tenant travels as X-Tenant-ID.
+    const res = await authFetch(`${API_BASE}/itam/kpis`, { tenantId: tenantId || undefined });
     if (!res.ok) return itamThrow(res, 'Failed to load KPIs');
     return res.json();
 };

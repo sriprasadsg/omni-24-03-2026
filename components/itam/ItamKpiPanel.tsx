@@ -8,8 +8,29 @@ import { DollarSignIcon, PieChartIcon, CalendarDaysIcon, AlertTriangleIcon } fro
 // Phase 72 Plan 07: the Reports tab's KPI tile grid (ITAM-REP-04, D-16/D-17/D-18).
 // Clones CXODashboard.tsx's recharts usage — no new charting dependency.
 
+// Phase 78 (UI-SPEC Copywriting Contract, R6): every new string in one English
+// constant so tests assert against a single source. Not in itamI18n.tsx: none
+// of the existing tile strings are translated.
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+export const ITAM_KPI_COPY = {
+  notTracked: 'Not tracked',
+  notTrackedHint: 'Assets need a purchase price, a purchase date and an asset model with a useful life to be valued.',
+  nothingActive: 'No active assets',
+  valued: (x: number, y: number) => `Valued ${x} of ${y} ${plural(y, 'asset', 'assets')}`,
+  excluded: (n: number) => `${n} disposed or retired ${plural(n, 'asset', 'assets')} not counted`,
+  selectTenantHeading: 'Select a tenant',
+  selectTenantBody: 'Asset values and reports cover one organization at a time. Open a tenant from Tenants, then come back to Reports.',
+  goToTenants: 'Go to Tenants',
+  reportsSelectTenantNote: 'Select a tenant to run these reports. They cover one organization at a time.',
+};
+
 interface ItamKpiPanelProps {
   onDrillDown: (reportKey: string) => void;
+  // Phase 78 D-13/D-14: the selected tenant (Platform Owner) or the user's own.
+  tenantId?: string | null;
+  needsTenant?: boolean;
+  onGoToTenants?: () => void;
 }
 
 // Segment colours for pie/bar series — first entry is the tenant accent
@@ -64,21 +85,29 @@ function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, ta
   );
 }
 
-export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
+export function ItamKpiPanel({ onDrillDown, tenantId }: ItamKpiPanelProps) {
   const [data, setData] = useState<ItamKpis | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetchItamKpis()
+    // R3: never leave the previous tenant's figures on screen while the new request runs.
+    setData(null);
+    setFailed(false);
+    setLoading(true);
+    fetchItamKpis(tenantId)
       .then((kpis) => { if (!cancelled) setData(kpis); })
       .catch(() => { if (!cancelled) setFailed(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [tenantId]);
 
   const assetValue = data?.assetValue;
+  // UI-SPEC section 2: an older response without the new fields still renders.
+  const valued = assetValue?.valuedCount ?? 0;
+  const inScope = assetValue?.inScopeAssetCount ?? assetValue?.assetCount ?? 0;
+  const bookValue = assetValue?.totalBookValueCents;
   const licenseUtilization = data?.licenseUtilization;
   const warrantyExpirations = data?.warrantyExpirations;
   const overdue = data?.overdue;
@@ -97,8 +126,17 @@ export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
       >
         {assetValue?.hasData && (
           <>
-            <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{formatCurrency(assetValue.totalBookValueCents ?? 0)}</p>
-            <p className="text-xs text-gray-500 mb-2">{assetValue.assetCount} assets</p>
+            <div id="itam-kpi-asset-value-summary" className="mb-2">
+              {typeof bookValue === 'number' ? (
+                <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{formatCurrency(bookValue)}</p>
+              ) : (
+                <p className="text-2xl font-semibold text-gray-500 dark:text-gray-400 mb-1">{ITAM_KPI_COPY.notTracked}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">{ITAM_KPI_COPY.valued(valued, inScope)}</p>
+              {typeof bookValue !== 'number' && inScope > 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ITAM_KPI_COPY.notTrackedHint}</p>
+              )}
+            </div>
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
