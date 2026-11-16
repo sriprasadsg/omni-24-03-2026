@@ -2,6 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Agent } from '../types';
 import { authFetch, runAgentComplianceScan } from '../services/apiService';
 import { ShieldCheckIcon, CogIcon, CheckIcon, AlertTriangleIcon, XCircleIcon, RefreshCwIcon } from './icons';
+import { Modal } from './Modal';
+
+interface EvidenceItem {
+    name?: string;
+    content?: string;
+    uploadedAt?: string;
+    systemGenerated?: boolean;
+}
 
 interface EvidenceRecord {
     _id?: string;
@@ -10,9 +18,20 @@ interface EvidenceRecord {
     framework?: string;
     controlId?: string;
     status?: string;
+    /** The agent check that set this status (the worst one when several map to the control). */
+    checkName?: string;
     lastUpdated?: string;
-    evidence?: any[];
+    evidence?: EvidenceItem[];
 }
+
+// Failing controls first in the evidence popup.
+const STATUS_ORDER: Record<string, number> = { 'Non-Compliant': 0, Warning: 1, Pending_Evidence: 2, Compliant: 3 };
+const STATUS_CHIP: Record<string, string> = {
+    Compliant: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    'Non-Compliant': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    Warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+};
+const when = (iso?: string) => (iso ? new Date(iso).toLocaleString() : '—');
 
 interface AgentScanStatus {
     agentId: string;
@@ -24,6 +43,7 @@ interface AgentScanStatus {
     failCount: number;
     warningCount: number;
     pendingCount: number;
+    records: EvidenceRecord[];
 }
 
 interface Props {
@@ -35,6 +55,9 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
     const [loading, setLoading] = useState(true);
     const [scanStatuses, setScanStatuses] = useState<Record<string, boolean>>({});
     const [toast, setToast] = useState<string | null>(null);
+    // The computer whose evidence popup is open, and the control whose evidence text is shown in it.
+    const [openAgent, setOpenAgent] = useState<AgentScanStatus | null>(null);
+    const [openControl, setOpenControl] = useState<string | null>(null);
 
     const showToast = (msg: string) => {
         setToast(msg);
@@ -78,6 +101,9 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                 failCount,
                 warningCount,
                 pendingCount,
+                records: [...agentRecords].sort((a, b) =>
+                    (STATUS_ORDER[a.status ?? ''] ?? 2) - (STATUS_ORDER[b.status ?? ''] ?? 2)
+                    || (a.controlId ?? '').localeCompare(b.controlId ?? '')),
             };
         });
     }, [agents, records, scanStatuses]);
@@ -161,7 +187,14 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                                 {agentSummaries.map(agent => (
                                     <tr key={agent.agentId} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white font-mono text-xs">
-                                            {agent.hostname}
+                                            <button
+                                                type="button"
+                                                onClick={() => { setOpenAgent(agent); setOpenControl(null); }}
+                                                aria-label={`Show evidence for ${agent.hostname}`}
+                                                className="underline decoration-dotted underline-offset-2 hover:text-primary-600 dark:hover:text-primary-400"
+                                            >
+                                                {agent.hostname}
+                                            </button>
                                         </td>
                                         <td className="px-4 py-3">
                                             {agent.hasCapability ? (
@@ -218,6 +251,63 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
                     </div>
                 )}
             </div>
+
+            {openAgent && (
+                <Modal isOpen onClose={() => setOpenAgent(null)} title={`Evidence for ${openAgent.hostname}`} size="3xl">
+                    {openAgent.records.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No evidence has been collected for this computer yet.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {openAgent.records.length} controls with evidence · last collected {when(openAgent.lastScan)}
+                            </p>
+                            <ul className="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                {openAgent.records.map(r => {
+                                    const key = r.controlId ?? r._id ?? '';
+                                    const shown = openControl === key;
+                                    const items = r.evidence ?? [];
+                                    return (
+                                        <li key={key} data-testid="evidence-control" data-control={r.controlId} className="p-3">
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                                <span className="font-mono font-semibold text-gray-900 dark:text-white">{r.controlId}</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CHIP[r.status ?? ''] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                                    {r.status ?? 'Unknown'}
+                                                </span>
+                                                <span className="text-gray-700 dark:text-gray-300">{r.checkName ?? 'Uploaded evidence'}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{when(r.lastUpdated)}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenControl(shown ? null : key)}
+                                                    aria-expanded={shown}
+                                                    aria-label={`${shown ? 'Hide' : 'Show'} evidence for ${r.controlId}`}
+                                                    className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                                                >
+                                                    {shown ? 'Hide evidence' : `Show evidence (${items.length})`}
+                                                </button>
+                                            </div>
+                                            {shown && (
+                                                <div className="mt-2 space-y-2">
+                                                    {items.length === 0 && (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">No evidence text stored for this control.</p>
+                                                    )}
+                                                    {items.map((ev, i) => (
+                                                        <div key={`${ev.name}-${i}`} className="rounded-md bg-gray-50 dark:bg-gray-900/40 p-2">
+                                                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                                                {ev.name ?? 'Evidence'} · {when(ev.uploadedAt)} · {ev.systemGenerated ? 'collected by the agent' : 'uploaded'}
+                                                            </p>
+                                                            <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-800 dark:text-gray-200">{ev.content ?? ''}</pre>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    )}
+                </Modal>
+            )}
 
             {toast && (
                 <div className="fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white bg-primary-600 z-50">
