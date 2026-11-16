@@ -1,4 +1,4 @@
-"""ITAM cost routes (Phase 78): `GET /api/itam/costs/summary` and `GET /api/itam/costs/assets`.
+"""ITAM cost routes (Phase 78): GET /api/itam/costs/summary, /assets and /assets/{id}.
 
 Read-only, tenant-scoped. Figures come from itam_cost_service, the one shared per-asset
 computation. Reuses `_require_itam_viewer` from itam_asset_endpoints.py (imported, never
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from auth_types import TokenData
 from database import get_database
 from itam_asset_endpoints import _require_itam_viewer
-from itam_cost_service import compute_tenant_costs
+from itam_cost_service import compute_asset_cost_detail, compute_tenant_costs
 from itam_tenant_scope import resolve_itam_tenant
 from pagination_utils import paginate
 
@@ -80,4 +80,26 @@ async def list_cost_assets(
         raise
     except Exception as exc:
         logger.error("ITAM cost asset list failed for tenant %s: %s", tenant_id, exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+
+@router.get("/assets/{asset_id}", response_model=Dict[str, Any])
+async def get_cost_asset(
+    asset_id: str,
+    request: Request,
+    current_user: TokenData = Depends(_require_itam_viewer),
+):
+    """One asset's cost row, disposed and retired included. An unknown id and another organization's
+    id both get the same 404 body, so the route is no existence oracle."""
+    tenant_id = resolve_itam_tenant(request, current_user)
+    db = get_database()
+    try:
+        detail = await compute_asset_cost_detail(db, tenant_id, asset_id)
+        if detail is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+        return detail
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("ITAM cost asset detail failed for tenant %s: %s", tenant_id, exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")

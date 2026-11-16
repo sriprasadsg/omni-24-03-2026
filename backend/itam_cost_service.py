@@ -21,6 +21,7 @@ from itam_finance_service import (
     compute_book_value,
 )
 from itam_models import DEFAULT_LIFECYCLE_STATUS, LifecycleStatus
+from seat_identity import normalize_serial
 
 # D-01: disposed and retired assets are out of the totals unless the caller asks for them.
 INACTIVE_STATUSES = frozenset({LifecycleStatus.DISPOSED.value, LifecycleStatus.RETIRED.value})
@@ -191,6 +192,37 @@ async def load_agents_by_asset(db: Any, tenant_id: str, asset_ids: Iterable[str]
     return joined
 
 
+def mark_possible_duplicates(assets: Iterable[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """D-07: map asset id to the sorted ids it may duplicate. Pure; marks only, never merges (PROH-78-03).
+
+    An agent-discovered asset (hardwareKey "serial:<value>") pairs with every hand-entered asset
+    (no hardwareKey) whose normalized serialNumber equals that value. uuid: and mac: keys never take
+    part, two hardware-keyed assets are never paired, and normalize_serial rejects placeholder serials.
+    """
+    agent_side: Dict[str, List[str]] = {}
+    hand_side: Dict[str, List[str]] = {}
+    for asset in assets:
+        asset_id = asset.get("id")
+        if not asset_id:
+            continue
+        key = asset.get("hardwareKey")
+        if isinstance(key, str) and key.startswith("serial:"):
+            value = normalize_serial(key[len("serial:"):])
+            if value:
+                agent_side.setdefault(value, []).append(asset_id)
+        elif not key:
+            value = normalize_serial(asset.get("serialNumber"))
+            if value:
+                hand_side.setdefault(value, []).append(asset_id)
+    pairs: Dict[str, set] = {}
+    for value, agent_ids in agent_side.items():
+        for hand_id in hand_side.get(value, []):
+            for agent_id in agent_ids:
+                pairs.setdefault(agent_id, set()).add(hand_id)
+                pairs.setdefault(hand_id, set()).add(agent_id)
+    return {asset_id: sorted(others) for asset_id, others in pairs.items()}
+
+
 def sort_cost_rows(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """D-08 order: valued rows by book value descending, unvalued rows last, then name, tag, id."""
     return sorted(
@@ -270,6 +302,12 @@ async def compute_tenant_costs(
     else:
         in_scope = [r for r in all_rows if r["lifecycleStatus"] not in INACTIVE_STATUSES]
         hidden = len(all_rows) - len(in_scope)
+    in_scope_ids = {r["assetId"] for r in in_scope}
+    marks = mark_possible_duplicates(a for a in assets if a.get("id") in in_scope_ids)
+    for row in in_scope:
+        row["possibleDuplicateOf"] = marks.get(row["assetId"], [])
+        if row["possibleDuplicateOf"]:
+            row["flags"].append(FLAG_POSSIBLE_DUPLICATE)
     if with_agents:
         agents = await load_agents_by_asset(db, tenant_id, (r["assetId"] for r in in_scope))
         for row in in_scope:
@@ -281,3 +319,18 @@ async def compute_tenant_costs(
             include_inactive=include_inactive, excluded_by_lifecycle=hidden,
         ),
     }
+
+
+async def compute_asset_cost_detail(
+    db: Any, tenant_id: str, asset_id: str, *, now: Optional[datetime] = None
+) -> Optional[Dict[str, Any]]:
+    """One asset's row (disposed and retired included) plus computedAt, or None when the tenant has no such asset.
+
+    The whole tenant set is computed so the duplicate markers and the agent equal the list row's
+    (A-78-12). asset_id is only compared in Python, never placed in a query.
+    """
+    result = await compute_tenant_costs(db, tenant_id, include_inactive=True, with_agents=True, now=now)
+    for row in result["rows"]:
+        if row["assetId"] == asset_id:
+            return {**row, "computedAt": result["summary"]["computedAt"]}
+    return None
