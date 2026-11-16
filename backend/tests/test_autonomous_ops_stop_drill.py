@@ -130,7 +130,10 @@ async def _world(db, t):
     await seed_group(db, t, f"G-{t}", [canary])
     await seed_rings(db, t, [{"key": "canary", "name": "Canary", "groupIds": [f"G-{t}"], "soakHours": 1},
                              {"key": "rest", "name": "Everyone else", "groupIds": [], "soakHours": 1}])
-    await seed_window(db, t, start="00:00", end="23:59", name=f"all-day-{t}")
+    # Set around NOW: the drill steps up to 90 minutes ahead and must never cross the window's close, whatever
+    # the time of day (an install is sent to expire at the close).
+    await seed_window(db, t, start=(NOW - timedelta(hours=1)).strftime("%H:%M"),
+                      end=(NOW + timedelta(hours=3)).strftime("%H:%M"), name=f"drill-{t}")
     rollout = await start.start_rollout(db, t, name="Nov", patch_ids=["openssl"], actor={"id": "u1", "name": "Ann"},
                                         now=NOW)
     assert rollout["status"] == "started", rollout
