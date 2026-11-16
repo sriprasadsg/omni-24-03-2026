@@ -129,7 +129,7 @@ status: complete
 
 ## TDD Gate Compliance
 
-Both RED commits precede their GREEN commits. Task 1's RED failed on `404 == 200` for every list test (the route did not exist), a target assertion on the planned status, not a load failure. Task 2's RED failed on missing `possibleDuplicateOf` / flags and on the detail route's 404 versus 200 and "Not Found" versus "Asset not found"; the three duplicate tests that expect no marker (`uuid_and_mac`, `two_agent_assets`) passed in RED because no marker existed yet, which is expected for negative cases. `workflow.tdd_mode` is false; the format classifier (`check tdd-red-evidence`) was not run.
+Both RED commits precede their GREEN commits. Task 1's RED failed on `404 == 200` for every list test (the route did not exist), a target assertion on the planned status, not a load failure. Task 2's RED failed on missing `possibleDuplicateOf` / flags and on the detail route's 404 versus 200 and "Not Found" versus "Asset not found"; the two duplicate tests that expect no marker (`uuid_and_mac`, `two_agent_assets`) passed in RED because no marker existed yet, which is expected for negative cases. `workflow.tdd_mode` is false; the format classifier (`check tdd-red-evidence`) was not run.
 
 Tracer gate: the Task 1 verify command was re-run after the commit (25 passed) before Task 2 started.
 
