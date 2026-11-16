@@ -283,6 +283,25 @@ def test_malformed_lifecycle_status_reads_as_default(status):
     assert row["reason"] is None and row["valued"] is True
 
 
+def test_malformed_inputs_never_raise():
+    """The plan's combined case list in one place: none raises and no result value is a float."""
+    cases = [
+        (_asset(cost="100000", date=D), _model(), svc.REASON_UNREADABLE_COST),
+        (_asset(cost=100000.5, date=D), _model(), svc.REASON_UNREADABLE_COST),
+        (_asset(cost=-5, date=D), _model(), svc.REASON_UNREADABLE_COST),
+        (_asset(cost=True, date=D), _model(), svc.REASON_UNREADABLE_COST),
+        (_asset(cost=100000, date=D), _model(life=True), svc.REASON_NO_DEPRECIATION_POLICY),
+        (_asset(cost=100000, date=D), _model(life=0), svc.REASON_NO_DEPRECIATION_POLICY),
+        (_asset(cost=100000, date="not-a-date"), _model(), svc.REASON_UNREADABLE_DATE),
+        ({**_asset(cost=100000), "purchaseDate": datetime(2024, 3, 1)}, _model(), svc.REASON_UNREADABLE_DATE),
+    ]
+    for asset, model, reason in cases:
+        row = svc.compute_asset_cost(asset, model, NOW)
+        assert row["reason"] == reason and row["bookValueCents"] is None
+        assert _floats_in(row) == []
+    assert row["purchaseDate"] is None  # the datetime object is not echoed
+
+
 def test_empty_document_never_raises():
     row = svc.compute_asset_cost({}, None, NOW)
     assert row["reason"] == svc.REASON_NO_PURCHASE_RECORD and row["priced"] is False and row["valued"] is False
@@ -351,7 +370,7 @@ async def test_explicit_tenant_filter_under_platform_admin_ambient(mongo_db):
     assert by_id["A1"]["yearsElapsed"] == 2 and by_id["A1"]["bookValueCents"] == 100000 - 2 * (100000 // 3)
 
 
-def test_sort_order_valued_then_not_tracked_with_tiebreaks():
+def test_sort_order():
     def row(asset_id, book, name, tag):
         return {"assetId": asset_id, "bookValueCents": book, "name": name, "assetTag": tag}
 
