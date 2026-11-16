@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 7/10 plans executed
+**Plans**: 8/10 plans executed
 **UI hint**: yes
 
 Plans:
@@ -296,7 +296,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [x] 78-07-PLAN.md — Two-tenant isolation through the real middleware and real tokens on every cost, KPI and report route; Support 400/403 and Billing 403 per amended D-15 (COST-07)
-- [ ] 78-09-PLAN.md — Shared computation unit tests: 13-row golden table, reason invariant, malformed-input guards, tenant refusal, static source scan (COST-01, COST-02)
+- [x] 78-09-PLAN.md — Shared computation unit tests: 13-row golden table, reason invariant, malformed-input guards, tenant refusal, static source scan (COST-01, COST-02)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 78-08-PLAN.md — KPI = report = summary = list parity and 20k-asset read bound (COST-01, SC3)
@@ -755,7 +755,7 @@ Plans:
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
-| 78. Organization & Endpoint Cost API | 7/10 | In Progress | - |
+| 78. Organization & Endpoint Cost API | 8/10 | In Progress | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
