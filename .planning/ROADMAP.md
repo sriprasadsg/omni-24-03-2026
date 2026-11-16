@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 5/10 plans executed
+**Plans**: 6/10 plans executed
 **UI hint**: yes
 
 Plans:
@@ -292,7 +292,7 @@ Plans:
 - [x] 78-03-PLAN.md — GET /api/itam/costs/assets (paged, whole-set sort) and /assets/{id}: agent join via agents.assetId, serial duplicate markers, tenant-safe 404 (D-05..D-08)
 - [x] 78-04-PLAN.md — ITAM KPI on the shared computation and the shared tenant resolver (D-01, D-04, D-10, D-13)
 - [x] 78-05-PLAN.md — Asset value report and custom builder Book Value on the shared computation; report run/export on the resolver (D-04, D-13)
-- [ ] 78-06-PLAN.md — Console threads the Owner's tenant to the tile and Reports tab; pre-built runs carry the tenant, disabled with a note without one (D-14 amended, UI-SPEC R4)
+- [x] 78-06-PLAN.md — Console threads the Owner's tenant to the tile and Reports tab; pre-built runs carry the tenant, disabled with a note without one (D-14 amended, UI-SPEC R4)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 78-07-PLAN.md — Two-tenant isolation through the real middleware and real tokens on every cost, KPI and report route; Support 400/403 and Billing 403 per amended D-15 (COST-07)
@@ -755,7 +755,7 @@ Plans:
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
-| 78. Organization & Endpoint Cost API | 5/10 | In Progress | - |
+| 78. Organization & Endpoint Cost API | 6/10 | In Progress | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
