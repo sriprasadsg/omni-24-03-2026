@@ -120,7 +120,9 @@ class TestAssetValueKpi:
         result = await compute_itam_kpis(wrapped, "tenant-a")
 
         asset_value = result["assetValue"]
-        assert asset_value["totalBookValueCents"] == 0
+        # D-10: assets exist but none is valued -> null, never a fabricated 0.
+        assert asset_value["hasData"] is True
+        assert asset_value["totalBookValueCents"] is None
         assert asset_value["withoutPolicyCount"] == 1
 
 
@@ -437,14 +439,16 @@ class TestItamKpiRoute:
         assert r.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_kpis_returns_403_when_no_tenant_id(self, mock_db, monkeypatch):
+    async def test_get_kpis_returns_400_when_no_tenant_id(self, mock_db, monkeypatch):
         _seed_defaults(mock_db)
         app = _make_kpi_app(mock_db, monkeypatch)
 
         async with _kpi_client(app, tenant_id=None) as ac:
             r = await ac.get("/api/itam/kpis")
 
-        assert r.status_code == 403
+        # D-13 / D-15 (amended 2026-11-16): the resolver answers 400, not 403.
+        assert r.status_code == 400
+        assert r.json()["detail"].startswith("Select a tenant")
 
     @pytest.mark.asyncio
     async def test_get_kpis_returns_500_with_generic_detail_on_backend_exception(self, mock_db, monkeypatch):
