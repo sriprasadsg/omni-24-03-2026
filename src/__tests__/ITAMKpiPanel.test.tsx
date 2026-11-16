@@ -19,7 +19,7 @@ vi.mock('../../services/apiService', () => ({
   fetchItamKpis: (...args: unknown[]) => fetchItamKpis(...args),
 }));
 
-import { ItamKpiPanel } from '../../components/itam/ItamKpiPanel';
+import { ItamKpiPanel, ITAM_KPI_COPY } from '../../components/itam/ItamKpiPanel';
 
 // recharts' ResponsiveContainer needs a real ResizeObserver plus a sized
 // container to render its children under jsdom (jsdom's layout engine always
@@ -289,5 +289,154 @@ describe('ItamKpiPanel', () => {
 
     await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(4));
     screen.getAllByRole('button').forEach((btn) => expect(btn.tagName).toBe('BUTTON'));
+  });
+  // Phase 78 plan 02 Task 2: remaining tile states, Select-a-tenant block, tenant reset.
+  function assetValueKpi(over: Record<string, any>) {
+    return fullKpis({
+      assetValue: {
+        hasData: true,
+        totalBookValueCents: 500000,
+        assetCount: 12,
+        inScopeAssetCount: 12,
+        valuedCount: 12,
+        withoutPolicyCount: 0,
+        statusBreakdown: [{ status: 'deployed', label: 'Deployed', count: 12 }],
+        drilldownReportKey: 'asset_value',
+        ...over,
+      },
+    });
+  }
+
+  it('shows the excluded line for disposed or retired assets, plural and singular, and none when counts match', async () => {
+    fetchItamKpis.mockResolvedValue(assetValueKpi({ assetCount: 12, inScopeAssetCount: 9, valuedCount: 9 }));
+    const first = render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('3 disposed or retired assets not counted')).toBeInTheDocument());
+    first.unmount();
+
+    fetchItamKpis.mockResolvedValue(assetValueKpi({ assetCount: 2, inScopeAssetCount: 1, valuedCount: 1 }));
+    const second = render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('1 disposed or retired asset not counted')).toBeInTheDocument());
+    second.unmount();
+
+    fetchItamKpis.mockResolvedValue(assetValueKpi({ assetCount: 12, inScopeAssetCount: 12 }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Valued 12 of 12 assets')).toBeInTheDocument());
+    expect(screen.queryByText(/disposed or retired/)).not.toBeInTheDocument();
+  });
+
+  it('when every asset is disposed or retired the tile says "No active assets" and still shows the excluded line', async () => {
+    fetchItamKpis.mockResolvedValue(assetValueKpi({
+      totalBookValueCents: null, assetCount: 3, inScopeAssetCount: 0, valuedCount: 0,
+    }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Not tracked')).toBeInTheDocument());
+    expect(screen.getByText('No active assets')).toBeInTheDocument();
+    expect(screen.queryByText(/^Valued /)).not.toBeInTheDocument();
+    expect(screen.getByText('3 disposed or retired assets not counted')).toBeInTheDocument();
+  });
+
+  it('needsTenant replaces the grid with a Select a tenant status block and sends no request', () => {
+    render(<ItamKpiPanel onDrillDown={vi.fn()} needsTenant />);
+
+    const block = screen.getByRole('status');
+    expect(block).toHaveTextContent('Select a tenant');
+    expect(block).toHaveTextContent(ITAM_KPI_COPY.selectTenantBody);
+    expect(screen.queryByText('Total Asset Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('License Seat Utilization')).not.toBeInTheDocument();
+    expect(screen.queryByText('Warranty Expirations')).not.toBeInTheDocument();
+    expect(screen.queryByText('Overdue Audits & Check-ins')).not.toBeInTheDocument();
+    expect(fetchItamKpis).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Go to Tenants' })).not.toBeInTheDocument();
+  });
+
+  it('shows Go to Tenants only when a handler is supplied and calls it on click', () => {
+    const onGoToTenants = vi.fn();
+    render(<ItamKpiPanel onDrillDown={vi.fn()} needsTenant onGoToTenants={onGoToTenants} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Tenants' }));
+    expect(onGoToTenants).toHaveBeenCalledTimes(1);
+  });
+
+  it('a rejection starting "Select a tenant" shows the Select block; any other failure keeps the No data yet tiles', async () => {
+    fetchItamKpis.mockRejectedValue(new Error('Select a tenant: ITAM figures cover one organization at a time.'));
+    const first = render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Select a tenant'));
+    expect(screen.queryByText('No data yet')).not.toBeInTheDocument();
+    first.unmount();
+
+    fetchItamKpis.mockRejectedValue(new Error('boom'));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText('No data yet')).toHaveLength(4));
+    expect(screen.queryByText('boom')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('a tenant change clears the previous figure, shows Loading, and ignores a late response for the old tenant', async () => {
+    let resolveT1: (v: unknown) => void = () => {};
+    let resolveT2: (v: unknown) => void = () => {};
+    fetchItamKpis.mockImplementation((tenant?: string) => new Promise((resolve) => {
+      if (tenant === 't-1') resolveT1 = resolve; else resolveT2 = resolve;
+    }));
+
+    const { rerender } = render(<ItamKpiPanel onDrillDown={vi.fn()} tenantId="t-1" />);
+    resolveT1(assetValueKpi({ totalBookValueCents: 111100 }));
+    await waitFor(() => expect(screen.getByText('$1,111')).toBeInTheDocument());
+
+    rerender(<ItamKpiPanel onDrillDown={vi.fn()} tenantId="t-2" />);
+    expect(screen.queryByText('$1,111')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Loading…')).toHaveLength(4);
+
+    resolveT2(assetValueKpi({ totalBookValueCents: 222200 }));
+    await waitFor(() => expect(screen.getByText('$2,222')).toBeInTheDocument());
+    expect(fetchItamKpis).toHaveBeenLastCalledWith('t-2');
+  });
+
+  it('a response for the older tenant that arrives after the switch is never rendered', async () => {
+    let resolveT1: (v: unknown) => void = () => {};
+    let resolveT2: (v: unknown) => void = () => {};
+    fetchItamKpis.mockImplementation((tenant?: string) => new Promise((resolve) => {
+      if (tenant === 't-1') resolveT1 = resolve; else resolveT2 = resolve;
+    }));
+
+    const { rerender } = render(<ItamKpiPanel onDrillDown={vi.fn()} tenantId="t-1" />);
+    rerender(<ItamKpiPanel onDrillDown={vi.fn()} tenantId="t-2" />);
+    resolveT1(assetValueKpi({ totalBookValueCents: 111100 }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText('$1,111')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Loading…')).toHaveLength(4);
+
+    resolveT2(assetValueKpi({ totalBookValueCents: 222200 }));
+    await waitFor(() => expect(screen.getByText('$2,222')).toBeInTheDocument());
+    expect(screen.queryByText('$1,111')).not.toBeInTheDocument();
+  });
+
+  it('the Total Asset Value button is described by the summary holding the figure and the Valued line', async () => {
+    fetchItamKpis.mockResolvedValue(assetValueKpi({ valuedCount: 10 }));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('$5,000')).toBeInTheDocument());
+    const button = screen.getByRole('button', { name: /Total Asset Value/i });
+    expect(button).toHaveAttribute('aria-describedby', 'itam-kpi-asset-value-summary');
+    const summary = document.getElementById('itam-kpi-asset-value-summary');
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent('$5,000');
+    expect(summary).toHaveTextContent('Valued 10 of 12 assets');
+  });
+
+  it('new lines never truncate and the Select block body is max-w-prose', async () => {
+    fetchItamKpis.mockResolvedValue(assetValueKpi({
+      totalBookValueCents: null, assetCount: 5, inScopeAssetCount: 4, valuedCount: 0,
+    }));
+    const tile = render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Not tracked')).toBeInTheDocument());
+    const summary = document.getElementById('itam-kpi-asset-value-summary') as HTMLElement;
+    expect(summary.innerHTML).not.toMatch(/truncate|text-ellipsis/);
+    tile.unmount();
+
+    render(<ItamKpiPanel onDrillDown={vi.fn()} needsTenant onGoToTenants={vi.fn()} />);
+    const block = screen.getByRole('status');
+    expect(block.innerHTML).not.toMatch(/truncate|text-ellipsis/);
+    expect(screen.getByText(ITAM_KPI_COPY.selectTenantBody)).toHaveClass('max-w-prose');
   });
 });
