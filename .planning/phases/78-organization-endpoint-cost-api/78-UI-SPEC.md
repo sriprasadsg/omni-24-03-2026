@@ -1,7 +1,8 @@
 ---
 phase: "78"
 slug: organization-endpoint-cost-api
-status: draft
+status: approved
+reviewed_at: "2026-11-16"
 shadcn_initialized: false
 preset: none
 created: "2026-11-16"
@@ -195,35 +196,32 @@ Naming rule: "tenant" is the word the ITAM console and the server's 400 use; "or
 
 ## UI Considerations
 
-> Authored by gsd-ui-researcher against the closed 8-category taxonomy (`.claude/gsd-core/references/ui-consideration-probe.md`). The ui-phase orchestrator runs the probe engine in Step 9.5 after checker approval and REPLACES these rows (idempotent); statuses below are the researcher's resolutions, not an engine run. Empty and error COPY lives in the Copywriting Contract and is referenced, not restated.
+> Populated by the ui-phase UI-consideration probe (Step 9.5) after checker approval on 2026-11-16; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage and references those rows. Singular/plural copy (`Valued 1 of 1 asset`, `1 disposed or retired asset not counted`) is fixed in the Copywriting Contract and the Validation hooks.
 
-Elements and kinds (authored `elements` overrides): E1 Total Asset Value tile (static-content, interactive-control), E2 Valued / excluded lines (static-content), E3 Select-a-tenant block (static-content, interactive-control), E4 Reports pre-built Run controls (interactive-control, list-collection).
+Probe engine: `.claude/gsd-core/bin/lib/ui-consideration-probe.cjs`. Surfaces and kinds (authored `elements` overrides, confirmed by the user; the prose classifier read E1 as interactive-control only, E3 as also list-collection and E4 as also nav): E1 Total Asset Value tile (interactive-control, static-content), E2 Valued / excluded / hint lines (static-content), E3 Select-a-tenant block (static-content, interactive-control), E4 Reports pre-built report cards and Run controls (list-collection, interactive-control).
 
-Applicable considerations resolved: 17 covered, 3 backstop, 1 dismissed, 0 unresolved.
+Applicable considerations: 18. Resolved explicit: 15. Resolved backstop: 1. Dismissed with a reason: 2. Unresolved: 0. Resolutions approved by the user on 2026-11-16.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| loading | E1 tile | ✅ covered | `Loading…` shows from the first render and again after every tenant change; no figure from the previous tenant is visible while loading (section 4). |
-| error | E1 tile | ✅ covered | A non-400 failure degrades to the existing `No data yet` tile with the existing next-step line; a failure whose message starts `Select a tenant` shows the Select-a-tenant block (R5). |
-| long-text | E1 tile | ✅ covered | The figure and lines are short fixed strings; the Valued and excluded lines wrap (12px, no truncation); the figure is at most `$` plus a grouped whole-dollar number. |
-| overflow | E1 tile | 🧪 backstop | { statement: "A book value of $9,999,999,999 and a Valued line of 5-digit counts wrap or fit inside the tile at 320px without horizontal overflow", verification: backstop } |
-| empty | E2 lines | ✅ covered | Valued line is omitted when `inScope` is 0 (replaced by `No active assets`); the excluded line is omitted when 0. |
-| partial | E2 lines | ✅ covered | `Valued 10 of 12 assets` states partial coverage beside the figure; `Not tracked` plus the hint states none. |
-| zero-one-many | E2 lines | ✅ covered | `asset` singular when y is 1, `assets` otherwise; `1 disposed or retired asset not counted` versus the plural; a 0 count prints as `0` inside the Valued line, never hidden. |
-| long-text | E2 lines | ✅ covered | Fixed short strings that wrap; the hint is one sentence at 12px. |
-| empty | E3 Select block | ✅ covered | This block is the empty/zero-context state for the whole grid; `Select a tenant` heading plus the body (Copywriting Contract). |
+| Category | Element | Status | Resolution / Reason |
+|----------|---------|--------|---------------------|
+| loading | E1 tile | ✅ resolved (explicit) | `Loading…` shows from the first render and again after every tenant change; no figure from the previous tenant is visible while loading (section 4). |
+| error | E1 tile | ✅ resolved (explicit) | A non-400 failure degrades to the existing `No data yet` tile with the existing next-step line; a rejection whose message starts `Select a tenant` shows the Select-a-tenant block (R5). |
+| overflow | E1 tile | 🧪 resolved (backstop) | { statement: "A book value of $9,999,999,999 and a Valued line with 5-digit counts fit or wrap inside the tile at 320px without horizontal overflow", verification: backstop } |
+| long-text | E1 tile | ✅ resolved (explicit) | The figure and lines are short fixed strings that wrap and are never truncated; the figure is at most `$` plus a grouped whole-dollar number. |
+| overflow | E2 lines | ✅ resolved (explicit) | The Valued, excluded and nothing-active lines are 12px text that wraps inside the tile; no clipping and no ellipsis. |
+| long-text | E2 lines | ✅ resolved (explicit) | The Not-tracked hint is one sentence at 12px that wraps; no truncation. |
 | loading | E3 Select block | ➖ dismissed | Reason: it is rendered synchronously from props with no request; there is no in-flight state. |
-| error | E3 Select block | ✅ covered | The Platform Support 400 case renders this block instead of an error banner (R5); other failures follow E1. |
-| long-text | E3 Select block | ✅ covered | Body is `max-w-prose`, centred, wraps; at 320px it is the only content of the panel. |
-| overflow | E3 Select block | ✅ covered | `p-8` block inside the `grid`'s parent; no fixed width; replaces the grid so nothing scrolls horizontally. |
-| loading | E4 Run controls | ✅ covered | Existing `Loading…` text and the running state of `ReportsPanel`; unchanged. |
-| error | E4 Run controls | ✅ covered | The existing `showToast` of the server's `detail`; a disabled button cannot trigger the 400 for `needsTenant`. |
-| empty | E4 Run controls | ✅ covered | With `needsTenant` the buttons are disabled with a visible reason line (`aria-describedby`). |
-| partial | E4 Run controls | 🧪 backstop | { statement: "After switching from tenant A to tenant B (or to no tenant) ReportsPanel shows no result table, title or export buttons from tenant A", verification: backstop } |
-| overflow | E4 Run controls | ✅ covered | The note wraps above the unchanged `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`; nothing added to the table scroller. |
-| populated | E1 tile | ✅ covered | Valued state: `$` figure, Valued line, optional excluded line, pie unchanged at a typical 10 to 12 assets. |
-| zero-one-many | E1 tile | 🧪 backstop | { statement: "A tenant with exactly one asset renders `Valued 1 of 1 asset` (or `Valued 0 of 1 asset` with `Not tracked`) and a one-slice pie without error", verification: backstop } |
-| long-text | E4 Run controls | ✅ covered | Fixed short note and unchanged report titles; no new server text is rendered. |
+| error | E3 Select block | ✅ resolved (explicit) | The Platform Support 400 (message starting `Select a tenant`) renders this block instead of an error banner (R5); other failures follow E1. |
+| overflow | E3 Select block | ✅ resolved (explicit) | `p-8` block with no fixed width that replaces the grid, so nothing scrolls sideways at 320px. |
+| long-text | E3 Select block | ✅ resolved (explicit) | The body is `max-w-prose`, centred, and wraps. |
+| empty | E4 Reports | ✅ resolved (explicit) | With `needsTenant` every pre-built `Run Report` button is disabled and points (`aria-describedby`) at the visible note `Select a tenant to run these reports. They cover one organization at a time.` |
+| loading | E4 Reports | ✅ resolved (explicit) | The existing running state of `ReportsPanel` is unchanged. |
+| error | E4 Reports | ✅ resolved (explicit) | A run or export failure shows the existing toast with the server's `detail`; a disabled button cannot send the no-tenant request. |
+| populated | E4 Reports | ✅ resolved (explicit) | With a tenant selected, pre-built reports run and export for that tenant exactly as for a tenant user, in the unchanged card grid. |
+| partial | E4 Reports | ✅ resolved (explicit) | After `tenantId` changes (to another tenant or to none), `ReportsPanel` renders no result table, title or export buttons from the previous tenant (`result`, `activeKind`, `activeKey`, `page` cleared). |
+| overflow | E4 Reports | ✅ resolved (explicit) | The note wraps above the unchanged `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`; nothing is added to the result-table scroller. |
+| zero-one-many | E4 Reports | ➖ dismissed | Reason: the pre-built report list is a fixed catalogue that does not vary by tenant, and result-table row rendering is existing behaviour this phase does not change. |
+| long-text | E4 Reports | ✅ resolved (explicit) | The note is fixed short copy and report titles are unchanged; no new server text is rendered in the cards. |
 
 ---
 
@@ -275,12 +273,14 @@ Applicable considerations resolved: 17 covered, 3 backstop, 1 dismissed, 0 unres
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS (inherited `mb-3` exception only; no new 12px spacing)
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+Checker recommendations carried to the planner (non-blocking): the `ReportsPanel` changes (R3, R4) go beyond D-14's literal file list and stay separable (fallback: accept the server's 400 toast until Phase 80); the backend must emit `valuedCount` and `inScopeAssetCount` with `hasData` true when assets exist (R2), and the missing-tenant 400 detail must begin with `Select a tenant` (R5).
+
+**Approval:** approved 2026-11-16 (gsd-ui-checker, 7/7)
