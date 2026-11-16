@@ -5,11 +5,11 @@ milestone_name: Autonomous Ops
 current_phase: 78
 current_phase_name: Organization & Endpoint Cost API
 status: executing
-stopped_at: Completed 78-03-PLAN.md
-last_updated: "2026-11-16T20:50:12.252Z"
+stopped_at: Completed 78-04-PLAN.md
+last_updated: "2026-11-16T20:55:20.396Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 78 execution started
-state_head: bd9f48ed97c2dfd1b7c824a04f7a1f5db778c990
+state_head: c666290f6b2796480012e23a1d7f1fb60c229b7e
 progress:
   total_phases: 8
   completed_phases: 6
@@ -699,6 +699,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 78]: 78-01: ITAM tenant resolver reads X-Tenant-ID itself (auth dependencies reset the ambient tenant after TenantMiddleware); Owner session only, 400 before any read otherwise
 - [Phase 78]: 78-02: ItamKpiPanel renders the Select-a-tenant block (needsTenant or /^Select a tenant/i rejection) after all hooks; tenant-change reset clears data before each request; ITAM_KPI_COPY exported for ReportsPanel (78-06)
 - [Phase 78]: 78-03: duplicate pairs formed among rows in scope; detail route computes the full tenant set so markers and agent equal the list row's
+- [Phase 78]: 78-04: KPI assetValue.assetCount keeps meaning every asset (pie total); tile uses inScopeAssetCount/valuedCount; no valued asset gives null total with hasData true (D-10)
 
 ## Performance Metrics
 
@@ -1029,6 +1030,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 78 P01 | 6 min | 2 tasks | 7 files |
 | Phase 78 P02 | 6 min | 2 tasks | 3 files |
 | Phase 78 P03 | 17 min | 2 tasks | 3 files |
+| Phase 78 P04 | 10 min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1063,8 +1065,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-16T20:50:11.912Z
-**Stopped at:** Completed 78-03-PLAN.md
+**Last session:** 2026-11-16T20:55:20.023Z
+**Stopped at:** Completed 78-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1093,7 +1095,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 78 (Organization & Endpoint Cost API) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 78 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
