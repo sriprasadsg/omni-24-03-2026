@@ -215,3 +215,144 @@ class TestGuardAndTenant:
         async with _client(app, _tenant_admin()) as ac:
             r = await ac.get(LIST_URL)
         assert r.status_code == 403
+
+
+def _flagged(rows):
+    return {r["assetId"]: r for r in rows if "possibleDuplicate" in r["flags"]}
+
+
+async def _rows(monkeypatch, db, **params):
+    r = await _get(monkeypatch, db, params)
+    assert r.status_code == 200, r.text
+    return r.json()["items"]
+
+
+class TestPossibleDuplicates:
+    @pytest.mark.asyncio
+    async def test_serial_duplicate_pair_marked(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AGX", hardware_key="serial:ABC123", cost=30000, date=PURCHASE),
+            _asset("tenant-a", "MAN", serial=" abc123 ", cost=40000, date=PURCHASE),
+        ])
+        rows = await _rows(monkeypatch, mongo_db)
+        flagged = _flagged(rows)
+        assert set(flagged) == {"AGX", "MAN"}
+        assert flagged["AGX"]["possibleDuplicateOf"] == ["MAN"] and flagged["MAN"]["possibleDuplicateOf"] == ["AGX"]
+        assert flagged["AGX"]["purchaseCostCents"] == 30000 and flagged["MAN"]["purchaseCostCents"] == 40000
+        summary = (await _get(monkeypatch, mongo_db, url=SUMMARY_URL)).json()
+        assert summary["purchaseTotal"]["cents"] == 70000 and summary["coverage"]["total"] == 2
+        assert summary["coverage"]["possibleDuplicatePairs"] == 1
+        assert summary["coverage"]["flags"]["possibleDuplicate"] == 2
+
+    @pytest.mark.asyncio
+    async def test_placeholder_serials_never_match(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AG1", hardware_key="serial:To Be Filled By O.E.M."),
+            _asset("tenant-a", "MAN1", serial="To Be Filled By O.E.M."),
+            _asset("tenant-a", "AG2", hardware_key="serial:0000000"),
+            _asset("tenant-a", "MAN2", serial="0000000"),
+        ])
+        rows = await _rows(monkeypatch, mongo_db)
+        assert _flagged(rows) == {} and all(r["possibleDuplicateOf"] == [] for r in rows)
+
+    @pytest.mark.asyncio
+    async def test_uuid_and_mac_keys_never_match(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AGU", hardware_key="uuid:ABC123"),
+            _asset("tenant-a", "AGM", hardware_key="mac:ABC123"),
+            _asset("tenant-a", "MAN", serial="ABC123"),
+        ])
+        assert _flagged(await _rows(monkeypatch, mongo_db)) == {}
+
+    @pytest.mark.asyncio
+    async def test_two_agent_assets_same_serial_not_paired(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AG1", hardware_key="serial:XYZ789"),
+            _asset("tenant-a", "AG2", hardware_key="serial:XYZ789"),
+        ])
+        assert _flagged(await _rows(monkeypatch, mongo_db)) == {}
+
+    @pytest.mark.asyncio
+    async def test_duplicates_scoped_to_rows_in_scope(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AGX", hardware_key="serial:ABC123"),
+            _asset("tenant-a", "OLD", serial="abc123", status="disposed", cost=100, date=PURCHASE),
+        ])
+        assert _flagged(await _rows(monkeypatch, mongo_db)) == {}
+        both = _flagged(await _rows(monkeypatch, mongo_db, includeDisposed="true"))
+        assert set(both) == {"AGX", "OLD"}
+
+
+class TestDetail:
+    @pytest.mark.asyncio
+    async def test_detail_returns_list_row(self, mongo_db, monkeypatch):
+        await _seed(mongo_db)
+        rows = await _rows(monkeypatch, mongo_db, includeDisposed="true")
+        r = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/M1")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body.pop("computedAt") == FIXED_NOW.isoformat(timespec="milliseconds")
+        assert body == [x for x in rows if x["assetId"] == "M1"][0]
+        assert body["bookValueCents"] is not None
+        agent = (await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/AG1")).json()
+        assert agent["agent"]["agentId"] == "agent-1"
+
+    @pytest.mark.asyncio
+    async def test_detail_disposed_asset(self, mongo_db, monkeypatch):
+        await _seed(mongo_db)
+        r = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/D1")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["bookValueCents"] is None and body["reason"] == "disposed" and body["purchaseCostCents"] == 90000
+
+    @pytest.mark.asyncio
+    async def test_detail_carries_duplicate_markers(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AGX", hardware_key="serial:ABC123"), _asset("tenant-a", "MAN", serial="abc123"),
+        ])
+        body = (await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/MAN")).json()
+        assert body["possibleDuplicateOf"] == ["AGX"] and "possibleDuplicate" in body["flags"]
+
+    @pytest.mark.asyncio
+    async def test_foreign_and_unknown_asset_ids_are_identical_404s(self, mongo_db, monkeypatch):
+        await _seed(mongo_db)
+        foreign = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/BA1")
+        unknown = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/no-such-asset")
+        assert foreign.status_code == 404 and unknown.status_code == 404
+        assert foreign.content == unknown.content
+        assert foreign.json() == {"detail": "Asset not found"}
+        assert "777000" not in foreign.text
+
+    @pytest.mark.asyncio
+    async def test_foreign_asset_id_is_404(self, mongo_db, monkeypatch):
+        await _seed(mongo_db)
+        r = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/BA1")
+        assert r.status_code == 404 and r.json()["detail"] == "Asset not found"
+
+    @pytest.mark.asyncio
+    async def test_unknown_asset_id_is_404(self, mongo_db, monkeypatch):
+        r = await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/nope")
+        assert r.status_code == 404 and r.json() == {"detail": "Asset not found"}
+
+    @pytest.mark.asyncio
+    async def test_detail_owner_without_tenant_is_400(self, monkeypatch):
+        app = _app(monkeypatch)
+        async with _client(app, _owner()) as ac:
+            r = await ac.get(f"{LIST_URL}/M1")
+        assert r.status_code == 400
+
+
+def test_cost_asset_routes_enforced_on_real_app():
+    from tests._route_walk import probe_real_app
+
+    def case(path, role, auth="session_capable", scopes=None):
+        c = {"method": "GET", "path": path, "role": role, "tenant_id": "tenant-a", "auth": auth}
+        if scopes is not None:
+            c["scopes"] = scopes
+        return c
+
+    paths = ["/api/itam/costs/assets", "/api/itam/costs/assets/a1"]
+    cases = [case(p, "nobody") for p in paths] + [case(p, "itam_viewer", "api_key", ["view:itam"]) for p in paths]
+    statuses = probe_real_app(cases)
+    assert statuses[:2] == [403, 403], statuses
+    assert 403 not in statuses[2:], statuses
