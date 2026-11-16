@@ -48,6 +48,7 @@ ASSET_COST_PROJECTION = {
     "purchaseCostCents": 1, "purchaseDate": 1, "hardwareKey": 1, "serialNumber": 1,
 }
 MODEL_POLICY_PROJECTION = {"_id": 0, "id": 1, "usefulLifeYears": 1, "salvageValueCents": 1}
+AGENT_JOIN_PROJECTION = {"_id": 0, "id": 1, "assetId": 1, "hostname": 1, "status": 1, "lastSeen": 1}
 
 
 def utc_now() -> datetime:
@@ -159,6 +160,37 @@ async def load_models_by_id(db: Any, tenant_id: str, assets: Iterable[Dict[str, 
     return {m["id"]: m for m in docs}
 
 
+async def load_agents_by_asset(db: Any, tenant_id: str, asset_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
+    """The agent of each asset, from one tenant-scoped read joined only on agents.assetId (D-06).
+
+    The asset's own agentStatus is never read (the heartbeat stamps "Online" there and nothing
+    resets it) and a hostname match is never used. Several agents on one asset give one summary:
+    the latest lastSeen wins (ties by agent id) and agentCount is how many agents name the asset.
+    The tenant wrapper hides Pending and Rejected agents, so those are not joined (A-78-10).
+    """
+    require_tenant(tenant_id)
+    ids = sorted({a for a in asset_ids if isinstance(a, str) and a})
+    if not ids:
+        return {}
+    docs = await db.agents.find(
+        {"tenantId": tenant_id, "assetId": {"$in": ids}}, AGENT_JOIN_PROJECTION
+    ).to_list(length=None)
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for doc in docs:
+        grouped.setdefault(doc.get("assetId"), []).append(doc)
+    joined: Dict[str, Dict[str, Any]] = {}
+    for asset_id, agents in grouped.items():
+        best = max(agents, key=lambda d: (str(d.get("lastSeen") or ""), str(d.get("id") or "")))
+        joined[asset_id] = {
+            "agentId": best.get("id"),
+            "hostname": best.get("hostname"),
+            "status": best.get("status"),
+            "lastSeen": best.get("lastSeen"),
+            "agentCount": len(agents),
+        }
+    return joined
+
+
 def sort_cost_rows(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """D-08 order: valued rows by book value descending, unvalued rows last, then name, tag, id."""
     return sorted(
@@ -222,8 +254,12 @@ async def compute_tenant_costs(
     *,
     include_inactive: bool = False,
     now: Optional[datetime] = None,
+    with_agents: bool = False,
 ) -> Dict[str, Any]:
-    """Cost rows (D-08 order) and the summary for one tenant, from two collection reads and one clock read."""
+    """Cost rows (D-08 order) and the summary for one tenant, from two collection reads and one clock read.
+
+    with_agents adds one more read (agents by assetId) and an `agent` field on every in-scope row.
+    """
     require_tenant(tenant_id)
     now = now if now is not None else utc_now()
     assets = await load_tenant_assets(db, tenant_id)
@@ -234,6 +270,10 @@ async def compute_tenant_costs(
     else:
         in_scope = [r for r in all_rows if r["lifecycleStatus"] not in INACTIVE_STATUSES]
         hidden = len(all_rows) - len(in_scope)
+    if with_agents:
+        agents = await load_agents_by_asset(db, tenant_id, (r["assetId"] for r in in_scope))
+        for row in in_scope:
+            row["agent"] = agents.get(row["assetId"])
     return {
         "rows": sort_cost_rows(in_scope),
         "summary": summarize_cost_rows(
