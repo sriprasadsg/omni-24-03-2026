@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Modal from '../ui/Modal';
 import { ReportBuilderForm } from './ReportBuilderForm';
 import {
@@ -18,6 +18,7 @@ import {
 } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 import { BarChart3Icon, DownloadIcon, PlusIcon } from '../icons';
+import { ITAM_KPI_COPY } from './ItamKpiPanel';
 
 const PAGE_SIZE = 50;
 const EXPORT_ERROR = "Couldn't export report. Try again, or contact an administrator if the problem continues.";
@@ -36,9 +37,15 @@ interface ReportsPanelProps {
   // later re-render doesn't re-trigger the same run.
   focusReportKey?: string | null;
   onFocusHandled?: () => void;
+  // The Platform Owner's selected tenant. Pre-built reports cover one organization
+  // (D-13), so runs and exports carry it; needsTenant disables the Run buttons.
+  tenantId?: string | null;
+  needsTenant?: boolean;
 }
 
-export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelProps) {
+const SELECT_TENANT_NOTE_ID = 'itam-reports-select-tenant-note';
+
+export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTenant }: ReportsPanelProps) {
   const [reports, setReports] = useState<ItamPrebuiltReportMeta[]>([]);
 
   const [activeKind, setActiveKind] = useState<ActiveKind>(null);
@@ -71,12 +78,24 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
 
   useEffect(() => { loadSavedReports(); }, [loadSavedReports]);
 
+  // R3: a result from the previous tenant must not stay on screen after a switch.
+  // Skipped on first mount so a drill-down run started through focusReportKey is kept.
+  const previousTenantId = useRef(tenantId);
+  useEffect(() => {
+    if (previousTenantId.current === tenantId) return;
+    previousTenantId.current = tenantId;
+    setResult(null);
+    setActiveKind(null);
+    setActiveKey(null);
+    setPage(1);
+  }, [tenantId]);
+
   const runPrebuilt = useCallback(async (key: string, targetPage = 1) => {
     setActiveKind('prebuilt');
     setActiveKey(key);
     setRunning(true);
     try {
-      const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE);
+      const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId);
       setResult(r);
       setPage(targetPage);
     } catch (e: any) {
@@ -84,7 +103,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
     } finally {
       setRunning(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     if (focusReportKey) {
@@ -165,7 +184,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
     if (!activeKind || !activeKey) return;
     setExportingFormat(format);
     try {
-      const generated = await generateItamReport(activeKind, activeKey, format);
+      const generated = activeKind === 'prebuilt'
+        ? await generateItamReport(activeKind, activeKey, format, tenantId)
+        : await generateItamReport(activeKind, activeKey, format);
       await downloadItamReport(generated.filename);
     } catch (e: any) {
       showToast(e?.message || EXPORT_ERROR, 'error');
@@ -180,6 +201,11 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
     <div>
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Pre-built Reports</h3>
+        {needsTenant && (
+          <p role="status" id={SELECT_TENANT_NOTE_ID} className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {ITAM_KPI_COPY.reportsSelectTenantNote}
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {reports.map((r) => (
             <div key={r.key} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -192,7 +218,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
               </div>
               <button
                 onClick={() => runPrebuilt(r.key, 1)}
-                className="mt-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                disabled={needsTenant}
+                aria-describedby={needsTenant ? SELECT_TENANT_NOTE_ID : undefined}
+                className="mt-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
               >
                 Run Report
               </button>

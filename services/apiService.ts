@@ -5970,23 +5970,23 @@ export const fetchItamPrebuiltReports = async (): Promise<ItamPrebuiltReportMeta
     return res.json();
 };
 
-export const runItamPrebuiltReport = async (reportKey: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+export const runItamPrebuiltReport = async (reportKey: string, page = 1, pageSize = 50, tenantId?: string | null): Promise<ItamReportRunResult> => {
     const res = await authFetch(
         `${API_BASE}/itam/reports/prebuilt/${encodeURIComponent(reportKey)}/run?page=${page}&page_size=${pageSize}`,
-        { method: 'POST' },
+        { method: 'POST', tenantId: tenantId || undefined },
     );
     if (!res.ok) return itamThrow(res, "Couldn't run report.");
     return res.json();
 };
 
-export const generateItamReport = async (kind: string, reportKey: string, format: string): Promise<ItamReportExportResult> => {
+export const generateItamReport = async (kind: string, reportKey: string, format: string, tenantId?: string | null): Promise<ItamReportExportResult> => {
     if (kind !== 'prebuilt' && kind !== 'custom') {
         throw new Error(`Unsupported report kind: ${kind}`);
     }
     const segment = kind === 'prebuilt' ? 'prebuilt' : 'custom';
     const res = await authFetch(
         `${API_BASE}/itam/reports/${segment}/${encodeURIComponent(reportKey)}/export?format=${encodeURIComponent(format)}`,
-        { method: 'POST' },
+        { method: 'POST', tenantId: tenantId || undefined },
     );
     if (!res.ok) return itamThrow(res, "Couldn't export report. Try again, or contact an administrator if the problem continues.");
     return res.json();

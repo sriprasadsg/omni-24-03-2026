@@ -146,7 +146,7 @@ describe('ITAMConsole', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
 
-    await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50));
+    await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, undefined));
   });
 
   it("clearing the drilled-into focus via ReportsPanel's onFocusHandled prevents a later tab switch from re-triggering the same run", async () => {
@@ -359,7 +359,7 @@ describe('ITAMConsole', () => {
       rerender(<ITAMConsole isSuperAdminView tenantId="t-2" />);
       await waitFor(() => expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument());
       expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole('heading', { name: 'Asset Value' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Asset Value', level: 3 })).not.toBeInTheDocument();
 
       fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
       expect(await screen.findByText('Laptop 1')).toBeInTheDocument();

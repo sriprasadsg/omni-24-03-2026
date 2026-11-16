@@ -143,7 +143,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, tenantId, onG
                 mounted above the report sections, D-18 drill-down wired
                 through the console's existing reportFocus seam. */}
             <ItamKpiPanel onDrillDown={(reportKey) => setReportFocus(reportKey)} tenantId={tenantId} needsTenant={needsTenant} onGoToTenants={onGoToTenants} />
-            <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} />
+            <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} tenantId={tenantId} needsTenant={needsTenant} />
           </>
         )}
         {tab === 'activity' && <ActivityLogPanel />}
