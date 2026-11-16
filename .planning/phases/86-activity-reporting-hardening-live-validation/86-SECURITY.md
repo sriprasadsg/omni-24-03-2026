@@ -5,11 +5,11 @@ status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
 threats_open: 0
 threats_total: 44
-threats_closed: 42
-# T-86-33 and T-86-35 (86-16, low): plan-time accepts, rationale verified, awaiting the user's acceptance
-threats_open_nonblocking: 2
-# residual notes R1-R4 under T-86-14-03: each low (below block_on high); R1-R3 fixed (9602b9d09, 7785bf0b1, live 2026-11-16), R4 open, NOT accepted; see Audit Notes
-residual_notes_open: 1
+threats_closed: 44
+# T-86-33 and T-86-35 (86-16, low): accepted by the user 2026-11-16 as AR-86-06 and AR-86-07
+threats_open_nonblocking: 0
+# residual notes R1-R4 under T-86-14-03: each low (below block_on high); R1-R3 fixed (9602b9d09, 7785bf0b1, live 2026-11-16), R4 accepted by the user 2026-11-16 as AR-86-08; see Audit Notes
+residual_notes_open: 0
 asvs_level: 1
 block_on: high
 register_authored_at_plan_time: true
@@ -91,9 +91,9 @@ Line anchors are at HEAD 324340252 (third audit, 2026-11-14). Only seven files c
 | T-86-15-01 | Spoofing/Tampering | the UI marks or lifts what the server would refuse | low (assessed) | mitigate | `GoLiveOrganizations.tsx:71-90` disables Lift on the server's `canLift` and shows its reasons; refetch after any refusal; no 5-check/7-day constants in the UI | closed |
 | T-86-15-02 | Repudiation | an operator marks the wrong organization | low (assessed) | mitigate | `TestOrgDialogs.tsx:58,66` confirm only on the typed exact name; warning `goLiveCopy.ts:176` (MARK_BODY), label `goLiveCopy.ts:166` shown at `GoLiveOrganizations.tsx:44`; server audit `autonomous_ops_golive_endpoints.py:155` | closed |
 | T-86-15-03 | Information disclosure | server sentence rendered as HTML | low (assessed) | mitigate | `TestOrgDialogs.tsx:40-45` sentence as React text; no HTML sink in `components/autonomousOpsGoLive` | closed |
-| T-86-33 | Elevation of privilege | Action column now reachable in the Organizations scroll region (86-16) | low | accept | Plan-time accept. Rationale verified: `git diff -w 16bbdda58 HEAD -- components/` adds only the region wrapper (`GoLiveOrganizations.tsx:137`) and the `dl` grid classes; no `canLift`, `onClick` or button logic changed; the server gate is unchanged (T-86-15, T-86-30) | open — below high threshold (non-blocking), awaiting the user's acceptance |
+| T-86-33 | Elevation of privilege | Action column now reachable in the Organizations scroll region (86-16) | low | accept | Plan-time accept. Rationale verified: `git diff -w 16bbdda58 HEAD -- components/` adds only the region wrapper (`GoLiveOrganizations.tsx:137`) and the `dl` grid classes; no `canLift`, `onClick` or button logic changed; the server gate is unchanged (T-86-15, T-86-30) | closed — accepted by the user as AR-86-06 (2026-11-16) |
 | T-86-34 | Tampering | user's uncommitted work in progress (App.tsx, tests, .claude-flow metrics) during 86-16 | medium | mitigate | `git log --name-only --grep='86-16'`: the four 86-16 commits list only the plan's paths (the two components, `autonomousOpsTableScroll.test.tsx`, 86-UI-SPEC.md, SUMMARY/STATE/ROADMAP); App.tsx in none; App.tsx WIP still uncommitted in the tree | closed |
-| T-86-35 | Information disclosure | server text inside the new region wrappers (86-16) | low | accept | Plan-time accept. Rationale verified: wrappers carry only `role="region"`, `tabIndex={0}` and `aria-label` from code constants (`ORG_CAPTION` `goLiveCopy.ts:99`, `rulesCaption` `reportingCopy.ts:72`); no `dangerouslySetInnerHTML` added; no server string moved into an attribute | open — below high threshold (non-blocking), awaiting the user's acceptance |
+| T-86-35 | Information disclosure | server text inside the new region wrappers (86-16) | low | accept | Plan-time accept. Rationale verified: wrappers carry only `role="region"`, `tabIndex={0}` and `aria-label` from code constants (`ORG_CAPTION` `goLiveCopy.ts:99`, `rulesCaption` `reportingCopy.ts:72`); no `dangerouslySetInnerHTML` added; no server string moved into an attribute | closed — accepted by the user as AR-86-07 (2026-11-16) |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -110,10 +110,13 @@ Line anchors are at HEAD 324340252 (third audit, 2026-11-14). Only seven files c
 | AR-86-03 | T-86-24 | 86-09 plan: small index builds at restart; autonomy_actions holds at most 365 days of decisions; create_index is idempotent. Count corrected by the audit: 4 index definitions, not the plan's 3 (`digest.py:47-48`: `digest_once_per_day`, `tenant_finished`; `golive.py:44-45`: `check_recorded`, `id_unique`); migration 035 only calls the two `ensure_indexes` | the user ("Yes, log them", via the /gsd-execute-phase 86 orchestrator); planner (86-09 threat model); rationale confirmed by gsd-security-auditor | 2026-11-14 |
 | AR-86-04 | T-86-28 | 86-11 plan: hiding or disabling the export controls is a convenience; the server checks both permissions and the organization (86-08; T-86-19, T-86-20) | the user ("Yes, log them", via the /gsd-execute-phase 86 orchestrator); planner (86-11 threat model); rationale confirmed by gsd-security-auditor | 2026-11-14 |
 | AR-86-05 | T-86-30 | 86-12 plan: the server enforces the lift gate (86-07, T-86-15, `autonomous_ops_platform_endpoints.py:243-247`); the UI shows the server's reasons and refetches after any refusal. The test-organization exemption's server-side window is closed (T-86-14-03, 324340252); residuals R1-R4 are notes, not accepted here | the user ("Yes, log them", via the /gsd-execute-phase 86 orchestrator); planner (86-12 threat model); rationale confirmed by gsd-security-auditor | 2026-11-14 |
+| AR-86-06 | T-86-33 | 86-16 plan: the Organizations scroll region only wraps the existing table; no `canLift`, `onClick` or button logic changed and the server gate is unchanged (T-86-15, T-86-30). Verified: `git diff -w 16bbdda58 70dd3e59f -- components/` | the user (chose "Accept" in an AskUserQuestion of the Phase 86 follow-up session); planner (86-16 threat model); rationale verified by the secure-phase orchestrator 2026-11-14 | 2026-11-16 |
+| AR-86-07 | T-86-35 | 86-16 plan: the region wrappers carry only `role`, `tabIndex` and an `aria-label` from code constants (`ORG_CAPTION`, `rulesCaption`); no `dangerouslySetInnerHTML`, no server string in an attribute | the user (chose "Accept" in an AskUserQuestion of the Phase 86 follow-up session); planner (86-16 threat model); rationale verified by the secure-phase orchestrator 2026-11-14 | 2026-11-16 |
+| AR-86-08 | T-86-14-03 residual R4 | The lift's own revert `set_shadow(True)` raising (or the request dying between the lift's write and its revert) leaves one organization out of shadow mode without its test mark. It needs a database failure or a process kill inside a privileged platform-owner request, cannot be closed inside the request, leaves audit traces, and acts only while the deployment's master shadow is off. R1-R3 were fixed instead (9602b9d09, 7785bf0b1) | the user (chose "Accept" in an AskUserQuestion of the Phase 86 follow-up session) | 2026-11-16 |
 
 *Accepted risks do not resurface in future audit runs.*
 
-T-86-14-03 was never accepted. The user chose to fix it (6b58bd655, then 324340252), and it is closed by verification. Residuals R1-R4 are not accepted either. They are open notes below the high threshold, and whether to fix or accept them is the user's decision.
+T-86-14-03 was never accepted. The user chose to fix it (6b58bd655, then 324340252), and it is closed by verification. Of its residuals, R1-R3 were fixed (9602b9d09, 7785bf0b1) and R4 was accepted by the user on 2026-11-16 (AR-86-08).
 
 ---
 
@@ -164,12 +167,12 @@ T-86-14-03 was never accepted. The user chose to fix it (6b58bd655, then 3243402
 - **R2 and R4:** reach the threat's end state through the lift side, so they fall under PROH-86-04 / T-86-15.
 - **Severity:** each residual is low, below `block_on: high`, so T-86-14-03 is closed and nothing is accepted.
 
-### Residual notes R1-R4 (below the high threshold, non-blocking, NOT accepted)
+### Residual notes R1-R4 (below the high threshold, non-blocking; R1-R3 fixed, R4 accepted as AR-86-08)
 
 **Update 2026-11-16:** R1, R2 and R3 are fixed; R4 stays open. The table below describes the code at the third audit's HEAD.
 - **R2** 9602b9d09: a lift for an already-lifted organization returns the status unchanged and writes and audits nothing. Test: `test_lifting_an_already_lifted_organization_changes_and_audits_nothing`.
 - **R1 and R3** 7785bf0b1: when the clear's put-back of the mark is refused (R1, another organization took the slot) or raises (R3), the organization's shadow mode is turned back on before the 409, so no organization stays lifted without its exemption. Test: `test_a_mark_that_cannot_be_put_back_turns_shadow_mode_back_on` (refused and raising).
-- **R4** (the lift's own revert raising, or the request dying between the lift's write and its revert) cannot be closed inside the request. It stays open and is not accepted.
+- **R4** (the lift's own revert raising, or the request dying between the lift's write and its revert) cannot be closed inside the request. The user accepted it on 2026-11-16 (AR-86-08).
 - Both fixes were merged into npx (0b0e5492c) and have been live since the backend restart at 08:57:50 UTC on 2026-11-16. They were not re-audited by gsd-security-auditor.
 
 gsd-security-auditor reproduced each shape on the real routes at HEAD with barriers. The barriers show the mechanism, not the likelihood. The counts come from the HEAD model.
@@ -272,17 +275,18 @@ Kept for the record. The read-failure paths and the clear-side race below were f
 | 2026-11-14 (re-audit after 6b58bd655) | 41 | 40 | 1 (blocking: T-86-14-03, gate-to-mark-read window; AR-86-01..05 accepted by the user) | gsd-security-auditor (sonnet) + secure-phase orchestrator reproduction, ASVS L1, block_on high |
 | 2026-11-14 (third audit after 324340252) | 41 | 41 | 0 (residual notes R1-R4: low, non-blocking, open, not accepted) | gsd-security-auditor (sonnet, SECURED, L3 trace for T-86-14-03) + secure-phase orchestrator tests, snapshots and HEAD model, ASVS L1, block_on high |
 | 2026-11-14 (gap plan 86-16, after 70dd3e59f) | 44 | 42 | 2 non-blocking (T-86-33, T-86-35: low plan-time accepts, rationale verified, awaiting the user); 0 blocking | secure-phase orchestrator, L1 grep-depth short-circuit (threats_open 0, register authored at plan time, ASVS L1, block_on high); no auditor spawned |
+| 2026-11-16 (user decisions, no re-audit) | 44 | 44 | 0 (T-86-33, T-86-35 accepted as AR-86-06/07; residual R1-R3 fixed by 9602b9d09 and 7785bf0b1, R4 accepted as AR-86-08) | the user's choices recorded by Claude; fixes covered by their regression tests, not by gsd-security-auditor |
 
 ---
 
 ## Sign-Off
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
-- [x] Accepted risks documented in Accepted Risks Log (AR-86-01..05, accepted by the user 2026-11-14)
+- [x] Accepted risks documented in Accepted Risks Log (AR-86-01..05, accepted by the user 2026-11-14; AR-86-06..08, accepted by the user 2026-11-16)
 - [x] `threats_open: 0` confirmed (third audit, HEAD 324340252)
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Residual notes R1-R4 awaited the user's fix-or-accept decision; none is accepted. R1-R3 were fixed (9602b9d09, 7785bf0b1; live since 2026-11-16) and R4 is still open. Gap plan 86-16 audited the same day: T-86-34 and T-86-SC closed by verification; T-86-33 and T-86-35 are low plan-time accepts awaiting the user's acceptance (they would become AR-86-06 and AR-86-07); threats_open stays 0.
+**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Gap plan 86-16 was audited the same day: T-86-34 and T-86-SC closed by verification, T-86-33 and T-86-35 left as low plan-time accepts for the user. On 2026-11-16 the user accepted T-86-33 and T-86-35 (AR-86-06, AR-86-07); of the residual notes, R1-R3 were fixed (9602b9d09, 7785bf0b1; live since 2026-11-16) and R4 was accepted (AR-86-08). threats_open stays 0 and nothing is left open.
 
 ## Security Audit 2026-11-14
 
