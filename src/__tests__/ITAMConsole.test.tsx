@@ -151,6 +151,42 @@ describe('ITAMConsole', () => {
     expect(runItamPrebuiltReport).toHaveBeenCalledTimes(1);
   });
 
+  it("a Platform Owner's selected tenant reaches the KPI request on the Reports tab", async () => {
+    render(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(fetchItamKpis).toHaveBeenCalledWith('t-1'));
+    expect(screen.queryByText('Select a tenant')).not.toBeInTheDocument();
+  });
+
+  it('a Platform Owner with no tenant selected sees the Select a tenant block and no KPI request is sent', async () => {
+    render(<ITAMConsole isSuperAdminView />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Select a tenant')).toBeInTheDocument());
+    expect(fetchItamKpis).not.toHaveBeenCalled();
+  });
+
+  it('offers Go to Tenants in the Select block only when onGoToTenants is given', async () => {
+    const onGoToTenants = vi.fn();
+    const { unmount } = render(<ITAMConsole isSuperAdminView onGoToTenants={onGoToTenants} />);
+    fireEvent.click(screen.getByText('Reports'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Go to Tenants' }));
+    expect(onGoToTenants).toHaveBeenCalledTimes(1);
+    unmount();
+
+    render(<ITAMConsole isSuperAdminView />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Select a tenant')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Go to Tenants' })).not.toBeInTheDocument();
+  });
+
+  it("a tenant user's Reports tab still renders the KPI grid and requests with no tenant", async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+    expect(fetchItamKpis).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByText('Select a tenant')).not.toBeInTheDocument();
+  });
+
   it('switches to the Settings tab and shows the branding form', async () => {
     render(<ITAMConsole />);
     fireEvent.click(screen.getByText('Settings'));
