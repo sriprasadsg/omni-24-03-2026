@@ -5,12 +5,17 @@
  *  2. Tab switching mounts the corresponding panel.
  *  3. Each panel renders without crashing given empty/loading API responses.
  */
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const getItamSettings = vi.fn();
 const runItamPrebuiltReport = vi.fn();
 const fetchItamKpis = vi.fn();
+const fetchItamPrebuiltReports = vi.fn();
+const runItamCustomReport = vi.fn();
+const generateItamReport = vi.fn();
+const listItamCustomReports = vi.fn();
 
 vi.mock('../../services/apiService', () => ({
   fetchAssets: vi.fn().mockResolvedValue([]),
@@ -48,17 +53,17 @@ vi.mock('../../services/apiService', () => ({
   fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   exportItamAssetsCsv: vi.fn(),
-  fetchItamPrebuiltReports: vi.fn().mockResolvedValue([]),
+  fetchItamPrebuiltReports: (...args: unknown[]) => fetchItamPrebuiltReports(...args),
   runItamPrebuiltReport: (...args: unknown[]) => runItamPrebuiltReport(...args),
   fetchItamKpis: (...args: unknown[]) => fetchItamKpis(...args),
-  generateItamReport: vi.fn(),
+  generateItamReport: (...args: unknown[]) => generateItamReport(...args),
   downloadItamReport: vi.fn(),
   fetchItamReportFields: vi.fn().mockResolvedValue([]),
   saveItamCustomReport: vi.fn(),
-  listItamCustomReports: vi.fn().mockResolvedValue([]),
+  listItamCustomReports: (...args: unknown[]) => listItamCustomReports(...args),
   deleteItamCustomReport: vi.fn(),
   previewItamCustomReport: vi.fn(),
-  runItamCustomReport: vi.fn(),
+  runItamCustomReport: (...args: unknown[]) => runItamCustomReport(...args),
   getItamSettings: (...args: unknown[]) => getItamSettings(...args),
   saveItamSettings: vi.fn(),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
@@ -73,6 +78,13 @@ describe('ITAMConsole', () => {
   beforeEach(() => {
     getItamSettings.mockReset();
     getItamSettings.mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' });
+    fetchItamPrebuiltReports.mockReset();
+    fetchItamPrebuiltReports.mockResolvedValue([]);
+    runItamCustomReport.mockReset();
+    generateItamReport.mockReset();
+    generateItamReport.mockResolvedValue({ filename: 'report.csv' });
+    listItamCustomReports.mockReset();
+    listItamCustomReports.mockResolvedValue([]);
     runItamPrebuiltReport.mockReset();
     runItamPrebuiltReport.mockResolvedValue({
       key: 'warranty_expiring', title: 'Warranty Expiring', columns: [], rows: [],
@@ -279,5 +291,90 @@ describe('ITAMConsole', () => {
     render(<ITAMConsole />);
     await waitFor(() => expect(screen.getByText('Catalog')).toBeInTheDocument());
     expect(screen.getByText('Compliance')).toBeInTheDocument();
+  });
+  describe('Reports tab under the tenant rule (Phase 78 plan 06)', () => {
+    const assetValueMeta = { key: 'asset_value', title: 'Asset Value', description: 'Book value per asset' };
+    const assetValueResult = {
+      key: 'asset_value', title: 'Asset Value', columns: ['Name'], rows: [{ Name: 'Laptop 1' }],
+      rowCount: 1, page: 1, pageSize: 50, totalPages: 1, truncated: false,
+    };
+    const NOTE = 'Select a tenant to run these reports. They cover one organization at a time.';
+
+    beforeEach(() => {
+      fetchItamPrebuiltReports.mockResolvedValue([assetValueMeta]);
+      runItamPrebuiltReport.mockResolvedValue(assetValueResult);
+    });
+
+    async function openReports(ui: React.ReactElement) {
+      const view = render(ui);
+      fireEvent.click(screen.getByText('Reports'));
+      await screen.findByText('Pre-built Reports');
+      return view;
+    }
+
+    it('runs and exports a pre-built report for the selected tenant', async () => {
+      await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+      await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1'));
+      fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
+      await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('prebuilt', 'asset_value', 'csv', 't-1'));
+    });
+
+    it('runs and exports a saved custom report without any tenant argument', async () => {
+      listItamCustomReports.mockResolvedValue([{ id: 'c-1', name: 'My report', columns: ['name'] }]);
+      runItamCustomReport.mockResolvedValue({ ...assetValueResult, key: 'c-1', title: 'My report' });
+      await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Run My report' }));
+      await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50));
+      fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
+      await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('custom', 'c-1', 'csv'));
+    });
+
+    it('disables Run Report with a described status note when a Platform Owner has no tenant', async () => {
+      await openReports(<ITAMConsole isSuperAdminView />);
+      const run = await screen.findByRole('button', { name: 'Run Report' });
+      expect(run).toBeDisabled();
+      const note = screen.getByText(NOTE);
+      expect(note).toHaveAttribute('role', 'status');
+      expect(run).toHaveAttribute('aria-describedby', note.id);
+      fireEvent.click(run);
+      expect(runItamPrebuiltReport).not.toHaveBeenCalled();
+    });
+
+    it("a tenant user sees enabled Run Report buttons and no note", async () => {
+      await openReports(<ITAMConsole />);
+      const run = await screen.findByRole('button', { name: 'Run Report' });
+      expect(run).toBeEnabled();
+      expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+      fireEvent.click(run);
+      await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, undefined));
+    });
+
+    it("clears the previous tenant's result when the tenant changes, and when none is selected", async () => {
+      const { rerender } = await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+      expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Export CSV/ })).toBeInTheDocument();
+
+      rerender(<ITAMConsole isSuperAdminView tenantId="t-2" />);
+      await waitFor(() => expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Asset Value' })).not.toBeInTheDocument();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+      expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
+      rerender(<ITAMConsole isSuperAdminView />);
+      await waitFor(() => expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
+    });
+
+    it('does not clear a drill-down run started on first mount', async () => {
+      render(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      fireEvent.click(screen.getByText('Reports'));
+      await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
+      expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
+      expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1');
+    });
   });
 });
