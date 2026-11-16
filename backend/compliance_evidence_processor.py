@@ -123,6 +123,11 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
         "A.8.24", "PCI-4.1", "164.312(a)(2)(iv)", "CC6.7", "PR.DS-2",
         "SC-8", "NIS2-21.8", "SWIFT-2.6", "3.13.8",
     ],
+    # The Linux counterpart of BitLocker that the Rust agent sends: same controls.
+    "Disk Encryption (LUKS)": [
+        "A.8.1", "A.8.24", "164.312(a)(2)(iv)", "PCI-3.4", "PR.DS-1", "CC6.1",
+        "CISSP-3.2", "CISSP-3.3", "SC-28", "CIS-3", "SWIFT-2.1", "SOX-SA-3",
+    ],
     # Linux Checks
     "UFW Firewall Enabled": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],
     "Firewall Status": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],

@@ -49,6 +49,10 @@ def test_a_renamed_check_keeps_the_controls_of_its_older_name():
         assert COMPLIANCE_CHECK_MAPPINGS.get(new) == COMPLIANCE_CHECK_MAPPINGS[old], new
 
 
+def test_linux_disk_encryption_proves_the_same_controls_as_bitlocker():
+    assert COMPLIANCE_CHECK_MAPPINGS["Disk Encryption (LUKS)"] == COMPLIANCE_CHECK_MAPPINGS["BitLocker Encryption"]
+
+
 def test_a_passing_bitlocker_check_reaches_the_encryption_controls():
     db = MagicMock()
     db.asset_compliance.update_one = AsyncMock()

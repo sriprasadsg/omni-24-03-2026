@@ -1,5 +1,6 @@
 use super::Capability;
 use serde_json::{json, Value};
+#[cfg(windows)]
 use std::process::Command;
 use sysinfo::System;
 
@@ -10,7 +11,7 @@ impl Capability for ComplianceCapability {
     fn name(&self) -> &'static str { "Compliance Enforcement" }
 
     fn collect(&self, _sys: &System) -> Value {
-        let checks = windows_compliance_checks();
+        let checks = platform_checks();
         let total = checks.len();
         let passed = checks.iter().filter(|c| c["status"] == "Pass").count();
         let failed = total - passed;
@@ -30,6 +31,16 @@ impl Capability for ComplianceCapability {
     }
 }
 
+/// The checks of this computer's own operating system. Another system sends none: the Windows checks run on
+/// Linux used to report Fail for settings Linux does not have.
+#[cfg(windows)]
+fn platform_checks() -> Vec<Value> { windows_compliance_checks() }
+#[cfg(target_os = "linux")]
+fn platform_checks() -> Vec<Value> { linux::checks() }
+#[cfg(not(any(windows, target_os = "linux")))]
+fn platform_checks() -> Vec<Value> { Vec::new() }
+
+#[cfg(windows)]
 fn ps_json(cmd: &str) -> Option<serde_json::Value> {
     let out = Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
@@ -42,6 +53,7 @@ fn ps_json(cmd: &str) -> Option<serde_json::Value> {
     serde_json::from_str(&text).ok()
 }
 
+#[cfg(windows)]
 fn windows_compliance_checks() -> Vec<Value> {
     let mut checks: Vec<Value> = vec![];
 
@@ -271,4 +283,182 @@ fn windows_compliance_checks() -> Vec<Value> {
     }
 
     checks
+}
+
+/// Linux checks. Each name is mapped to controls by the backend (COMPLIANCE_CHECK_MAPPINGS); what a command or
+/// file says is read by a pure function the tests below cover. Read-only: nothing is changed on the machine.
+#[cfg(any(target_os = "linux", test))]
+mod linux {
+    use serde_json::{json, Value};
+
+    fn run(cmd: &str, args: &[&str]) -> Option<String> {
+        std::process::Command::new(cmd).args(args).output().ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+    }
+
+    fn read(path: &str) -> String { std::fs::read_to_string(path).unwrap_or_default() }
+
+    fn verdict(pass: bool) -> &'static str { if pass { "Pass" } else { "Fail" } }
+
+    pub(super) fn checks() -> Vec<Value> {
+        let fw = firewall_in_use(run("ufw", &["status"]).as_deref(), run("systemctl", &["is-active", "firewalld"]).as_deref(),
+                                 run("nft", &["list", "ruleset"]).as_deref(), run("iptables", &["-S", "INPUT"]).as_deref());
+        let sshd = run("sshd", &["-T"]).unwrap_or_else(|| read("/etc/ssh/sshd_config"));
+        let (ssh_status, ssh_details) = if sshd.is_empty() { ("Pass", "No SSH server is installed".to_string()) }
+                                        else { root_login(&permit_root_login(&sshd)) };
+        let updates = apt_unattended(&read("/etc/apt/apt.conf.d/20auto-upgrades"))
+            || ["dnf-automatic-install.timer", "dnf-automatic.timer"].iter()
+                .any(|t| run("systemctl", &["is-enabled", t]).map_or(false, |s| s.trim() == "enabled"));
+        let root = run("findmnt", &["-no", "SOURCE", "/"]).unwrap_or_default().trim().to_string();
+        let encrypted = !root.is_empty() && run("lsblk", &["-s", "-no", "TYPE", &root]).map_or(false, |t| has_crypt(&t));
+        let pam = format!("{}\n{}", read("/etc/pam.d/common-password"), read("/etc/pam.d/system-auth"));
+        let min_len = min_password_length(&pam, &read("/etc/security/pwquality.conf"));
+        let auditd = run("systemctl", &["is-active", "auditd"]).map_or(false, |s| s.trim() == "active");
+        let risky = risky_listeners(&run("ss", &["-ltnH"]).unwrap_or_default());
+        let efi = std::path::Path::new("/sys/firmware/efi").exists();
+        let sb = std::fs::read("/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c").unwrap_or_default();
+        vec![
+            json!({"check": "Firewall Status", "status": verdict(fw.is_some()),
+                   "details": fw.map_or("No active host firewall (ufw, firewalld, nftables or an iptables INPUT drop policy)".to_string(),
+                                        |f| format!("Host firewall active: {}", f))}),
+            json!({"check": "SSH Root Login Disabled", "status": ssh_status, "details": ssh_details}),
+            json!({"check": "Automatic Security Updates", "status": verdict(updates),
+                   "details": if updates { "Unattended security updates are enabled" } else { "Neither unattended-upgrades nor dnf-automatic is enabled" }}),
+            json!({"check": "Disk Encryption (LUKS)", "status": verdict(encrypted),
+                   "details": if encrypted { format!("The root filesystem ({}) is on a LUKS volume", root) }
+                              else { format!("The root filesystem ({}) is not on a LUKS volume. Encryption done by a cloud provider is not visible from inside the machine", root) }}),
+            json!({"check": "Password Policy (Min Length)", "status": verdict(min_len.map_or(false, |n| n >= 8)),
+                   "details": min_len.map_or("Password quality is not enforced (pam_pwquality is not in the PAM password stack)".to_string(),
+                                             |n| format!("Minimum length: {} (required: 8)", n))}),
+            json!({"check": "Audit Logging Policy", "status": verdict(auditd),
+                   "details": if auditd { "auditd is running" } else { "auditd is not running" }}),
+            json!({"check": "Risky Network Ports", "status": verdict(risky.is_empty()),
+                   "details": if risky.is_empty() { "No risky ports open".to_string() } else { format!("Open risky ports: {}", risky.join(", ")) }}),
+            json!({"check": "Secure Boot", "status": verdict(secure_boot_on(&sb)),
+                   "details": if secure_boot_on(&sb) { "Secure Boot is enabled" } else if efi { "Secure Boot is not enabled" } else { "Not booted with UEFI, so Secure Boot is off" }}),
+        ]
+    }
+
+    /// The first firewall found active, in this order.
+    pub(super) fn firewall_in_use(ufw: Option<&str>, firewalld: Option<&str>, nft: Option<&str>, iptables: Option<&str>) -> Option<&'static str> {
+        if ufw.map_or(false, |s| s.lines().any(|l| l.trim() == "Status: active")) { return Some("ufw"); }
+        if firewalld.map_or(false, |s| s.trim() == "active") { return Some("firewalld"); }
+        if nft.map_or(false, |s| s.lines().any(|l| l.contains("hook input") && l.contains("policy drop"))) { return Some("nftables"); }
+        if iptables.map_or(false, |s| s.lines().any(|l| l.trim() == "-P INPUT DROP")) { return Some("iptables"); }
+        None
+    }
+
+    /// PermitRootLogin as sshd applies it: the first uncommented setting, else the OpenSSH default.
+    pub(super) fn permit_root_login(config: &str) -> String {
+        config.lines().map(str::trim).filter(|l| !l.starts_with('#'))
+            .find_map(|l| { let mut p = l.split_whitespace();
+                            (p.next()?.eq_ignore_ascii_case("permitrootlogin")).then(|| p.next().unwrap_or("").to_lowercase()) })
+            .unwrap_or_else(|| "prohibit-password".to_string())
+    }
+
+    pub(super) fn root_login(value: &str) -> (&'static str, String) {
+        match value {
+            "no" => ("Pass", "Root cannot log in over SSH".to_string()),
+            "yes" => ("Fail", "Root can log in over SSH with a password".to_string()),
+            other => ("Warning", format!("Root can log in over SSH with a key (PermitRootLogin {})", other)),
+        }
+    }
+
+    pub(super) fn apt_unattended(conf: &str) -> bool {
+        conf.lines().map(str::trim).filter(|l| !l.starts_with("//"))
+            .any(|l| l.starts_with("APT::Periodic::Unattended-Upgrade") && !l.contains("\"0\""))
+    }
+
+    pub(super) fn has_crypt(lsblk_types: &str) -> bool { lsblk_types.lines().any(|t| t.trim() == "crypt") }
+
+    /// The enforced minimum length: pam_pwquality's own minlen= argument, else pwquality.conf, else its default 8.
+    /// None when pam_pwquality is not in the PAM password stack.
+    pub(super) fn min_password_length(pam: &str, pwquality_conf: &str) -> Option<u32> {
+        let line = pam.lines().map(str::trim).find(|l| !l.starts_with('#') && l.contains("pam_pwquality.so"))?;
+        let arg = |text: &str, sep: char| text.split_whitespace().find_map(|w| w.strip_prefix("minlen")
+            .and_then(|r| r.trim_start().strip_prefix(sep)).and_then(|v| v.trim().parse::<u32>().ok()));
+        arg(line, '=').or_else(|| pwquality_conf.lines().map(str::trim).filter(|l| !l.starts_with('#'))
+            .find_map(|l| l.strip_prefix("minlen").and_then(|r| r.trim().strip_prefix('=')).and_then(|v| v.trim().parse().ok())))
+            .or(Some(8))
+    }
+
+    /// Listening TCP ports 21 (FTP) and 23 (Telnet) in `ss -ltnH` output (the fourth column is local address:port).
+    pub(super) fn risky_listeners(ss: &str) -> Vec<&'static str> {
+        let ports: Vec<&str> = ss.lines().filter_map(|l| l.split_whitespace().nth(3)?.rsplit(':').next()).collect();
+        [("21", "FTP (21)"), ("23", "Telnet (23)")].iter().filter(|(p, _)| ports.contains(p)).map(|(_, n)| *n).collect()
+    }
+
+    /// The SecureBoot EFI variable: four attribute bytes, then 1 when Secure Boot is on.
+    pub(super) fn secure_boot_on(efivar: &[u8]) -> bool { efivar.len() >= 5 && efivar[4] == 1 }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_firewall_counts_only_when_it_filters_inbound() {
+            assert_eq!(firewall_in_use(Some("Status: active\n"), None, None, None), Some("ufw"));
+            assert_eq!(firewall_in_use(Some("Status: inactive\n"), Some("inactive\n"), None, None), None);
+            assert_eq!(firewall_in_use(None, None, Some("chain input { type filter hook input priority 0; policy drop;"), None), Some("nftables"));
+            assert_eq!(firewall_in_use(None, None, Some("chain input { type filter hook input priority 0; policy accept;"), None), None);
+            assert_eq!(firewall_in_use(None, None, None, Some("-P INPUT DROP\n")), Some("iptables"));
+            assert_eq!(firewall_in_use(None, None, None, Some("-P INPUT ACCEPT\n")), None);
+        }
+
+        #[test]
+        fn root_login_follows_the_first_setting_and_the_openssh_default() {
+            assert_eq!(permit_root_login("# PermitRootLogin yes\nPermitRootLogin no\nPermitRootLogin yes\n"), "no");
+            assert_eq!(permit_root_login("permitrootlogin without-password\n"), "without-password");
+            assert_eq!(permit_root_login("Port 22\n"), "prohibit-password");
+            assert_eq!(root_login("no").0, "Pass");
+            assert_eq!(root_login("yes").0, "Fail");
+            assert_eq!(root_login("prohibit-password").0, "Warning");
+        }
+
+        #[test]
+        fn unattended_upgrades_is_on_only_when_set_to_a_non_zero_value() {
+            assert!(apt_unattended("APT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n"));
+            assert!(!apt_unattended("APT::Periodic::Unattended-Upgrade \"0\";\n"));
+            assert!(!apt_unattended("// APT::Periodic::Unattended-Upgrade \"1\";\n"));
+            assert!(!apt_unattended(""));
+        }
+
+        #[test]
+        fn the_root_filesystem_is_encrypted_when_a_crypt_device_is_below_it() {
+            assert!(has_crypt("lvm\ncrypt\npart\ndisk\n"));
+            assert!(!has_crypt("part\ndisk\n"));
+        }
+
+        #[test]
+        fn the_password_length_comes_from_pam_then_pwquality_conf_then_the_default() {
+            let pam = "password requisite pam_pwquality.so retry=3 minlen=12\n";
+            assert_eq!(min_password_length(pam, "minlen = 10\n"), Some(12));
+            assert_eq!(min_password_length("password requisite pam_pwquality.so retry=3\n", "# minlen = 4\nminlen = 10\n"), Some(10));
+            assert_eq!(min_password_length("password requisite pam_pwquality.so\n", ""), Some(8));
+            assert_eq!(min_password_length("# password requisite pam_pwquality.so\npassword pam_unix.so\n", "minlen = 14\n"), None);
+        }
+
+        #[test]
+        fn only_listening_ftp_and_telnet_ports_are_risky() {
+            let ss = "LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\nLISTEN 0 32 [::]:21 [::]:*\nLISTEN 0 5 127.0.0.1:2323 0.0.0.0:*\n";
+            assert_eq!(risky_listeners(ss), vec!["FTP (21)"]);
+            assert!(risky_listeners("LISTEN 0 128 0.0.0.0:443 0.0.0.0:*\n").is_empty());
+        }
+
+        #[test]
+        fn secure_boot_reads_the_value_byte_after_the_attributes() {
+            assert!(secure_boot_on(&[6, 0, 0, 0, 1]));
+            assert!(!secure_boot_on(&[6, 0, 0, 0, 0]));
+            assert!(!secure_boot_on(&[]));
+        }
+
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn a_linux_computer_sends_the_linux_checks_and_no_windows_check() {
+            let names: Vec<String> = super::super::platform_checks().iter().map(|c| c["check"].as_str().unwrap().to_string()).collect();
+            assert_eq!(names.len(), 8, "{:?}", names);
+            assert!(names.iter().all(|n| !n.contains("Windows") && !n.contains("BitLocker")), "{:?}", names);
+        }
+    }
 }
