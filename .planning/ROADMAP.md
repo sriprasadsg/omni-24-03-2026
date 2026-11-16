@@ -280,7 +280,23 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: TBD
+**Plans**: 8 plans
+**UI hint**: yes
+
+Plans:
+**Wave 1**
+- [ ] 78-01-PLAN.md — Tracer: shared per-asset cost computation, shared tenant resolver (400 for platform-admin) and GET /api/itam/costs/summary on the real app with the ITAM API-key guard (D-01..D-03, D-09..D-13, D-15, D-16)
+- [ ] 78-02-PLAN.md — Tracer: KPI tile shows "Not tracked", "Valued X of Y", excluded count, follows the selected tenant, Select-a-tenant state (D-14)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 78-03-PLAN.md — GET /api/itam/costs/assets (paged, whole-set sort) and /assets/{id}: agent join via agents.assetId, serial duplicate markers, tenant-safe 404 (D-05..D-08)
+- [ ] 78-04-PLAN.md — ITAM KPI on the shared computation and the shared tenant resolver (D-01, D-04, D-10, D-13)
+- [ ] 78-05-PLAN.md — Asset value report and custom builder Book Value on the shared computation; report run/export on the resolver (D-04, D-13)
+- [ ] 78-06-PLAN.md — Console threads the Owner's tenant to the tile and Reports tab; pre-built runs carry the tenant, disabled with a note without one (D-14, UI-SPEC R4)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 78-07-PLAN.md — Two-tenant isolation through the real middleware and real tokens on every cost, KPI and report route (COST-07)
+- [ ] 78-08-PLAN.md — KPI = report = summary = list parity, 20k-asset read bound, backend phase gate (COST-01, SC3)
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
 
