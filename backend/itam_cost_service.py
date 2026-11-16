@@ -95,7 +95,9 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
     """
     raw_cost = asset.get("purchaseCostCents")
     raw_date = asset.get("purchaseDate")
-    status_value = asset.get("lifecycleStatus") or DEFAULT_LIFECYCLE_STATUS.value
+    raw_status = asset.get("lifecycleStatus")
+    # A stored status of any non-string type (a list or dict would not even hash) reads as the default.
+    status_value = raw_status if isinstance(raw_status, str) and raw_status else DEFAULT_LIFECYCLE_STATUS.value
     row: Dict[str, Any] = {
         "assetId": asset.get("id"),
         "assetTag": asset.get("assetTag"),
@@ -230,9 +232,9 @@ def sort_cost_rows(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
         key=lambda r: (
             r["bookValueCents"] is None,
             -(r["bookValueCents"] or 0),
-            r.get("name") or "",
-            r.get("assetTag") or "",
-            r.get("assetId") or "",
+            str(r.get("name") or ""),
+            str(r.get("assetTag") or ""),
+            str(r.get("assetId") or ""),
         ),
     )
 
