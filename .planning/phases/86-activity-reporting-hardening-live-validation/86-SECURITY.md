@@ -8,8 +8,8 @@ threats_total: 44
 threats_closed: 42
 # T-86-33 and T-86-35 (86-16, low): plan-time accepts, rationale verified, awaiting the user's acceptance
 threats_open_nonblocking: 2
-# residual notes R1-R4 under T-86-14-03: each low (below block_on high), open, NOT accepted; see Audit Notes
-residual_notes_open: 4
+# residual notes R1-R4 under T-86-14-03: each low (below block_on high); R1-R3 fixed (9602b9d09, 7785bf0b1, live 2026-11-16), R4 open, NOT accepted; see Audit Notes
+residual_notes_open: 1
 asvs_level: 1
 block_on: high
 register_authored_at_plan_time: true
@@ -164,7 +164,13 @@ T-86-14-03 was never accepted. The user chose to fix it (6b58bd655, then 3243402
 - **R2 and R4:** reach the threat's end state through the lift side, so they fall under PROH-86-04 / T-86-15.
 - **Severity:** each residual is low, below `block_on: high`, so T-86-14-03 is closed and nothing is accepted.
 
-### Residual notes R1-R4 (open, below the high threshold, non-blocking, NOT accepted)
+### Residual notes R1-R4 (below the high threshold, non-blocking, NOT accepted)
+
+**Update 2026-11-16:** R1, R2 and R3 are fixed; R4 stays open. The table below describes the code at the third audit's HEAD.
+- **R2** 9602b9d09: a lift for an already-lifted organization returns the status unchanged and writes and audits nothing. Test: `test_lifting_an_already_lifted_organization_changes_and_audits_nothing`.
+- **R1 and R3** 7785bf0b1: when the clear's put-back of the mark is refused (R1, another organization took the slot) or raises (R3), the organization's shadow mode is turned back on before the 409, so no organization stays lifted without its exemption. Test: `test_a_mark_that_cannot_be_put_back_turns_shadow_mode_back_on` (refused and raising).
+- **R4** (the lift's own revert raising, or the request dying between the lift's write and its revert) cannot be closed inside the request. It stays open and is not accepted.
+- Both fixes were merged into npx (0b0e5492c) and have been live since the backend restart at 08:57:50 UTC on 2026-11-16. They were not re-audited by gsd-security-auditor.
 
 gsd-security-auditor reproduced each shape on the real routes at HEAD with barriers. The barriers show the mechanism, not the likelihood. The counts come from the HEAD model.
 
@@ -276,7 +282,7 @@ Kept for the record. The read-failure paths and the clear-side race below were f
 - [x] `threats_open: 0` confirmed (third audit, HEAD 324340252)
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Residual notes R1-R4 await the user's fix-or-accept decision; none is accepted. Gap plan 86-16 audited the same day: T-86-34 and T-86-SC closed by verification; T-86-33 and T-86-35 are low plan-time accepts awaiting the user's acceptance (they would become AR-86-06 and AR-86-07); threats_open stays 0.
+**Approval:** verified by /gsd-secure-phase 86 on 2026-11-14 (threats_open: 0). Residual notes R1-R4 awaited the user's fix-or-accept decision; none is accepted. R1-R3 were fixed (9602b9d09, 7785bf0b1; live since 2026-11-16) and R4 is still open. Gap plan 86-16 audited the same day: T-86-34 and T-86-SC closed by verification; T-86-33 and T-86-35 are low plan-time accepts awaiting the user's acceptance (they would become AR-86-06 and AR-86-07); threats_open stays 0.
 
 ## Security Audit 2026-11-14
 
