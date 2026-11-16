@@ -52,6 +52,11 @@ const TABS: { id: Tab; labelKey: string }[] = [
 interface ITAMConsoleProps {
   tenants?: Tenant[];
   isSuperAdminView?: boolean;
+  // The Platform Owner's selected tenant (App.tsx viewingTenantId). Cost KPIs and
+  // pre-built reports cover one organization, so the Owner must pick one (D-14).
+  tenantId?: string | null;
+  // Offered only to holders of manage:tenants; opens Tenant Management.
+  onGoToTenants?: () => void;
 }
 
 interface ItamConsoleBodyProps {
@@ -59,6 +64,8 @@ interface ItamConsoleBodyProps {
   setTab: (tab: Tab) => void;
   tenants: Tenant[];
   isSuperAdminView: boolean;
+  tenantId?: string | null;
+  onGoToTenants?: () => void;
   assets: Asset[];
   settings: ItamSettings;
   onSettingsSaved: (settings: ItamSettings) => void;
@@ -69,8 +76,10 @@ interface ItamConsoleBodyProps {
 // Rendered as a child of ItamI18nProvider (below) so useItamT() resolves the locale the
 // provider was mounted with — a component cannot consume a context provider it renders
 // itself, hence this split.
-function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
+function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, tenantId, onGoToTenants, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
   const t = useItamT();
+  // A Super Admin without a selected tenant has no organization to report on (D-14).
+  const needsTenant = isSuperAdminView && !tenantId;
   const { branding } = settings;
   // Re-checked on the client as defence in depth even though the server already enforces
   // this (65-04-PLAN.md T-65-04-02) — a malformed value must never reach a style attribute.
@@ -133,7 +142,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
             {/* KPI grid is the primary anchor (UI-SPEC visual-hierarchy note) —
                 mounted above the report sections, D-18 drill-down wired
                 through the console's existing reportFocus seam. */}
-            <ItamKpiPanel onDrillDown={(reportKey) => setReportFocus(reportKey)} />
+            <ItamKpiPanel onDrillDown={(reportKey) => setReportFocus(reportKey)} tenantId={tenantId} needsTenant={needsTenant} onGoToTenants={onGoToTenants} />
             <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} />
           </>
         )}
@@ -148,7 +157,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
 // ITAM operator console (Phase 61, ITAM-UI-01): admin-gated single entry
 // point over Phases 56-60's five backend surfaces, cloning
 // NativeSecurityConsole.tsx's tabbed-AppView shape per 61-RESEARCH.md.
-export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: ITAMConsoleProps) {
+export default function ITAMConsole({ tenants = [], isSuperAdminView = false, tenantId, onGoToTenants }: ITAMConsoleProps) {
   const [tab, setTab] = useState<Tab>('catalog');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [settings, setSettings] = useState<ItamSettings>(DEFAULT_ITAM_SETTINGS);
@@ -179,6 +188,8 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: 
         setTab={setTab}
         tenants={tenants}
         isSuperAdminView={isSuperAdminView}
+        tenantId={tenantId}
+        onGoToTenants={onGoToTenants}
         assets={assets}
         settings={settings}
         onSettingsSaved={setSettings}

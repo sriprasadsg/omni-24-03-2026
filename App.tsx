@@ -1913,7 +1913,7 @@ const App: React.FC = () => {
       case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
       case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
-      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} /></ErrorBoundary>;
+      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} /></ErrorBoundary>;
       case 'customerVectorDB': return <ErrorBoundary name="EnhancedVectorDashboard"><Suspense fallback={<SkeletonDashboard />}><EnhancedVectorDashboard /></Suspense></ErrorBoundary>;
       case 'federatedLearning': return <ErrorBoundary name="FederatedLearningDashboard"><Suspense fallback={<SkeletonDashboard />}><FederatedLearningDashboard /></Suspense></ErrorBoundary>;
       case 'webgpuInference': return <ErrorBoundary name="WebGPUDashboard"><Suspense fallback={<SkeletonDashboard />}><WebGPUDashboard /></Suspense></ErrorBoundary>;
