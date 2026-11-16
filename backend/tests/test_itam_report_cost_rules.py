@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests.conftest import make_token_data
 from tests.itam_reporting_test_support import (  # noqa: F401 - fixtures re-exported for pytest
+    MockTenantIsolatedDatabase,
     mock_db,
     patch_reporting_get_database,
     report_asset,
@@ -33,6 +34,7 @@ import tenant_context
 from api_key_auth import get_current_user_or_api_key
 from authentication_service import get_current_user as real_get_current_user
 from itam_cost_service import compute_asset_cost
+from itam_reporting_filters import run_custom_report
 from itam_reporting_prebuilt import _cents_to_dollars
 
 FIXED_NOW = datetime(2026, 11, 16, 12, 0, 0, tzinfo=timezone.utc)
@@ -274,3 +276,41 @@ class TestPrebuiltTenantResolution:
             export = await ac.post(EXPORT + "?format=csv", headers={"X-Tenant-ID": "tenant-a"})
         assert run.status_code == 403
         assert export.status_code == 403
+
+
+class TestCustomReportBookValue:
+    """D-03 / A-78-16: the custom builder's Book Value column is the shared computation."""
+
+    @staticmethod
+    async def _custom(mock_db, assets):
+        _seed(mock_db, assets)
+        mock_db.license_assignments.find.return_value.to_list.return_value = []
+        mock_db.components.find.return_value.to_list.return_value = []
+        mock_db.itam_consumables.find.return_value.to_list.return_value = []
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+        definition = {
+            "name": "Book value", "columns": ["asset.assetTag", "finance.bookValueCents"], "filters": [],
+        }
+        result = await run_custom_report(MockTenantIsolatedDatabase(mock_db, "tenant-a"), definition, "tenant-a")
+        return {row["Asset Tag"]: row for row in result["rows"]}
+
+    @pytest.mark.asyncio
+    async def test_custom_report_book_value_matches_shared_computation(self, mock_db):
+        asset = _asset("a1", purchaseCostCents=250000)
+        rows = await self._custom(mock_db, [asset])
+        expected = compute_asset_cost(asset, MODEL, FIXED_NOW)["bookValueCents"]
+        assert expected is not None
+        assert rows["IT-a1"]["Book Value (cents)"] == expected
+
+    @pytest.mark.asyncio
+    async def test_custom_report_disposed_asset_shows_dash(self, mock_db):
+        rows = await self._custom(mock_db, [_asset("a1", "deployed"), _asset("a2", "disposed"), _asset("a3", "retired")])
+        assert rows["IT-a1"]["Book Value (cents)"] != "—"
+        # The disposed and retired rows stay listed; only their book value is withheld.
+        assert rows["IT-a2"]["Book Value (cents)"] == "—"
+        assert rows["IT-a3"]["Book Value (cents)"] == "—"
+
+    @pytest.mark.asyncio
+    async def test_custom_report_without_policy_shows_dash(self, mock_db):
+        rows = await self._custom(mock_db, [_asset("a1", modelId="model-missing")])
+        assert rows["IT-a1"]["Book Value (cents)"] == "—"

@@ -30,8 +30,9 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+import itam_cost_service
+from itam_cost_service import compute_asset_cost
 from itam_finance_service import (
-    compute_book_value,
     compute_warranty_status,
     get_warranty_alert_window,
 )
@@ -269,33 +270,15 @@ def _condition_passes(field_type: str, operator: str, actual: Any, value: Any, v
 def _compute_finance_result(
     asset: Dict[str, Any], models_by_id: Dict[str, Dict[str, Any]], now: datetime, window_days: int,
 ) -> Dict[str, Any]:
-    """Book value and warranty status computed exclusively via
-    itam_finance_service.compute_book_value/compute_warranty_status — this
-    report never re-derives either computation itself (must_haves truth)."""
+    """Book value from itam_cost_service.compute_asset_cost (the one shared
+    computation, so a disposed or retired asset shows no book value here as
+    everywhere else), warranty status from
+    itam_finance_service.compute_warranty_status — this report never
+    re-derives either computation itself (must_haves truth)."""
     result: Dict[str, Any] = {
-        "bookValueCents": None, "warrantyStatus": None,
-        "warrantyExpiresAt": None, "daysToExpiry": None,
+        "bookValueCents": compute_asset_cost(asset, models_by_id.get(asset.get("modelId")), now)["bookValueCents"],
+        "warrantyStatus": None, "warrantyExpiresAt": None, "daysToExpiry": None,
     }
-    model_doc = models_by_id.get(asset.get("modelId"))
-    if (
-        model_doc
-        and model_doc.get("usefulLifeYears") is not None
-        and model_doc.get("salvageValueCents") is not None
-        and asset.get("purchaseCostCents") is not None
-        and asset.get("purchaseDate")
-    ):
-        try:
-            book_value = compute_book_value(
-                purchase_date=asset["purchaseDate"],
-                purchase_cost_cents=asset["purchaseCostCents"],
-                useful_life_years=model_doc["usefulLifeYears"],
-                salvage_value_cents=model_doc["salvageValueCents"],
-                now=now,
-            )
-            result["bookValueCents"] = book_value["bookValueCents"]
-        except ValueError:
-            pass
-
     warranty = compute_warranty_status(
         asset.get("purchaseDate"), asset.get("warrantyMonths"), now, window_days,
     )
@@ -441,7 +424,7 @@ async def run_custom_report(
         ).to_list(length=None)
         models_by_id = {m["id"]: m for m in model_docs}
 
-    now = datetime.now(timezone.utc)
+    now = itam_cost_service.utc_now()
     window_days = await get_warranty_alert_window(db, tenant_id)
 
     resolved_rows: List[Dict[str, Any]] = []
