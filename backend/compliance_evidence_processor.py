@@ -106,6 +106,23 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
         "A.5.15", "A.8.2", "PR.AC-4", "PCI-7.1", "CC6.1",
         "CISSP-5.4",
     ],
+    # The names agent 2.1.x sends (agent-install/omni-agent-rs/src/capabilities/compliance.rs) for checks
+    # earlier agents sent as User Access Control, BitLocker Encryption, Automatic Updates, RDP NLA Required
+    # and TLS Security Configuration: same controls.
+    "User Account Control (UAC)": ["A.5.15", "A.8.2", "PR.AC-1", "CC6.1"],
+    "BitLocker Drive Encryption": [
+        "A.8.1", "A.8.24", "164.312(a)(2)(iv)", "PCI-3.4", "PR.DS-1", "CC6.1",
+        "CISSP-3.2", "CISSP-3.3", "SC-28", "CIS-3", "SWIFT-2.1", "SOX-SA-3",
+    ],
+    "Windows Automatic Updates": ["A.8.8", "PCI-6.2", "CC7.3"],
+    "RDP Network Level Authentication": [
+        "A.5.15", "A.8.22", "PCI-2.2", "PR.AC-1", "CC6.6",
+        "AC-17", "3.1.12", "CIS-4", "SWIFT-5.4", "CISSP-4.3", "CISSP-5.2",
+    ],
+    "TLS 1.0 Disabled": [
+        "A.8.24", "PCI-4.1", "164.312(a)(2)(iv)", "CC6.7", "PR.DS-2",
+        "SC-8", "NIS2-21.8", "SWIFT-2.6", "3.13.8",
+    ],
     # Linux Checks
     "UFW Firewall Enabled": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],
     "Firewall Status": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],
