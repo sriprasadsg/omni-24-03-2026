@@ -133,7 +133,7 @@ async def snapshot_compliance_scores_loop():
     from tenant_context import set_tenant_id, reset_tenant_id
     from compliance_score_endpoints import (
         _weighted_score, _score_status, _CATEGORY_SEVERITY, SEVERITY_WEIGHTS,
-        _VULN_WEIGHTS, _VULN_BURDEN_BASELINE, _ASSET_WEIGHTS,
+        _VULN_WEIGHTS, _VULN_BURDEN_BASELINE, _ASSET_WEIGHTS, _worst_status_by_control,
     )
 
     _log = logging.getLogger(__name__ + ".score_snapshot")
@@ -164,10 +164,7 @@ async def snapshot_compliance_scores_loop():
                         c.get("id"): {"severity": _CATEGORY_SEVERITY.get(c.get("category", ""), "Low")}
                         for fw in frameworks for c in fw.get("controls", []) if c.get("id")
                     }
-                    ac_by_control = {}
-                    async for doc in db.asset_compliance.find({"controlId": {"$in": list(control_meta)}}):
-                        if doc.get("controlId"):
-                            ac_by_control[doc["controlId"]] = doc.get("status", "")
+                    ac_by_control = await _worst_status_by_control(db, list(control_meta))
 
                     evaluated = [
                         {"severity": control_meta[cid]["severity"], "status_norm": _score_status(st)}

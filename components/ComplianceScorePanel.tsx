@@ -63,7 +63,8 @@ const SeverityWeightTooltip: React.FC<TooltipProps> = ({
           Score = sum of passing weights ÷ sum of all weights × 100.
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          Controls with no monitored asset evidence are excluded.
+          Controls without evidence yet are not scored; the count beside each score shows how many were assessed.
+          A control passes only when every monitored asset passes it.
         </p>
       </div>
     )}
@@ -170,6 +171,11 @@ export const ComplianceScorePanel: React.FC = () => {
               {data ? `${data.overall_score}%` : '—'}
             </p>
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Severity-weighted score</p>
+            {data?.catalogue_controls !== undefined && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {data.assessed_controls ?? 0} of {data.catalogue_controls} controls assessed
+              </p>
+            )}
           </div>
           <div className="text-right space-y-1">
             <p className="text-sm text-green-600 dark:text-green-400">
@@ -190,6 +196,8 @@ export const ComplianceScorePanel: React.FC = () => {
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {data && data.frameworks.map((fw: FrameworkScore) => {
             const expanded = expandedFramework === fw.framework_id;
+            // A framework with no evidence yet has no score; showing 0% would read as failing.
+            const notAssessed = fw.total_controls === 0;
             return (
               <div key={fw.framework_id}>
                 <button
@@ -199,17 +207,22 @@ export const ComplianceScorePanel: React.FC = () => {
                   aria-label={expanded ? `Collapse ${fw.framework_name} breakdown` : `Expand ${fw.framework_name} breakdown`}
                   onClick={() => setExpandedFramework(expanded ? null : fw.framework_id)}
                 >
-                  <span className="w-24 text-sm font-medium text-gray-800 dark:text-white text-left">
-                    {fw.short_name}
+                  <span className="w-32 text-left">
+                    <span className="block text-sm font-medium text-gray-800 dark:text-white">{fw.short_name}</span>
+                    {fw.framework_controls !== undefined && (
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        {fw.total_controls} of {fw.framework_controls} assessed
+                      </span>
+                    )}
                   </span>
                   <span className="flex-1 mx-4 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
                     <span
                       className={`block h-full rounded-full ${barColor(fw.score)}`}
-                      style={{ width: `${fw.score}%` }}
+                      style={{ width: `${notAssessed ? 0 : fw.score}%` }}
                     />
                   </span>
-                  <span className={`w-12 text-right text-sm font-medium ${scoreColor(fw.score)}`}>
-                    {fw.score}%
+                  <span className={`w-24 text-right text-sm font-medium ${notAssessed ? 'text-gray-500 dark:text-gray-400' : scoreColor(fw.score)}`}>
+                    {notAssessed ? 'Not assessed' : `${fw.score}%`}
                   </span>
                   <ChevronDownIcon
                     size={16}

@@ -74,6 +74,25 @@ def _weighted_score(controls_with_status: list[dict]) -> float:
     return round(passing_weight / total_weight * 100, 1)
 
 
+# A control is only as compliant as its least compliant asset.
+_STATUS_RANK = {"Non-Compliant": 0, "Warning": 1, "Compliant": 2}
+
+
+async def _worst_status_by_control(db, control_ids: list[str]) -> dict[str, str]:
+    """controlId -> the worst normalised status across the tenant's asset_compliance rows. Keeping the last row
+    read instead let one passing computer hide a failing one. Also used by the daily snapshot."""
+    worst: dict[str, str] = {}
+    query = {"controlId": {"$in": control_ids}} if control_ids else {}
+    async for doc in db.asset_compliance.find(query):
+        cid = doc.get("controlId", "")
+        if not cid:
+            continue
+        status = _score_status(doc.get("status", ""))
+        if cid not in worst or _STATUS_RANK[status] < _STATUS_RANK[worst[cid]]:
+            worst[cid] = status
+    return worst
+
+
 @router.get("/api/compliance/score")
 async def get_compliance_score(current_user=Depends(get_current_user)):
     """Return severity-weighted compliance score for the current tenant."""
@@ -105,13 +124,8 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
 
         all_control_ids = list(control_meta.keys())
 
-        # Fetch asset_compliance (TenantIsolatedCollection auto-injects tenantId)
-        ac_by_control: dict[str, str] = {}  # controlId → last status
-        query = {"controlId": {"$in": all_control_ids}} if all_control_ids else {}
-        async for doc in db.asset_compliance.find(query):
-            cid = doc.get("controlId", "")
-            if cid:
-                ac_by_control[cid] = doc.get("status", "")
+        # Fetch asset_compliance (TenantIsolatedCollection auto-injects tenantId): controlId → worst status
+        ac_by_control = await _worst_status_by_control(db, all_control_ids)
 
         # Build per-framework scores
         fw_scores: list[dict] = []
@@ -143,7 +157,8 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
                 "passing":        passing,
                 "failing":        failing,
                 "partial":        partial,
-                "total_controls": len(evaluated),
+                "total_controls": len(evaluated),       # the controls with evidence (assessed)
+                "framework_controls": sum(1 for c in fw_controls if c.get("id")),
             })
 
         # Overall score across all evaluated controls
@@ -158,6 +173,8 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
 
         payload = {
             "overall_score": _weighted_score(all_evaluated),
+            "assessed_controls":  len(all_evaluated),
+            "catalogue_controls": len(control_meta),
             "frameworks":    fw_scores,
             "computed_at":   datetime.now(timezone.utc).isoformat(),
             "tenant_id":     tenant_id,
@@ -208,12 +225,7 @@ async def get_threat_score(current_user=Depends(get_current_user)):
                         "severity": _category_severity(c.get("category", "")),
                     }
 
-        ac_by_control: dict[str, str] = {}
-        query = {"controlId": {"$in": list(control_meta.keys())}} if control_meta else {}
-        async for doc in db.asset_compliance.find(query):
-            cid = doc.get("controlId", "")
-            if cid:
-                ac_by_control[cid] = doc.get("status", "")
+        ac_by_control = await _worst_status_by_control(db, list(control_meta.keys()))
 
         all_evaluated = [
             {"severity": control_meta[cid]["severity"], "status_norm": _score_status(st)}

@@ -2195,11 +2195,17 @@ export interface FrameworkScore {
     passing: number;
     failing: number;
     partial: number;
+    /** The controls with evidence (assessed). */
     total_controls: number;
+    /** All controls of the framework. Absent from a payload cached before 2026-11-16. */
+    framework_controls?: number;
 }
 
 export interface ComplianceScorePayload {
     overall_score: number;
+    /** Controls with evidence, and all controls, across the organization's frameworks. */
+    assessed_controls?: number;
+    catalogue_controls?: number;
     frameworks: FrameworkScore[];
     computed_at: string;
     tenant_id: string;
