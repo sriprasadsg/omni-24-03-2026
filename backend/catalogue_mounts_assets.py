@@ -53,6 +53,7 @@ MOUNTS = {
     ("itam_license_endpoints", "router"): ITAM_API_KEY_GUARD,
     ("itam_data_endpoints", "router"): ITAM_API_KEY_GUARD,
     ("itam_kpi_endpoints", "router"): ITAM_API_KEY_GUARD,
+    ("itam_cost_endpoints", "router"): ITAM_API_KEY_GUARD,
     ("itam_reporting_endpoints", "router"): ITAM_API_KEY_GUARD,
     ("itam_ticketing_endpoints", "router"): ITAM_API_KEY_GUARD,
     # ITAM catalogue: session-only routers.

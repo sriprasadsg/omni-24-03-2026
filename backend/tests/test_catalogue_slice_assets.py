@@ -25,6 +25,7 @@ def test_assets_slice_parity():
     manifest = load_manifest()
     modules = slice_modules("assets", records, manifest)
     assert "itam_lifecycle_endpoints" in modules and "asset_endpoints" in modules
+    assert "itam_cost_endpoints" in modules, "the Phase 78 cost router must belong to the assets slice"
     offenders = parity_offenders(records, manifest, modules)
     assert offenders == [], "unguarded or mis-guarded asset-slice routes:\n" + "\n".join(offenders)
 
@@ -87,6 +88,35 @@ def test_itam_api_key_unchanged():
     assert ok_manage != 403, "a key scoped manage:assets must still read ITAM routes"
     assert wrong_role == 403, "the role check still runs first"
     assert post_view_scope == 403, "a read-only scope never authorises a write"
+
+
+def test_itam_cost_routes_enforced_on_real_app():
+    """Phase 78 D-16: the cost summary follows the ITAM read rule, sessions and API keys alike."""
+    path = "/api/itam/costs/summary"
+
+    def session(role, tenant=TENANT):
+        # the route authenticates through get_current_user_or_api_key, so sessions use session_capable
+        return {"method": "GET", "path": path, "role": role, "tenant_id": tenant, "auth": "session_capable"}
+
+    cases = [
+        ("nobody session", session("nobody")),
+        ("viewer session (view:assets only)", session("viewer")),
+        ("itam_viewer session", session("itam_viewer")),
+        ("itam_admin session", session("itam_admin")),
+        ("itam_viewer key scoped view:itam", _case(path, "itam_viewer", scopes=["view:itam"], api_key=True)),
+        ("itam_viewer key scoped view:assets", _case(path, "itam_viewer", scopes=["view:assets"], api_key=True)),
+        ("itam_viewer key scoped manage:assets", _case(path, "itam_viewer", scopes=["manage:assets"], api_key=True)),
+        ("platform_billing session", session("platform_billing", "platform-admin")),
+    ]
+    expect_refused = {"nobody session", "viewer session (view:assets only)",
+                      "itam_viewer key scoped view:assets", "platform_billing session"}
+    statuses = probe_real_app([case for _, case in cases])
+    for (name, case), status in zip(cases, statuses):
+        refused = status == 403
+        assert refused == (name in expect_refused), (
+            f"{name}: role={case['role']} scopes={case.get('scopes')} got {status}, "
+            f"expected {'403' if name in expect_refused else 'anything but 403'}"
+        )
 
 
 # Custom tenant roles (role documents), resolved without Mongo for the in-process checks below.
