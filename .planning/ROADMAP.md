@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 9/10 plans executed
+**Plans**: 10/10 plans executed
 **UI hint**: yes
 
 Plans:
@@ -302,7 +302,7 @@ Plans:
 - [x] 78-08-PLAN.md — KPI = report = summary = list parity and 20k-asset read bound (COST-01, SC3)
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 78-10-PLAN.md — Backend phase gate: phase command with 0 skipped and no leftover test data, full suite against the pre-phase commit
+- [x] 78-10-PLAN.md — Backend phase gate: phase command with 0 skipped and no leftover test data, full suite against the pre-phase commit
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
 
@@ -755,7 +755,7 @@ Plans:
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
-| 78. Organization & Endpoint Cost API | 9/10 | In Progress | - |
+| 78. Organization & Endpoint Cost API | 10/10 | In Progress | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
