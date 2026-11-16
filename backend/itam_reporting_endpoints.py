@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 from auth_types import TokenData
@@ -37,6 +37,7 @@ from itam_reporting_service import (
     build_report_rows,
     itam_reporting_service,
 )
+from itam_tenant_scope import resolve_itam_tenant
 
 router = APIRouter(prefix="/api/itam/reports", tags=["ITAM Reports"])
 
@@ -55,6 +56,7 @@ async def list_reports(current_user: TokenData = Depends(_require_itam_viewer)):
 @router.post("/prebuilt/{report_key}/run")
 async def run_prebuilt_report(
     report_key: str,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: TokenData = Depends(_require_itam_admin),
@@ -62,9 +64,11 @@ async def run_prebuilt_report(
     """On-screen paginated preview (D-06). Builds the full row set with
     limit=None and slices the page in Python, so the preview and the export
     (below) always run the exact same underlying query — the D-20 guarantee.
+    The report covers exactly one tenant (D-13): a platform session without a
+    chosen tenant gets 400 before any database read.
     """
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
     try:
         report = await build_report_rows(db, "prebuilt", report_key, tenant_id, limit=None)
     except ValueError:
@@ -96,13 +100,16 @@ async def run_prebuilt_report(
 @router.post("/prebuilt/{report_key}/export")
 async def export_prebuilt_report(
     report_key: str,
+    request: Request,
     format: str = Query("csv"),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """Format is validated against RENDERERS up front (never a hardcoded
     literal tuple) so an unregistered format is unambiguously a 400,
     distinct from a 404 unknown report key raised further down inside
-    itam_reporting_service.generate."""
+    itam_reporting_service.generate. The tenant is resolved first (D-13), so
+    the export file and its record belong to the one tenant the report covers."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     if format not in RENDERERS:
         raise HTTPException(
             status_code=400,
@@ -110,7 +117,6 @@ async def export_prebuilt_report(
         )
     _ensure_reports_dir()
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
     try:
         result = await itam_reporting_service.generate(
             kind="prebuilt",

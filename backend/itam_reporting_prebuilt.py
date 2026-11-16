@@ -14,13 +14,14 @@ running app.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import itam_cost_service
+from itam_cost_service import INACTIVE_STATUSES, compute_asset_cost, sort_cost_rows
 from itam_finance_service import (
-    REASON_NO_DEPRECIATION_POLICY,
     WARRANTY_STATUS_EXPIRING,
-    compute_book_value,
     compute_warranty_status,
     get_warranty_alert_window,
 )
+from itam_models import DEFAULT_LIFECYCLE_STATUS
 from itam_lifecycle_endpoints import (
     AUDIT_INTERVAL_DAYS,
     _audit_cutoff_iso,
@@ -107,86 +108,41 @@ _ASSET_VALUE_COLUMNS = [
 
 
 async def _build_asset_value_rows(db, tenant_id: Optional[str]) -> List[Dict[str, Any]]:
-    """Reads db.assets tenant-scoped for documents carrying a purchase
-    record, batch-resolves the referenced model documents through ONE
-    db.asset_models query (never a per-asset lookup or an aggregation
-    join), and reuses itam_finance_service.compute_book_value verbatim per
-    asset with the exact same depreciation-input resolution
-    itam_finance_endpoints.get_asset_book_value uses — this report never
-    re-derives book value itself (must_haves truth). An asset whose model
-    carries no usefulLifeYears/salvageValueCents, or whose inputs raise
-    ValueError, gets an em-dash value and the endpoint's own
-    REASON_NO_DEPRECIATION_POLICY string. Sorted descending by computed
-    book value, with rows lacking a computable value last.
+    """Asset value report rows from the shared per-asset cost computation
+    (Phase 78, COST-01): one tenant-scoped assets read, one model read and one
+    clock read, then itam_cost_service.compute_asset_cost per asset, so every
+    row's Book Value equals the cost view's figure for that asset.
+
+    Population is unchanged: assets whose stored purchase cost and purchase
+    date are both present. Disposed and retired assets are left out (D-04).
+    Rows follow itam_cost_service.sort_cost_rows (D-08): book value high to
+    low, not-tracked rows last, then name, asset tag, asset id. A malformed
+    cost or date shows an em dash with its reason code instead of failing.
     """
-    assets = await db.assets.find(
+    assets = await itam_cost_service.load_tenant_assets(db, tenant_id)
+    population = [
+        a for a in assets
+        if a.get("purchaseCostCents") is not None
+        and a.get("purchaseDate") is not None
+        and (a.get("lifecycleStatus") or DEFAULT_LIFECYCLE_STATUS.value) not in INACTIVE_STATUSES
+    ]
+    models = await itam_cost_service.load_models_by_id(db, tenant_id, population)
+    now = itam_cost_service.utc_now()
+    costs = sort_cost_rows(
+        compute_asset_cost(a, models.get(a.get("modelId")), now) for a in population
+    )
+    return [
         {
-            "purchaseCostCents": {"$exists": True, "$ne": None},
-            "purchaseDate": {"$exists": True, "$ne": None},
-        },
-        {
-            "_id": 0, "id": 1, "assetTag": 1, "name": 1, "modelId": 1,
-            "purchaseCostCents": 1, "purchaseDate": 1,
-        },
-    ).to_list(length=None)
-
-    model_ids = sorted({a["modelId"] for a in assets if a.get("modelId")})
-    models_by_id: Dict[str, Dict[str, Any]] = {}
-    if model_ids:
-        model_docs = await db.asset_models.find(
-            {"id": {"$in": model_ids}},
-            {"_id": 0, "id": 1, "usefulLifeYears": 1, "salvageValueCents": 1},
-        ).to_list(length=None)
-        models_by_id = {m["id"]: m for m in model_docs}
-
-    now = datetime.now(timezone.utc)
-    rows: List[Dict[str, Any]] = []
-    for asset in assets:
-        purchase_cost = asset.get("purchaseCostCents")
-        purchase_date = asset.get("purchaseDate")
-        row: Dict[str, Any] = {
-            "_sortKey": None,
-            "Asset Tag": _dash(asset.get("assetTag")),
-            "Name": _dash(asset.get("name")),
-            "Purchase Date": _dash(purchase_date),
-            "Purchase Cost": _cents_to_dollars(purchase_cost),
-            "Book Value": _EM_DASH,
-            "Years Elapsed": _EM_DASH,
-            "Reason": _EM_DASH,
+            "Asset Tag": _dash(c["assetTag"]),
+            "Name": _dash(c["name"]),
+            "Purchase Date": _dash(c["purchaseDate"]),
+            "Purchase Cost": _cents_to_dollars(c["purchaseCostCents"]),
+            "Book Value": _cents_to_dollars(c["bookValueCents"]),
+            "Years Elapsed": _dash(c["yearsElapsed"]),
+            "Reason": _dash(c["reason"]),
         }
-
-        model_doc = models_by_id.get(asset.get("modelId"))
-        if (
-            not model_doc
-            or model_doc.get("usefulLifeYears") is None
-            or model_doc.get("salvageValueCents") is None
-        ):
-            row["Reason"] = REASON_NO_DEPRECIATION_POLICY
-            rows.append(row)
-            continue
-
-        try:
-            result = compute_book_value(
-                purchase_date=purchase_date,
-                purchase_cost_cents=purchase_cost,
-                useful_life_years=model_doc["usefulLifeYears"],
-                salvage_value_cents=model_doc["salvageValueCents"],
-                now=now,
-            )
-        except ValueError:
-            row["Reason"] = REASON_NO_DEPRECIATION_POLICY
-            rows.append(row)
-            continue
-
-        row["_sortKey"] = result["bookValueCents"]
-        row["Book Value"] = _cents_to_dollars(result["bookValueCents"])
-        row["Years Elapsed"] = result["yearsElapsed"]
-        rows.append(row)
-
-    rows.sort(key=lambda r: (r["_sortKey"] is None, -(r["_sortKey"] if r["_sortKey"] is not None else 0)))
-    for row in rows:
-        row.pop("_sortKey", None)
-    return rows
+        for c in costs
+    ]
 
 
 _CHECKOUT_ACTIVITY_COLUMNS = [
