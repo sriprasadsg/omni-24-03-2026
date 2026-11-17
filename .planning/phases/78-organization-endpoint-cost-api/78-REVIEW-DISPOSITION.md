@@ -3,6 +3,14 @@ phase: 78
 review: 78-REVIEW.md
 titles: json
 findings:
+  - id: WR-07
+    severity: warning
+    disposition: open
+    title: "The book-value route maps an unreadable purchase date to \"no depreciation policy\" and does not guard an unreadable cost"
+  - id: IN-14
+    severity: info
+    disposition: open
+    title: "The new parity test checks route against row for two assets only, so the remaining disagreements in WR-07 stay invisible"
   - id: WR-05
     severity: warning
     disposition: fixed
@@ -79,21 +87,23 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 0
-total: 19
-recorded: 2026-11-17T10:00:21.176Z
+open: 2
+total: 21
+recorded: 2026-11-17T10:43:35.203Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-05 | warning | fixed | 78-REVIEW-FIX.md |
-| WR-06 | warning | fixed | 78-REVIEW-FIX.md |
-| IN-10 | info | fixed | 78-REVIEW-FIX.md |
-| IN-11 | info | fixed | 78-REVIEW-FIX.md |
-| IN-12 | info | fixed | 78-REVIEW-FIX.md |
-| IN-13 | info | fixed | 78-REVIEW-FIX.md |
+| WR-07 | warning | open | - |
+| IN-14 | info | open | - |
+| WR-05 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| WR-06 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-10 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-11 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-12 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-13 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-06 | info | fixed | no code change needed: live omni_platform has no itam_reports collection (0 documents, checked read-only 2026-11-17), so no definition is stranded; evidence in 78-REVIEW-FIX.md (not in the current review) |
 | IN-07 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-08 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
