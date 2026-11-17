@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 10/10 plans executed
+**Plans**: 10/11 plans executed (gap-closure plan 78-11 planned, not executed)
 **UI hint**: yes
 
 Plans:
@@ -303,6 +303,9 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [x] 78-10-PLAN.md — Backend phase gate: phase command with 0 skipped and no leftover test data, full suite against the pre-phase commit
+
+**Gap closure** *(from 78-VERIFICATION.md gaps_found 5/6, 78-REVIEW WR-01)*
+- [ ] 78-11-PLAN.md — ReportsPanel stale-response guard: runSeq on pre-built, saved custom and preview runs, running reset on tenant switch, result gate with the preview exception; console + ReportsPanel tests (COST-07, UI-SPEC R3, T-78-15)
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
 
