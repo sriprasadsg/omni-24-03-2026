@@ -80,10 +80,15 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
 
   // R3: a result from the previous tenant must not stay on screen after a switch.
   // Skipped on first mount so a drill-down run started through focusReportKey is kept.
+  // Only the latest request may write the result: every run takes a new value and a
+  // tenant switch bumps it, so a late or superseded response is dropped.
+  const runSeq = useRef(0);
   const previousTenantId = useRef(tenantId);
   useEffect(() => {
     if (previousTenantId.current === tenantId) return;
     previousTenantId.current = tenantId;
+    runSeq.current += 1;
+    setRunning(false);
     setResult(null);
     setActiveKind(null);
     setActiveKey(null);
@@ -94,14 +99,17 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setActiveKind('prebuilt');
     setActiveKey(key);
     setRunning(true);
+    const seq = ++runSeq.current;
     try {
       const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId);
+      if (seq !== runSeq.current) return;
       setResult(r);
       setPage(targetPage);
     } catch (e: any) {
+      if (seq !== runSeq.current) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      setRunning(false);
+      if (seq === runSeq.current) setRunning(false);
     }
   }, [tenantId]);
 
