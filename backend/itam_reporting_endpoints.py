@@ -296,16 +296,18 @@ async def delete_custom_report(
 @router.post("/custom/{report_id}/run")
 async def run_saved_custom_report(
     report_id: str,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """Loading the definition first means a run-after-delete is a plain 404
     — the same answer an unknown id would ever produce, not a crash or a
-    stale result."""
+    stale result. The report covers exactly one tenant (D-13): a platform
+    session without a chosen tenant gets 400 before any database read."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
-    doc = await db.itam_reports.find_one({"id": report_id}, {"_id": 0})
+    doc = await db.itam_reports.find_one({"tenantId": tenant_id, "id": report_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Report not found")
     try:
