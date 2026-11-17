@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 10/11 plans executed (gap-closure plan 78-11 planned, not executed)
+**Plans**: 11/11 plans executed (gap-closure plan 78-11 planned, not executed)
 **UI hint**: yes
 
 Plans:
@@ -305,7 +305,7 @@ Plans:
 - [x] 78-10-PLAN.md — Backend phase gate: phase command with 0 skipped and no leftover test data, full suite against the pre-phase commit
 
 **Gap closure** *(from 78-VERIFICATION.md gaps_found 5/6, 78-REVIEW WR-01)*
-- [ ] 78-11-PLAN.md — ReportsPanel stale-response guard: runSeq on pre-built, saved custom and preview runs, running reset on tenant switch, result gate with the preview exception; console + ReportsPanel tests (COST-07, UI-SPEC R3, T-78-15)
+- [x] 78-11-PLAN.md — ReportsPanel stale-response guard: runSeq on pre-built, saved custom and preview runs, running reset on tenant switch, result gate with the preview exception; console + ReportsPanel tests (COST-07, UI-SPEC R3, T-78-15)
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
 
@@ -758,7 +758,7 @@ Plans:
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
-| 78. Organization & Endpoint Cost API | 10/10 | In Progress | - |
+| 78. Organization & Endpoint Cost API | 11/11 | In Progress | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
