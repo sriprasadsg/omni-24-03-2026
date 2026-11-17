@@ -47,12 +47,16 @@ impl Capability for MetricsCapability {
             .collect();
 
         let networks = Networks::new_with_refreshed_list();
+        let names: Vec<String> = networks.iter().map(|(name, _)| name.to_string()).collect();
         let mut bytes_sent = 0u64;
         let mut bytes_recv = 0u64;
         let mut net_ifaces: Vec<Value> = vec![];
         for (name, data) in networks.iter() {
-            bytes_sent += data.total_transmitted();
-            bytes_recv += data.total_received();
+            // A filter driver's copy of an adapter repeats the adapter's counters: count them once.
+            if !is_filter_copy(name, &names) {
+                bytes_sent += data.total_transmitted();
+                bytes_recv += data.total_received();
+            }
             net_ifaces.push(json!({
                 "name": name,
                 "bytes_sent": data.total_transmitted(),
@@ -140,4 +144,23 @@ fn get_installed_software() -> Vec<Value> {
     }
     #[cfg(not(windows))]
     vec![]
+}
+
+/// Windows lists a filter driver bound to an adapter (Npcap, QoS, WFP) as another interface named
+/// "<adapter>-<filter>-0000", with the adapter's own counters.
+pub(crate) fn is_filter_copy(name: &str, all: &[String]) -> bool {
+    all.iter().any(|other| other != name && name.starts_with(&format!("{other}-")))
+}
+
+#[cfg(test)]
+mod filter_copy_tests {
+    use super::is_filter_copy;
+
+    #[test]
+    fn filter_driver_copy_is_recognised_and_adapters_are_not() {
+        let names: Vec<String> = ["Wi-Fi", "Wi-Fi-Npcap Packet Driver (NPCAP)-0000", "Ethernet 2"].iter().map(|s| s.to_string()).collect();
+        assert!(is_filter_copy("Wi-Fi-Npcap Packet Driver (NPCAP)-0000", &names));
+        assert!(!is_filter_copy("Wi-Fi", &names));
+        assert!(!is_filter_copy("Ethernet 2", &names));
+    }
 }

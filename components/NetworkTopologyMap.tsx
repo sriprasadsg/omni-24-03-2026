@@ -13,7 +13,7 @@ import { fetchTraffic, type RangeKey } from './network/opsData';
 import { RX, TX } from './network/ops/OpsKpis';
 import { rowMatches, topDestinations, topologyRows, zoneShares } from './network/topologyData';
 import { LINK_LEGEND, ROLE_LEGEND, TOPOLOGY_LAYOUT, topologyStylesheet } from './network/topologyStyle';
-import { TopologyInspector, type Connection, type Neighbour } from './network/TopologyInspector';
+import { TopologyInspector, type Connection, type Neighbour, type PathStep } from './network/TopologyInspector';
 import { prefersReducedMotion, useTopologyMotion } from './network/useTopologyMotion';
 import { TopologyHeader } from './network/topology/TopologyHeader';
 import { TopologyKpis } from './network/topology/TopologyKpis';
@@ -119,6 +119,21 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
         .filter(Boolean)
         .map((d: any) => ({ id: d.id, label: d.label, ip: d.ip, status: d.status })), [elements, byId]);
 
+    // An endpoint's traced route to the server (backend route_chain), past its gateway.
+    const pathOf = useCallback((id: string): PathStep[] => {
+        const route: string[] = byId.get(id)?.routePath || [];
+        return route.slice(1).map(stepId => byId.get(stepId)).filter(Boolean).map((d: any) => ({
+            id: d.id, label: String(d.label).split('\n')[0].split(' · ')[0], ip: d.ip || undefined,
+            rttMs: d.details?.rttMs ?? null, answered: d.kind !== 'hop' || !!d.ip,
+        }));
+    }, [byId]);
+
+    // Queue the endpoint's LAN scan (POST /api/agents/{id}/discovery/scan, agent instruction "Start Network Scan").
+    const scanFrom = useCallback(async (agentId: string) => {
+        const res = await api.authFetch(`/api/agents/${encodeURIComponent(agentId)}/discovery/scan`, { method: 'POST' });
+        if (!res.ok) throw new Error(res.status === 403 ? 'Your role cannot start scans on endpoints.' : `The scan could not be requested (HTTP ${res.status}).`);
+    }, []);
+
     const connectionsOf = useCallback((id: string): Connection[] => elements
         .filter(e => e.data?.kind === 'flow' && e.data.source === id && byId.has(e.data.target))
         .map(e => ({ id: e.data.target, label: byId.get(e.data.target).label, ports: e.data.ports || [], processes: e.data.processes || [], connections: e.data.connections || 0 })),
@@ -145,9 +160,13 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                 const node = cy.getElementById(selectedId);
                 if (node.empty()) return;
                 node.select();
-                const near = node.closedNeighborhood();
+                // An endpoint's whole route to the server lights up with its direct links.
+                const route: string[] = node.data('routePath') || [];
+                const onRoute = route.reduce((all, id) => all.union(cy.getElementById(id)), cy.collection());
+                const routeEdges = route.slice(1).reduce((all, id, i) => all.union(cy.getElementById(`edge-${route[i]}-${id}`)), cy.collection());
+                const near = node.closedNeighborhood().union(onRoute).union(routeEdges);
                 cy.elements().not(near.union(near.nodes().ancestors())).addClass('faded');
-                node.connectedEdges().addClass('hl');
+                node.connectedEdges().union(routeEdges).addClass('hl');
                 return;
             }
             if (!focusKey && !filtering) return;
@@ -167,18 +186,25 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
     }, [selectedId]);
 
     useEffect(() => {
+        const timers: number[] = [];
         // A new rate measured on an agent's heartbeat (backend network_rate.py).
         const onEndpointTraffic = (ev: any) => {
             if (pausedRef.current) return;
             if (!ev?.agentId || typeof ev.sentBps !== 'number' || typeof ev.recvBps !== 'number' || !ev.at) return;
-            setPushed(p => ({ ...p, [ev.agentId]: { sentBps: ev.sentBps, recvBps: ev.recvBps, at: ev.at, windowSeconds: ev.windowSeconds } }));
+            setPushed(p => ({ ...p, [ev.agentId]: { sentBps: ev.sentBps, recvBps: ev.recvBps, sentPps: ev.sentPps, recvPps: ev.recvPps, at: ev.at, windowSeconds: ev.windowSeconds } }));
             const cy = cyRef.current;
             if (!cy || cy.destroyed()) return;
             const nodeId = `agent-${ev.agentId}`;
-            cy.getElementById(nodeId).connectedEdges('[kind = "uplink"]').forEach(edge => {
+            const node = cy.getElementById(nodeId);
+            node.connectedEdges('[kind = "uplink"]').forEach(edge => {
                 const gateway = edge.source().id() === nodeId ? edge.target().id() : edge.source().id();
                 if (ev.recvBps > 0) pulse(gateway, nodeId);
                 if (ev.sentBps > 0) pulse(nodeId, gateway);
+            });
+            // The report that carried this rate went to the server: follow it along the traced route.
+            const route: string[] = node.data('routePath') || [];
+            [nodeId, ...route].slice(0, -1).forEach((from, i) => {
+                timers.push(window.setTimeout(() => pulse(from, [nodeId, ...route][i + 1]), 700 * (i + 1)));
             });
         };
         // A single flow between two addresses, from a flow source (none sends these yet).
@@ -197,6 +223,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
             socketService.off('endpoint_traffic', onEndpointTraffic);
             socketService.off('network_traffic', onFlow);
             clearInterval(tick);
+            timers.forEach(clearTimeout);
         };
     }, [pulse]);
 
@@ -341,6 +368,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                                     <li className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] border-2 border-dashed border-[#d03b3b]" aria-hidden="true" />Down</li>
                                     <li className="flex items-center gap-1.5"><span className={`w-5 border-t-2 border-dashed ${LINK_LEGEND.live}`} aria-hidden="true" />Live transfer</li>
                                     <li className="flex items-center gap-1.5"><span className={`w-5 border-t-2 border-dotted ${LINK_LEGEND.connection}`} aria-hidden="true" />Latest connection</li>
+                                    <li className="flex items-center gap-1.5"><span className={`w-5 border-t-2 ${LINK_LEGEND.route}`} aria-hidden="true" />Traced route to server</li>
                                 </ul>
                             </div>
                         </section>
@@ -348,6 +376,8 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                         <div className={`min-w-0 ${SIDE_HEIGHT}`}>
                             {selected ? (
                                 <TopologyInspector node={selected} neighbours={neighboursOf(selected.id)} connections={connectionsOf(selected.id)}
+                                    path={selected.kind === 'agent' ? pathOf(selected.id) : undefined}
+                                    onScan={selected.kind === 'agent' && selected.agentId ? () => scanFrom(selected.agentId) : undefined}
                                     onSelect={setSelectedId} onClose={() => setSelectedId(null)} />
                             ) : live.data ? (
                                 <ZoneBreakdown zones={zones} zone={zone} onZone={setZone} destinations={destinations} onOpen={setSelectedId} />

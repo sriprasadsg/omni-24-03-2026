@@ -7,7 +7,7 @@ from catalogue_mounts_agents import AGENTS_GUARD
 from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
-from agent_auth import verify_agent_key, caller_agent_id
+from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
 from tunnel_endpoints import deliverable_payload
 from rate_limiter import limiter
 from tickets_service import tickets_service
@@ -495,16 +495,19 @@ async def report_network_scan_results(
     results: List[Dict[str, Any]] = Body(...),
     _tenant: Dict[str, Any] = Depends(verify_agent_key)
 ):
-    """Agent reports network scan results."""
+    """Agent reports network scan results. The path names the reporting agent by id or, as the
+    Windows agent sends it, by hostname; only that agent may report for itself."""
     agent_capabilities.assert_allowed(_tenant, "network_discovery")
     db = get_database()
-
-    agent = await db.agents.find_one({"id": agent_id})
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    tenant_id = agent.get("tenantId") or _tenant.get("id", "")
+    tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or _tenant.get("id", "")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Agent has no tenant association")
+    caller = caller_agent_id(_tenant)
+    await require_agent_named(caller, tenant_id, agent_id, db)
+    agent = await db.agents.find_one({"id": caller, "tenantId": tenant_id}, {"_id": 0, "id": 1})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent_id = agent["id"]
 
     processed_count = 0
 
@@ -527,6 +530,7 @@ async def report_network_scan_results(
             vuln_query, {"_id": 0, "cveId": 1, "severity": 1, "description": 1}
         ).to_list(length=20)
 
+        device_type = str(device.get("device_type") or "Unknown")[:100]
         live_fields = {
             "id": device_id,
             "tenantId": tenant_id,
@@ -534,11 +538,17 @@ async def report_network_scan_results(
             "ipAddress": ip,
             "macAddress": mac,
             "hostname": hostname or device.get("hostname"),
-            "type": device.get("device_type", "Unknown"),
+            "type": device_type,
+            "deviceType": device_type,  # the field the network map reads
             "status": device.get("status", "Up"),
             "lastSeen": datetime.now(timezone.utc).isoformat(),
             "vulnerabilities": device_vulns,
         }
+        ports = device.get("open_ports")
+        if isinstance(ports, list):
+            live_fields["openPorts"] = sorted({p for p in ports if isinstance(p, int) and not isinstance(p, bool) and 0 < p < 65536})[:64]
+        if isinstance(device.get("vendor"), str) and device["vendor"].strip():
+            live_fields["vendor"] = device["vendor"].strip()[:100]
 
         await db.network_devices.update_one(
             {"id": device_id, "tenantId": tenant_id},

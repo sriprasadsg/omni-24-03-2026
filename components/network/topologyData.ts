@@ -3,8 +3,8 @@
 import { isDown, isFreshRate } from './networkData';
 
 export type NodeStatus = 'Live' | 'Idle' | 'Not measured' | 'Up' | 'Down' | 'Connected' | 'Unknown';
-export type NodeGroup = 'Endpoints' | 'Gateways' | 'ISP' | 'Devices' | 'Remote';
-export const NODE_GROUPS: NodeGroup[] = ['Endpoints', 'Gateways', 'ISP', 'Devices', 'Remote'];
+export type NodeGroup = 'Endpoints' | 'Gateways' | 'ISP' | 'Path' | 'Devices' | 'Remote';
+export const NODE_GROUPS: NodeGroup[] = ['Endpoints', 'Gateways', 'ISP', 'Path', 'Devices', 'Remote'];
 
 export interface TopologyRow {
     id: string;
@@ -21,6 +21,8 @@ export interface TopologyRow {
     status: NodeStatus | null;
     sentBps: number | null;
     recvBps: number | null;
+    /** Packets per second both ways, when the endpoint reports packet counters. */
+    pps: number | null;
     links: number;
     updated: string | null;
 }
@@ -36,6 +38,7 @@ export const nodeGroup = (d: any): NodeGroup | null => {
     if (d?.kind === 'agent') return 'Endpoints';
     if (d?.kind === 'remote') return 'Remote';
     if (d?.kind === 'isp') return 'ISP';
+    if (d?.kind === 'hop' || d?.kind === 'server') return 'Path';
     if (d?.kind === 'gateway' || d?.kind === 'placeholder' || d?.role === 'Gateway') return 'Gateways';
     return 'Devices';
 };
@@ -47,14 +50,14 @@ export const nodeGroup = (d: any): NodeGroup | null => {
 export const nodeStatus = (d: any, now: number = Date.now()): NodeStatus | null => {
     if (d?.kind === 'internet' || d?.kind === 'placeholder') return null;
     if (d?.kind === 'remote') return 'Connected';
-    if (d?.kind === 'isp') return d.status === 'Up' ? 'Up' : 'Unknown';
+    if (d?.kind === 'isp' || d?.kind === 'hop') return d.status === 'Up' ? 'Up' : 'Unknown';
     if (isDown(d?.status)) return 'Down';
     if (d?.kind !== 'agent') return 'Up';
     if (!isFreshRate(d.metrics, now)) return 'Not measured';
     return d.metrics.sentBps + d.metrics.recvBps > 0 ? 'Live' : 'Idle';
 };
 
-const GROUP_RANK: Record<string, number> = { Endpoints: 0, Gateways: 1, ISP: 2, Devices: 3, Remote: 4 };
+const GROUP_RANK: Record<string, number> = { Endpoints: 0, Gateways: 1, ISP: 2, Path: 3, Devices: 4, Remote: 5 };
 
 /** One row per node on the map, the busiest first, then endpoints, gateways, devices and remote hosts. */
 export const topologyRows = (elements: any[], now: number = Date.now()): TopologyRow[] => {
@@ -81,13 +84,14 @@ export const topologyRows = (elements: any[], now: number = Date.now()): Topolog
             status: nodeStatus(d, now),
             sentBps: fresh ? d.metrics.sentBps : null,
             recvBps: fresh ? d.metrics.recvBps : null,
+            pps: fresh && typeof d.metrics.sentPps === 'number' && typeof d.metrics.recvPps === 'number' ? d.metrics.sentPps + d.metrics.recvPps : null,
             links: edges.filter(e => e.source === d.id || e.target === d.id).length,
             updated: fresh ? d.metrics.rateAt : seenAt || d.details?.lastSeen || null,
         };
     });
     const load = (r: TopologyRow) => (r.sentBps == null ? -1 : r.sentBps + (r.recvBps ?? 0));
     return rows.sort((a, b) => load(b) - load(a)
-        || (GROUP_RANK[a.group ?? ''] ?? 5) - (GROUP_RANK[b.group ?? ''] ?? 5)
+        || (GROUP_RANK[a.group ?? ''] ?? 6) - (GROUP_RANK[b.group ?? ''] ?? 6)
         || a.name.localeCompare(b.name));
 };
 

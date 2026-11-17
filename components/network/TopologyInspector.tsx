@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from 'react';
-import { X, Cloud, Shield, Server, Layers, Printer, Monitor, Globe, RadioTower, CircleCheck, CircleX, ArrowUp, ArrowDown } from 'lucide-react';
-import { deviceFacts, formatAgo, formatBytes, formatRate, isDown, isFreshRate } from './networkData';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Cloud, Shield, Server, Layers, Printer, Monitor, Globe, RadioTower, Router, Radar, CircleCheck, CircleX, ArrowUp, ArrowDown } from 'lucide-react';
+import { deviceFacts, formatAgo, formatBytes, formatPps, formatRate, isDown, isFreshRate } from './networkData';
 
 export interface Neighbour { id: string; label: string; ip?: string; status?: string }
 export interface Connection { id: string; label: string; ports: number[]; processes: string[]; connections: number }
+/** One step of an endpoint's traced route to the server. */
+export interface PathStep { id: string; label: string; ip?: string; rttMs?: number | null; answered: boolean }
 
-const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer, globe: Globe, isp: RadioTower };
+const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer, globe: Globe, isp: RadioTower, router: Router };
 
 // Nodes that are not machines the platform found; say what they are.
 const KIND_NOTES: Record<string, string> = {
@@ -13,7 +15,11 @@ const KIND_NOTES: Record<string, string> = {
     placeholder: 'A placeholder: no gateway is known for these endpoints yet (none in their neighbour tables or among scanned devices).',
     remote: 'A remote host an endpoint had an open connection to in its last report.',
     isp: 'The internet provider of the endpoints behind this gateway, named from the public address they report.',
+    hop: 'A router on the path from an endpoint to the Omni-Agent server, found by the endpoint\'s route trace.',
+    server: 'The Omni-Agent server the endpoints report to. Routes traced by endpoints end here.',
 };
+
+const SILENT_HOPS = 'These hops did not answer the trace. Routers, firewalls and cloud networks often drop trace probes; traffic still passes.';
 
 const UNNAMED_ISP = 'No provider is known for this public address yet. The server names it from MaxMind\'s GeoLite2-ASN database when that is installed and the tenant tracks agent locations.';
 
@@ -40,6 +46,9 @@ const LiveTransfer: React.FC<{ metrics: any }> = ({ metrics }) => {
                             </div>
                         ))}
                     </div>
+                    {typeof metrics.sentPps === 'number' && typeof metrics.recvPps === 'number' && (
+                        <p className="mt-1.5 text-[12px] tabular-nums text-gray-700 dark:text-gray-300">Packets: ↑ {formatPps(metrics.sentPps)} · ↓ {formatPps(metrics.recvPps)}</p>
+                    )}
                     <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                         Averaged over {Math.round(metrics.windowSeconds || 0)} s, measured {formatAgo(Date.parse(metrics.rateAt))}
                     </p>
@@ -56,14 +65,79 @@ const LiveTransfer: React.FC<{ metrics: any }> = ({ metrics }) => {
     );
 };
 
-export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; connections: Connection[]; onSelect: (id: string) => void; onClose: () => void }> = ({ node, neighbours, connections, onSelect, onClose }) => {
+const subhead = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+
+const PathToServer: React.FC<{ path: PathStep[]; onSelect: (id: string) => void }> = ({ path, onSelect }) => (
+    <section>
+        <h3 className={subhead}>Path to the server ({path.length} steps)</h3>
+        <ol className="mt-2">
+            {path.map((step, i) => (
+                <li key={step.id} className="relative pl-5">
+                    {i < path.length - 1 && <span className="absolute left-[4px] top-4 bottom-0 w-px bg-gray-200 dark:bg-white/10" aria-hidden="true" />}
+                    <span className={`absolute left-0 top-[11px] h-[9px] w-[9px] rounded-full ${step.answered ? 'bg-primary-500' : 'border border-gray-400 bg-transparent'}`} aria-hidden="true" />
+                    <button type="button" onClick={() => onSelect(step.id)}
+                        className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-white/[0.05]">
+                        <span className="min-w-0">
+                            <span className="block text-[13px] text-gray-800 dark:text-gray-200 truncate">{step.label}</span>
+                            {step.ip && <span className="block font-mono text-[11px] text-gray-500 dark:text-gray-400">{step.ip}</span>}
+                        </span>
+                        <span className="shrink-0 font-mono tabular-nums text-[11px] text-gray-500 dark:text-gray-400">{typeof step.rttMs === 'number' ? `${step.rttMs} ms` : ''}</span>
+                    </button>
+                </li>
+            ))}
+        </ol>
+    </section>
+);
+
+type ScanState = { phase: 'idle' | 'sending' | 'sent' | 'error'; message?: string };
+
+/** Ask the endpoint to scan its LAN; what it finds (gateway, firewall, other hosts) joins the map. */
+const ScanNetwork: React.FC<{ onScan: () => Promise<void> }> = ({ onScan }) => {
+    const [state, setState] = useState<ScanState>({ phase: 'idle' });
+    const run = async () => {
+        setState({ phase: 'sending' });
+        try {
+            await onScan();
+            setState({ phase: 'sent' });
+        } catch (e: any) {
+            setState({ phase: 'error', message: e?.message || 'The scan could not be requested.' });
+        }
+    };
+    return (
+        <section>
+            <h3 className={subhead}>Local network</h3>
+            <button type="button" onClick={run} disabled={state.phase === 'sending'}
+                className="mt-2 inline-flex items-center gap-2 h-9 px-3 rounded-xl text-sm font-medium border border-gray-200/80 dark:border-white/[0.08] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/[0.06] disabled:opacity-60">
+                <Radar className={`w-4 h-4 ${state.phase === 'sending' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                {state.phase === 'sending' ? 'Requesting scan…' : 'Scan this endpoint\'s network'}
+            </button>
+            <p role="status" className={`mt-1.5 text-[11px] ${state.phase === 'error' ? 'text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                {state.phase === 'sent' ? 'Scan requested. The endpoint pings its subnet and checks common ports; what it finds appears here after its next report, usually within a few minutes.'
+                    : state.phase === 'error' ? state.message
+                    : 'Finds the gateway, firewall and other devices on the endpoint\'s subnet, with their open ports.'}
+            </p>
+        </section>
+    );
+};
+
+interface InspectorProps {
+    node: any;
+    neighbours: Neighbour[];
+    connections: Connection[];
+    path?: PathStep[];
+    onScan?: () => Promise<void>;
+    onSelect: (id: string) => void;
+    onClose: () => void;
+}
+
+export const TopologyInspector: React.FC<InspectorProps> = ({ node, neighbours, connections, path, onScan, onSelect, onClose }) => {
     const closeRef = useRef<HTMLButtonElement>(null);
     useEffect(() => { closeRef.current?.focus({ preventScroll: true }); }, [node.id]);
 
     const Icon = ICONS[node.icon] || Monitor;
     const [title] = String(node.label || node.id).split('\n');
     const facts = deviceFacts(node.details);
-    const note = node.kind === 'isp' && !node.ispKnown ? UNNAMED_ISP : KIND_NOTES[node.kind];
+    const note = node.kind === 'isp' && !node.ispKnown ? UNNAMED_ISP : node.kind === 'hop' && !node.ip ? SILENT_HOPS : KIND_NOTES[node.kind];
     const down = isDown(node.status);
 
     return (
@@ -93,6 +167,10 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; c
                 )}
                 {note && <p className="text-[13px] text-gray-600 dark:text-gray-300">{note}</p>}
                 {node.kind === 'agent' && <LiveTransfer metrics={node.metrics} />}
+                {node.kind === 'agent' && (path?.length
+                    ? <PathToServer path={path} onSelect={onSelect} />
+                    : <section><h3 className={subhead}>Path to the server</h3><p className="mt-2 text-[13px] text-gray-500 dark:text-gray-400">Not traced yet. Agents from version 2.1.20 trace their route to the server every 15 minutes.</p></section>)}
+                {node.kind === 'agent' && onScan && <ScanNetwork key={node.id} onScan={onScan} />}
 
                 <dl className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                     {node.zone && <Field label="Zone">{node.zone}</Field>}

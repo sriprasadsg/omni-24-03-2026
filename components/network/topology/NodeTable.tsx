@@ -1,6 +1,6 @@
 import React, { useId, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { formatAgo } from '../networkData';
+import { formatAgo, formatPps } from '../networkData';
 import { formatBitRate } from '../opsData';
 import { RX, TX } from '../ops/OpsKpis';
 import { NODE_GROUPS, type NodeGroup, type NodeStatus, type TopologyRow } from '../topologyData';
@@ -103,7 +103,10 @@ export const NodeTable: React.FC<{ rows: TopologyRow[]; selectedId: string | nul
                                     <td className={`${td} whitespace-nowrap`}>
                                         {total == null ? <span className="text-gray-500 dark:text-gray-400">—</span> : (
                                             <span className="inline-flex items-center gap-2.5">
-                                                <span className={`${mono} w-[5.5rem] text-gray-900 dark:text-white`}>{formatBitRate(total)}</span>
+                                                <span className={`${mono} w-[5.5rem] text-gray-900 dark:text-white`}>
+                                                    {formatBitRate(total)}
+                                                    {r.pps != null && <span className="block text-[11px] text-gray-500 dark:text-gray-400">{formatPps(r.pps)}</span>}
+                                                </span>
                                                 <span aria-hidden="true" className="flex h-1.5 w-14 gap-px rounded-full overflow-hidden bg-gray-100 dark:bg-white/[0.06]">
                                                     {total > 0 && <>
                                                         <span className={RX.bg} style={{ flexGrow: r.recvBps ?? 0, flexBasis: 0 }} />

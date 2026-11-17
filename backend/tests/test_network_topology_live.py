@@ -201,3 +201,80 @@ def test_unnamed_provider_shows_the_public_address_and_no_address_means_no_provi
     nodes, edges = _graph([], [_linux_agent()])
     assert not any(n.startswith("isp-") for n in nodes)
     assert ("internet", "virtual-gateway") in edges
+
+
+# ── duplicate interfaces, packets ───────────────────────────────────────────
+
+def _win_net(sent, recv, p_sent, p_recv):
+    iface = {"bytes_sent": sent, "bytes_recv": recv, "packets_sent": p_sent, "packets_recv": p_recv}
+    return {"bytes_sent": 2 * sent, "bytes_recv": 2 * recv,  # what agent 2.1.19 sends: the copy counted too
+            "interfaces": [{"name": "Wi-Fi", **iface}, {"name": "Wi-Fi-Npcap Packet Driver (NPCAP)-0000", **iface}]}
+
+
+def test_filter_driver_copies_are_not_counted_twice_and_packets_get_a_rate():
+    """protects=a Windows filter-driver interface ("<adapter>-<filter>-0000") with the adapter's own
+    counters is left out of the totals, and packet counters give packets per second; fails_when=rates
+    read double (live EILT0197 did) or packets are invented for agents that send none;
+    no_claim=every filter driver uses that naming"""
+    assert network_rate.totals(_win_net(300, 1000, 7, 12)) == {"sent": 300, "recv": 1000, "pSent": 7, "pRecv": 12}
+    agent = {"networkSample": {"sent": 1_000, "recv": 5_000, "pSent": 100, "pRecv": 400, "at": _at(40)}}
+    rate = network_rate.on_heartbeat(agent, _win_net(41_000, 185_000, 900, 2_400), NOW)["networkRate"]
+    assert (rate["sentBps"], rate["recvBps"], rate["sentPps"], rate["recvPps"]) == (1000.0, 4500.0, 20.0, 50.0)
+    linux = {"bytes_sent": 41_000, "bytes_recv": 185_000, "interfaces": [{"interface": "eth0", "mac": "x"}]}
+    assert network_rate.totals(linux) == {"sent": 41_000, "recv": 185_000}
+    rate = network_rate.on_heartbeat({"networkSample": {"sent": 1_000, "recv": 5_000, "at": _at(40)}}, linux, NOW)["networkRate"]
+    assert "sentPps" not in rate
+
+
+def test_endpoint_metrics_carry_packet_rates_and_deduplicated_totals():
+    """protects=the map's endpoint metrics show packets per second and the totals without the copy;
+    fails_when=the inspector shows doubled totals; no_claim=-"""
+    agent = _windows_agent(networkRate={"sentBps": 9.0, "recvBps": 9.0, "sentPps": 3.0, "recvPps": 4.0, "at": _at(20)})
+    agent["meta"]["metrics_collection"]["network"] = _win_net(300, 1000, 7, 12)
+    nodes, _ = _graph([], [agent])
+    m = nodes["agent-a-win"]["metrics"]
+    assert (m["bytesSent"], m["bytesRecv"], m["sentPps"], m["recvPps"]) == (300, 1000, 3.0, 4.0)
+
+
+# ── route to the server, platform node ──────────────────────────────────────
+
+def _route(*hops, reached=True):
+    return {"target": "omni.example.com", "traced_at": _at(120), "reached": reached,
+            "hops": [{"hop": n, "ip": ip, "rtt_ms": rtt} for n, ip, rtt in hops]}
+
+
+def test_traced_route_runs_from_the_gateway_through_each_hop_to_the_server():
+    """protects=an endpoint's traced route is drawn gateway -> hop -> ... -> Omni-Agent server with each
+    hop's address and round-trip time, silent hops collapsed into one node, and the path kept on the
+    endpoint; fails_when=hops are missing, duplicated for endpoints sharing them, or the gateway
+    appears twice; no_claim=the agent's trace itself is right"""
+    route = _route((1, "192.168.0.1", 1.0), (2, "100.64.0.1", 4.2), (3, None, None), (4, None, None),
+                   (5, "103.174.160.1", 9.8), (6, "57.154.210.55", 31.5))
+    agent = _windows_agent()
+    agent["meta"]["network_discovery"]["route"] = route
+    other = _windows_agent(id="a-two", hostname="FIN-WS-22", ipAddress="192.168.0.131")
+    other["meta"] = {**agent["meta"], "network_discovery": {**agent["meta"]["network_discovery"], "route": route}}
+    nodes, edges = _graph([], [agent, other])
+    hop = nodes["hop-100.64.0.1"]
+    assert hop["kind"] == "hop" and hop["label"] == "hop 2 · 100.64.0.1\n4.2 ms" and hop["details"]["tracedBy"] == "EILT0197, FIN-WS-22"
+    assert "hop-192.168.0.1" not in nodes  # hop 1 is the gateway
+    assert nodes["hop-gap-a-win-3"]["label"] == "hops 3-4\nno reply"
+    assert nodes["agent-a-win"]["routePath"] == ["gw-192.168.0.1", "hop-100.64.0.1", "hop-gap-a-win-3", "hop-103.174.160.1", "platform-server"]
+    assert edges[("gw-192.168.0.1", "hop-100.64.0.1")]["kind"] == "route"
+    assert edges[("hop-103.174.160.1", "platform-server")]["rtt"] == 31.5
+    server = nodes["platform-server"]
+    assert server["kind"] == "server" and ("internet", "platform-server") in edges
+    assert server["details"] == {"reportingEndpoints": 2, "lastReport": _at(20), "address": "omni.example.com", "serverIp": "57.154.210.55"}
+
+
+def test_unfinished_trace_ends_at_the_server_marked_unreached_and_no_route_draws_no_hops():
+    """protects=a trace that stopped early still leads to the server, marked unreached; an endpoint
+    without a route gets no hops but the server node still lists it; fails_when=a missing trace shows
+    an invented path; no_claim=-"""
+    agent = _windows_agent()
+    agent["meta"]["network_discovery"]["route"] = _route((1, "192.168.0.1", 1.0), (2, "100.64.0.1", 4.0), (3, None, None), reached=False)
+    nodes, edges = _graph([], [agent])
+    assert edges[("hop-gap-a-win-3", "platform-server")]["unreached"] is True
+    nodes, edges = _graph([], [_linux_agent()])
+    assert not any(n.startswith("hop-") for n in nodes) and "routePath" not in nodes["agent-a-lin"]
+    assert nodes["platform-server"]["details"]["reportingEndpoints"] == 1

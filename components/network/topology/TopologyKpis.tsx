@@ -113,7 +113,7 @@ export const TopologyKpis: React.FC<{ rows: TopologyRow[]; totals: Totals; traff
             </Tile>
 
             <Tile title="Network" meta={`${totals.zones} zone${totals.zones === 1 ? '' : 's'} · ${totals.segments} VLAN${totals.segments === 1 ? '' : 's'}`} alert={down.length > 0}
-                foot={<span className="font-mono tabular-nums">{count('Gateways')} gateways · {count('ISP')} ISP · {count('Devices')} devices · {count('Remote')} remote · {totals.links} links</span>}>
+                foot={<span className="font-mono tabular-nums">{count('Gateways')} gateways · {count('ISP')} ISP · {rows.filter(r => r.role === 'Hop').length} hops · {count('Devices')} devices · {count('Remote')} remote · {totals.links} links</span>}>
                 {down.length ? (
                     <>
                         <p className={`${bigBase} text-red-700 dark:text-red-300`}>{down.length}<span className={unit}>down</span></p>

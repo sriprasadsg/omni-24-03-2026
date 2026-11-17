@@ -116,15 +116,19 @@ pub async fn compute_instruction_result(
                 Err(e) => serde_json::json!({"status": "error", "error": e}),
             }
         }
-        "network_scan" => {
-            let scan = crate::capabilities::network_discovery::scan_now();
+        // The platform queues "Start Network Scan" (arriving here lowercased).
+        "network_scan" | "start network scan" | "start_network_scan" => {
+            let scan = tokio::task::spawn_blocking(crate::capabilities::network_discovery::scan_now)
+                .await
+                .unwrap_or_else(|e| serde_json::json!({"devices": [], "device_count": 0, "error": format!("scan task: {e}")}));
             let device_count = scan["device_count"].as_u64().unwrap_or(0);
             log::info!("Network scan: {} devices found", device_count);
             // POST results to the dedicated discovery endpoint (mirrors Python agent behaviour)
+            let me = if cfg.agent_id.is_empty() { hostname_str() } else { cfg.agent_id.clone() };
             let disc_url = format!(
                 "{}/api/agents/{}/discovery/results",
                 cfg.api_base_url.trim_end_matches('/'),
-                hostname_str()
+                me
             );
             let _ = client
                 .post(&disc_url)

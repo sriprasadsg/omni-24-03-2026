@@ -21,7 +21,7 @@ vi.mock('react-cytoscapejs', () => ({ default: () => null }));
 vi.mock('cytoscape', () => ({ default: { use: vi.fn() } }));
 vi.mock('cytoscape-cose-bilkent', () => ({ default: {} }));
 
-import { collectWebActivity, buildTopologyElements, topologyStats, formatAgentTime, deviceFacts, formatBytes, withLiveTraffic } from '../../components/network/networkData';
+import { collectWebActivity, buildTopologyElements, topologyStats, formatAgentTime, deviceFacts, formatBytes, formatPps, withLiveTraffic } from '../../components/network/networkData';
 import { useLiveData } from '../../components/network/NetworkKit';
 import { WebMonitoringDashboard } from '../../components/WebMonitoringDashboard';
 import { DataUtilizationDashboard } from '../../components/DataUtilizationDashboard';
@@ -328,5 +328,70 @@ describe('internet provider', () => {
         expect(panel.textContent).toContain('103.174.161.211');
         expect(within(panel).queryByText('Up')).toBeNull();
         expect(panel.textContent).not.toContain('VLAN');
+    });
+});
+
+// EILT0197 with packet rates and a traced route: gateway -> 100.64.0.1 -> (silent) -> server.
+function routedTopology(rateAt: string) {
+    const topo = endpointTopology(rateAt);
+    const agent = topo.elements.nodes.find(n => n.data.id === 'agent-a-win')!.data as any;
+    agent.metrics = { ...agent.metrics, sentPps: 120, recvPps: 1_150 };
+    agent.routePath = ['gw-192.168.0.1', 'hop-100.64.0.1', 'hop-gap-a-win-3', 'platform-server'];
+    topo.elements.nodes.push(
+        { data: { id: 'hop-100.64.0.1', label: 'hop 2 · 100.64.0.1\n4.2 ms', ip: '100.64.0.1', kind: 'hop', role: 'Hop', zone: 'Route to server', status: 'Up', icon: 'router',
+            details: { hop: 2, rttMs: 4.2, tracedBy: 'EILT0197', tracedAt: rateAt } } } as any,
+        { data: { id: 'hop-gap-a-win-3', label: 'hop 3\nno reply', ip: null, kind: 'hop', role: 'Hop', zone: 'Route to server', status: 'Unknown', icon: 'router', details: { hops: 'hop 3' } } } as any,
+        { data: { id: 'platform-server', label: 'Omni-Agent server', kind: 'server', role: 'Platform', zone: 'Internet', status: 'Up', icon: 'server',
+            details: { reportingEndpoints: 1, address: 'omni.example.com' } } } as any,
+    );
+    topo.elements.edges.push(
+        { data: { id: 'r1', source: 'gw-192.168.0.1', target: 'hop-100.64.0.1', kind: 'route' } } as any,
+        { data: { id: 'r2', source: 'hop-100.64.0.1', target: 'hop-gap-a-win-3', kind: 'route' } } as any,
+        { data: { id: 'r3', source: 'hop-gap-a-win-3', target: 'platform-server', kind: 'route', unreached: true } } as any,
+        { data: { id: 'r4', source: 'internet', target: 'platform-server', kind: 'link' } } as any,
+    );
+    return topo;
+}
+
+describe('route to the server, packets and LAN scan', () => {
+    const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+
+    it('lists hops and the server under Path, and packets with the endpoint', () => {
+        const rows = topologyRows(withLiveTraffic(buildTopologyElements(routedTopology(at(20_000))), {}));
+        expect(rows.find(r => r.id === 'hop-100.64.0.1')).toMatchObject({ group: 'Path', role: 'Hop', via: 'Gateway', status: 'Up' });
+        expect(rows.find(r => r.id === 'hop-gap-a-win-3')).toMatchObject({ group: 'Path', status: 'Unknown' });
+        expect(rows.find(r => r.id === 'platform-server')).toMatchObject({ group: 'Path', status: 'Up' });
+        expect(rows.find(r => r.id === 'agent-a-win')?.pps).toBe(1_270);
+        expect(topologyStats(buildTopologyElements(routedTopology(at(20_000))))).toMatchObject({ devices: 1 });
+        expect(formatPps(1_270)).toBe('1.3k pkt/s');
+        expect(formatPps(0.4)).toBe('<1 pkt/s');
+    });
+
+    it('shows the endpoint\u2019s path and packets, and requests a LAN scan', async () => {
+        authFetch.mockImplementation(async (url: string) => url.includes('/discovery/scan') ? ok({ success: true })
+            : url.includes('/traffic') ? ok(emptyTraffic) : ok(routedTopology(at(20_000))));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        expect(within(table).getByText('1.3k pkt/s')).toBeTruthy();
+        fireEvent.click(within(table).getByRole('button', { name: 'EILT0197' }));
+        const panel = await screen.findByRole('complementary', { name: 'Details for EILT0197' });
+        expect(panel.textContent).toContain('Path to the server (3 steps)');
+        expect(panel.textContent).toContain('100.64.0.1');
+        expect(panel.textContent).toContain('4.2 ms');
+        expect(panel.textContent).toContain('Packets: ↑ 120 pkt/s · ↓ 1.1k pkt/s');
+        fireEvent.click(within(panel).getByRole('button', { name: /Scan this endpoint/ }));
+        expect(await within(panel).findByText(/Scan requested/)).toBeTruthy();
+        expect(authFetch).toHaveBeenCalledWith('/api/agents/a-win/discovery/scan', { method: 'POST' });
+    });
+
+    it('explains a refused scan', async () => {
+        authFetch.mockImplementation(async (url: string) => url.includes('/discovery/scan') ? { ok: false, status: 403, json: async () => ({}) }
+            : url.includes('/traffic') ? ok(emptyTraffic) : ok(routedTopology(at(20_000))));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        fireEvent.click(within(table).getByRole('button', { name: 'EILT0197' }));
+        const panel = await screen.findByRole('complementary', { name: 'Details for EILT0197' });
+        fireEvent.click(within(panel).getByRole('button', { name: /Scan this endpoint/ }));
+        expect(await within(panel).findByText('Your role cannot start scans on endpoints.')).toBeTruthy();
     });
 });

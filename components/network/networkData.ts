@@ -146,9 +146,9 @@ export const rankBy = <T,>(items: T[], keyOf: (item: T) => string, limit = 8): R
 export const zoneId = (zone: string) => `zone-${zone.replace(/ /g, '-')}`;
 
 // Nodes that are not machines on the network: the Internet, the placeholder gateway, internet
-// providers and remote hosts.
+// providers, hops of a traced route, the Omni-Agent server and remote hosts.
 const SYNTHETIC_NODES = new Set(['internet', 'virtual-gateway']);
-const NOT_DEVICES = new Set(['internet', 'placeholder', 'isp', 'remote']);
+const NOT_DEVICES = new Set(['internet', 'placeholder', 'isp', 'hop', 'server', 'remote']);
 
 /**
  * Cytoscape elements from GET /api/network-devices/topology. Every zone a node belongs to gets a
@@ -184,10 +184,17 @@ export const isDown = (status?: string) => !!status && status.toLowerCase() === 
 // ── Live transfer ───────────────────────────────────────────────────────────
 
 /** A rate the backend measured between two changes of an agent's byte counters (network_rate.py). */
-export interface LiveRate { sentBps: number; recvBps: number; at: string; windowSeconds?: number }
+export interface LiveRate { sentBps: number; recvBps: number; sentPps?: number; recvPps?: number; at: string; windowSeconds?: number }
 
 // Same freshness the API applies (network_topology_service.RATE_FRESH_FOR).
 export const RATE_FRESH_MS = 5 * 60 * 1000;
+
+/** Packets per second: "<1 pkt/s", "340 pkt/s", "1.2k pkt/s". */
+export const formatPps = (pps?: number | null) => {
+    if (pps == null || !Number.isFinite(pps)) return '—';
+    if (pps > 0 && pps < 1) return '<1 pkt/s';
+    return pps >= 1000 ? `${(pps / 1000).toFixed(pps >= 10_000 ? 0 : 1)}k pkt/s` : `${Math.round(pps)} pkt/s`;
+};
 
 /** A rate in bytes per second, shown in bits per second as network tools do ("2.9 Mbps"). */
 export const formatRate = (bps?: number) => formatBitRate(bps ?? 0);
@@ -208,7 +215,7 @@ export const withLiveTraffic = (elements: any[], pushed: Record<string, LiveRate
         const current = d.metrics || {};
         const push = pushed[d.agentId];
         const newer = push && (!current.rateAt || Date.parse(push.at) > Date.parse(current.rateAt));
-        const metrics = newer ? { ...current, sentBps: push.sentBps, recvBps: push.recvBps, rateAt: push.at, windowSeconds: push.windowSeconds } : current;
+        const metrics = newer ? { ...current, sentBps: push.sentBps, recvBps: push.recvBps, sentPps: push.sentPps, recvPps: push.recvPps, rateAt: push.at, windowSeconds: push.windowSeconds } : current;
         metricsById.set(d.id, metrics);
         return newer ? { ...el, data: { ...d, metrics } } : el;
     });
@@ -268,10 +275,21 @@ export const deviceFacts = (details: any): { label: string; value: string }[] =>
     add('Location', details.location);
     add('Network type', details.networkType);
     add('Reported by', details.reportedBy);
+    add('Hop', details.hop ?? details.hops);
+    if (typeof details.rttMs === 'number') facts.push({ label: 'Round trip', value: `${details.rttMs} ms` });
+    add('Traced by', details.tracedBy);
+    add('Address', details.address);
+    add('Server IP', details.serverIp);
+    add('Endpoints reporting', details.reportingEndpoints);
     add('Agent version', details.agentVersion);
     add('Found in', details.source);
     if (Array.isArray(details.openPorts) && details.openPorts.length) {
         facts.push({ label: 'Open ports', value: [...details.openPorts].sort((a, b) => Number(a) - Number(b)).join(', ') });
+    }
+    for (const [label, ts] of [['Traced', details.tracedAt], ['Last report', details.lastReport]] as const) {
+        if (!known(ts)) continue;
+        const d = new Date(String(ts));
+        facts.push({ label, value: Number.isNaN(d.getTime()) ? String(ts) : d.toLocaleString() });
     }
     if (known(details.lastSeen)) {
         const d = new Date(details.lastSeen);

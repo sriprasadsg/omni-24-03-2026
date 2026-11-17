@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 import ipaddress
 import logging
 from database import get_database
+import network_rate
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +13,16 @@ ONLINE_WITHIN = timedelta(minutes=5)
 RATE_FRESH_FOR = timedelta(minutes=5)
 MAX_REMOTE_PER_ENDPOINT = 10
 MAX_NEIGHBOURS = 60
+# Hops of a traced route (agents' network_discovery.route) drawn between a gateway and the server.
+MAX_ROUTE_HOPS = 20
+PLATFORM_ID = "platform-server"
 HIDDEN_AGENT_STATUSES = {"Rejected", "Replaced", "Uninstalled"}
 
 AGENT_PROJECTION = {
     "_id": 0, "id": 1, "hostname": 1, "ipAddress": 1, "platform": 1, "os": 1, "version": 1,
     "status": 1, "lastSeen": 1, "publicIp": 1, "networkRate": 1,
     "meta.metrics_collection.network.bytes_sent": 1, "meta.metrics_collection.network.bytes_recv": 1,
+    "meta.metrics_collection.network.interfaces": 1,
     "meta.network_discovery": 1, "meta.web_monitor.web_connections": 1, "meta.device_type": 1,
     "meta.mac_address": 1, "meta.os_full_name": 1,
     "geo.asn": 1, "geo.city": 1, "geo.country": 1, "geo.vpn_heuristic": 1,
@@ -64,6 +69,28 @@ def _neighbour_entries(discovery: Any) -> List[Dict[str, Any]]:
 
 def _known(value: Any) -> bool:
     return value not in (None, "", "Unknown")
+
+
+def _route(discovery: Any) -> Optional[Dict[str, Any]]:
+    """The route an agent traced to the platform server: {target, tracedAt, reached, hops: [{hop, ip,
+    rtt}]}, hops in order; a hop that did not answer has ip None. None when no route was reported."""
+    route = discovery.get("route") if isinstance(discovery, dict) else None
+    if not isinstance(route, dict):
+        return None
+    hops = []
+    for h in route.get("hops") or []:
+        n = h.get("hop") if isinstance(h, dict) else None
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 64:
+            continue
+        addr = _addr(h.get("ip")) if h.get("ip") else None
+        rtt = h.get("rtt_ms")
+        rtt = round(float(rtt), 1) if isinstance(rtt, (int, float)) and not isinstance(rtt, bool) and rtt >= 0 else None
+        hops.append({"hop": n, "ip": str(addr) if addr else None, "rtt": rtt})
+    hops.sort(key=lambda h: h["hop"])
+    if not hops:
+        return None
+    return {"target": str(route.get("target") or "")[:255] or None, "tracedAt": route.get("traced_at"),
+            "reached": route.get("reached") is True, "hops": hops[:MAX_ROUTE_HOPS]}
 
 
 def _provider(agent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -184,6 +211,74 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
     neighbour_count = 0
     isp_nodes: Dict[str, Dict[str, Any]] = {}
     gateway_isps: Dict[str, set] = {}
+    hop_nodes: Dict[str, Dict[str, Any]] = {}
+
+    def platform_node() -> Dict[str, Any]:
+        """The Omni-Agent server every endpoint reports to."""
+        if PLATFORM_ID not in hop_nodes:
+            data = {"id": PLATFORM_ID, "label": "Omni-Agent server", "type": "Omni-Agent platform", "zone": "Internet",
+                    "role": "Platform", "status": "Up", "icon": "server", "kind": "server", "details": {}}
+            add_node(data)
+            add_edge("internet", PLATFORM_ID, kind="link")
+            hop_nodes[PLATFORM_ID] = data
+        return hop_nodes[PLATFORM_ID]
+
+    def route_chain(agent_id: str, hostname: str, gateway_id: str, gateway_ip: Optional[str], own_ip: Optional[str],
+                    route: Dict[str, Any]) -> List[str]:
+        """Draw a traced route as gateway -> hop -> ... -> server; returns the node ids it runs through.
+        Hop 1 is the gateway already on the map; hops that did not answer are drawn as one gap node."""
+        server = platform_node()
+        if route["target"]:
+            server["details"].setdefault("address", route["target"])
+        hops = [h for h in route["hops"] if not (h["ip"] and h["ip"] == own_ip)]
+        if hops and hops[0]["ip"] and hops[0]["ip"] == gateway_ip:
+            hops = hops[1:]
+        path, prev, silent = [gateway_id], gateway_id, []
+
+        def link(node_id: str, **extra: Any) -> None:
+            nonlocal prev
+            add_edge(prev, node_id, kind="route", **extra)
+            path.append(node_id)
+            prev = node_id
+
+        def gap() -> None:
+            first, last = silent[0], silent[-1]
+            gap_id = f"hop-gap-{agent_id}-{first}"
+            span = f"hop {first}" if first == last else f"hops {first}-{last}"
+            if gap_id not in node_ids:
+                add_node({"id": gap_id, "label": f"{span}\nno reply", "ip": None, "type": "Router", "zone": "Route to server",
+                          "role": "Hop", "status": "Unknown", "icon": "router", "kind": "hop",
+                          "details": {"hops": span, "tracedBy": hostname, "tracedAt": route["tracedAt"]}})
+            link(gap_id)
+            silent.clear()
+
+        for i, hop in enumerate(hops):
+            if hop["ip"] is None:
+                silent.append(hop["hop"])
+                continue
+            if silent:
+                gap()
+            if route["reached"] and i == len(hops) - 1:
+                server["details"].setdefault("serverIp", hop["ip"])
+                link(PLATFORM_ID, rtt=hop["rtt"])  # the last hop is the server itself
+                continue
+            hop_id = f"hop-{hop['ip']}"
+            data = hop_nodes.get(hop_id)
+            if data is None:
+                rtt = f"{hop['rtt']:g} ms" if hop["rtt"] is not None else "no time"
+                data = {"id": hop_id, "label": f"hop {hop['hop']} · {hop['ip']}\n{rtt}", "ip": hop["ip"], "type": "Router",
+                        "zone": "Route to server", "role": "Hop", "status": "Up", "icon": "router", "kind": "hop",
+                        "details": {"hop": hop["hop"], "rttMs": hop["rtt"], "tracedBy": hostname, "tracedAt": route["tracedAt"]}}
+                add_node(data)
+                hop_nodes[hop_id] = data
+            elif hostname not in data["details"]["tracedBy"].split(", "):
+                data["details"]["tracedBy"] += f", {hostname}"
+            link(hop_id, rtt=hop["rtt"])
+        if silent:
+            gap()
+        if prev != PLATFORM_ID:
+            link(PLATFORM_ID, unreached=True)  # the trace stopped before the server
+        return path
 
     def isp_node(agent: Dict[str, Any], hostname: str, online: bool) -> Optional[str]:
         provider = _provider(agent)
@@ -223,14 +318,16 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         node_id = f"agent-{agent['id']}"
 
         metrics: Dict[str, Any] = {}
-        net = (meta.get("metrics_collection") or {}).get("network") or {}
-        if isinstance(net.get("bytes_sent"), (int, float)) and isinstance(net.get("bytes_recv"), (int, float)):
-            metrics.update({"bytesSent": net["bytes_sent"], "bytesRecv": net["bytes_recv"]})
+        counted = network_rate.totals((meta.get("metrics_collection") or {}).get("network") or {})
+        if counted:
+            metrics.update({"bytesSent": counted["sent"], "bytesRecv": counted["recv"]})
         rate = agent.get("networkRate") or {}
         rate_at = _parse(rate.get("at"))
         if online and rate_at and now - rate_at <= RATE_FRESH_FOR:
             metrics.update({"sentBps": rate.get("sentBps"), "recvBps": rate.get("recvBps"),
                             "rateAt": rate.get("at"), "windowSeconds": rate.get("windowSeconds")})
+            if isinstance(rate.get("sentPps"), (int, float)) and isinstance(rate.get("recvPps"), (int, float)):
+                metrics.update({"sentPps": rate["sentPps"], "recvPps": rate["recvPps"]})
 
         scanned = device_by_ip.get(ip) or {}
         details = {
@@ -242,13 +339,19 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
             "openPorts": scanned.get("openPorts"),
             "vendor": scanned.get("vendor"),
         }
-        add_node({"id": node_id, "label": f"{hostname}\n({ip or 'no address'})", "ip": ip,
+        agent_data = {"id": node_id, "label": f"{hostname}\n({ip or 'no address'})", "ip": ip,
                   "type": meta.get("device_type") or agent.get("platform") or "Endpoint",
                   "role": "Server" if is_server else "Endpoint",
                   "zone": "Internal LAN" if addr is None or addr.is_private else "DMZ",
                   "icon": "server" if is_server else "laptop", "status": "Up" if online else "Down",
                   "kind": "agent", "agentId": agent["id"], "metrics": metrics,
-                  "details": {k: v for k, v in details.items() if _known(v)}})
+                  "details": {k: v for k, v in details.items() if _known(v)}}
+        add_node(agent_data)
+        server = platform_node()
+        if online:
+            server["details"]["reportingEndpoints"] = server["details"].get("reportingEndpoints", 0) + 1
+        if agent.get("lastSeen") and str(agent["lastSeen"]) > str(server["details"].get("lastReport", "")):
+            server["details"]["lastReport"] = agent["lastSeen"]
 
         entries = _neighbour_entries(meta.get("network_discovery"))
         gateway_entry = next((e for e in entries if _same_24(_addr(e["ip"]), addr) and e["ip"] != ip
@@ -271,6 +374,10 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         provider_id = isp_node(agent, hostname, online)
         if provider_id:
             gateway_isps.setdefault(gateway_id, set()).add(provider_id)
+        route = _route(meta.get("network_discovery"))
+        if route:
+            gateway_ip = (gateway_entry or {}).get("ip") or (scan_gateway_ip if gateway_id == scan_gateway_id else None)
+            agent_data["routePath"] = route_chain(agent["id"], hostname, gateway_id, gateway_ip, ip, route)
 
         for entry in entries:
             if neighbour_count >= MAX_NEIGHBOURS:
