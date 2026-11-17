@@ -1,10 +1,10 @@
 ---
-phase: 78-organization-endpoint-cost-api
-fixed_at: 2026-11-17T11:30:00Z
-review_path: .planning/phases/78-organization-endpoint-cost-api/78-REVIEW.md
+phase: 78
+fixed_at: 2026-11-17T00:00:00Z
+review_path: /home/azureuser/enterprise-omni-agent-ai-platform/.planning/phases/78-organization-endpoint-cost-api/78-REVIEW.md
 iteration: 1
-findings_in_scope: 2
-fixed: 2
+findings_in_scope: 1
+fixed: 1
 skipped: 0
 status: all_fixed
 ---
@@ -12,63 +12,46 @@ status: all_fixed
 # Phase 78: Code Review Fix Report
 
 **Fixed at:** 2026-11-17
-**Source review:** .planning/phases/78-organization-endpoint-cost-api/78-REVIEW.md
+**Source review:** /home/azureuser/enterprise-omni-agent-ai-platform/.planning/phases/78-organization-endpoint-cost-api/78-REVIEW.md
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 2
-- Fixed: 2
+- Findings in scope: 1
+- Fixed: 1
 - Skipped: 0
-
-`workflow.use_worktrees` is `false` in this project, so edits, commits and all verification ran in the main checkout (no worktree, no temp branch, no recovery sentinel).
 
 ## Fixed Issues
 
-### WR-07: The book-value route maps an unreadable purchase date to "no depreciation policy" and does not guard an unreadable cost
+### WR-08: Book-value route echoes the raw unreadable cost, and FinancePanel pre-fills the Purchase Cost field from it
 
-**Files modified:** `backend/itam_finance_endpoints.py`, `backend/itam_cost_service.py`, `components/itam/FinancePanel.tsx`, `src/__tests__/FinancePanel.test.tsx`
-**Commit:** 5700878cb
-**Status:** fixed (a logic change; the route's reason order is worth a human glance)
-**Applied fix:**
-- `get_asset_book_value` now returns `unreadable_purchase_cost` when the stored cost is not a non-negative integer. The check runs before the no-purchase-record check and before the policy check, in the same order the cost row uses (`itam_cost_service.compute_asset_cost`). A cost of `"abc"` with no date therefore reads `unreadable_purchase_cost` on both surfaces.
-- The `except` around `compute_book_value` now catches `(ValueError, TypeError)` and returns `unreadable_purchase_date` instead of `no_depreciation_policy_assigned`. The route no longer 500s on a bad cost or date.
-- `itam_cost_service._is_cents` is now the public `is_cents` (nothing else in the repo used the underscore name, so no alias was kept). The route imports `REASON_UNREADABLE_COST`, `REASON_UNREADABLE_DATE` and `is_cents`; the unused `REASON_NO_DEPRECIATION_POLICY` import was dropped.
-- The comment at the shared-check call now says exactly what is shared (the policy check and the unreadable cost and date reasons) and what is not (the lifecycle rule).
-- `BOOK_VALUE_REASON_COPY` has "The purchase cost on this asset cannot be read." and "The purchase date on this asset cannot be read."; the FinancePanel table test has both rows.
-- The lifecycle difference was left as it is: a disposed or retired asset still shows its figure on its own Finance tab.
-
-### IN-14: The new parity test checks route against row for two assets only, so the remaining disagreements in WR-07 stay invisible
-
-**Files modified:** `backend/tests/test_itam_cost_parity.py`
-**Commit:** 78aff2770
+**Files modified:** `backend/itam_finance_endpoints.py`, `backend/tests/test_itam_cost_parity.py`
+**Commit:** 6b9351f63
 **Status:** fixed
-**Applied fix:**
-- `test_salvage_above_cost_route_and_row_agree` is replaced by `test_route_reason_matches_row_for_every_unvalued_asset`. It derives the unvalued set from the list rows, asserts it equals `NOT_TRACKED` (so a new unvalued seed asset must name its reason), then for each of the five (`N-AGENT`, `N-NOMODEL`, `N-MALCOST`, `N-BADDATE`, `N-SALVAGE`) asserts the route returns no figure and the same reason as the row.
-- New `test_route_and_row_differ_only_for_disposed_and_retired` keeps the lifecycle divergence as a commented, explicit known difference. For `X-DISPOSED` and `X-RETIRED` it asserts the route returns the real depreciated figure (computed independently with `compute_book_value`) and the list row, read with inactive assets included, has no figure and the status as its reason.
-- `test_book_value_route_matches_list` no longer skips the string-cost asset (its comment, "not a well-typed input for the per-asset route", is now false) and compares the route with the row for every active asset, `N-MALCOST` included.
-- **Widened test fails on the pre-fix route, passes after.** Against the unmodified route the new test failed with `TypeError: unsupported operand type(s) for -: 'str' and 'int'` for `N-MALCOST`. With only the cost guard applied and the date branch still returning the old reason, it failed with `assert 'no_depreciation_policy_assigned' == 'unreadable_purchase_date'` for `N-BADDATE`. With the full fix it passes. No temporary HEAD copy file was needed; the pre-fix route was the working copy before editing, so nothing was left to delete.
+**Applied fix:** In `get_asset_book_value`, `cost = asset.get("purchaseCostCents")` is now read before `base` is built, and `base["purchaseCostCents"]` is `cost if is_cents(cost) else None`, matching the cost row (`itam_cost_service.py:126`). The duplicate `cost = ...` line below `base` was removed. The `reason: unreadable_purchase_cost` branch is unchanged, so the operator is still told the stored cost cannot be read, and the response no longer carries the garbage value.
+
+Tests, in `backend/tests/test_itam_cost_parity.py`:
+- `test_route_reason_matches_row_for_every_unvalued_asset` now asserts the route's `purchaseCostCents` equals the list row's for every unvalued asset, plus an explicit `purchaseCostCents is None` for `N-MALCOST`.
+- `test_book_value_route_matches_list` now asserts the same route/row cost parity for every active asset, so a valid cost is still echoed for the valued assets.
+
+Fails-then-passes check: with the new assertions in place and the route unchanged, `test_book_value_route_matches_list` and `test_route_reason_matches_row_for_every_unvalued_asset` both failed (`assert '1000' == None` for `N-MALCOST`; 2 failed, 7 passed in `test_itam_cost_parity.py`). After the route fix they pass.
+
+**Frontend:** no change needed and none made. `FinancePanel.tsx:61` does `String(bv.purchaseCostCents / 100)`. The route now returns only `number | null` for `purchaseCostCents`, which matches `types.ts:1143`. A null cost leaves the Purchase Cost field empty, so the `/ 100` pre-fill is safe for every shape the route can return. No frontend build was run.
 
 ## Verification
 
-Run in the main checkout, foreground, named files only.
+Run in the main checkout. `workflow.use_worktrees` is `false` in `.planning/config.json`, so no worktree was created. Command, foreground, named files only:
 
-- Backend, the 13 named files: **312 passed, 0 skipped, 0 failed** (`-q -p no:cacheprovider -rs`). Every test file that imports `itam_cost_service` or `itam_finance_endpoints` is in that list (checked with grep).
-- `backend/tests/test_itam_cost_parity.py` alone: 9 passed (was 8 passed before this round plus the two new tests replacing one).
-- Frontend, `npx vitest run src/__tests__/FinancePanel.test.tsx`: **9 passed**, 1 file. It is the only test file that references FinancePanel.
-- Build: `npx vite build` to the scratchpad `vite-78fix` dir succeeded. `dist-new/index.html` md5 is still `13c235ddca4e2970e5a9fc0260d799ad`.
-- Leaked `backend/static/reports` files were left alone and not committed.
-- No live `omni_platform` access, restart or deploy.
+`backend/venv/bin/python -m pytest backend/tests/test_itam_cost_parity.py backend/tests/test_itam_finance_bookvalue.py backend/tests/test_itam_finance.py backend/tests/test_itam_audit.py backend/tests/test_itam_finance_warranty.py backend/tests/test_itam_cost_service.py backend/tests/test_itam_cost_assets.py -q -p no:cacheprovider -rs`
 
-## User-WIP check
+Result: 196 passed, 0 failed, 0 skipped. The Python syntax check of `itam_finance_endpoints.py` passed.
 
-- Before staging each commit, `git diff HEAD --numstat` on the files I staged showed only my hunks (none of the five files held user WIP). Staging was by explicit path, no `commit -a`, no stash, checkout, restore or reset.
-- After both commits, `git diff --cached` is empty, and `git diff --numstat` of the working tree is byte-identical to the snapshot `wip-numstat-before-78fix3.txt` (saved as `wip-numstat-after-78fix3.txt`; `diff` printed no difference).
-- The first WR-07 commit briefly carried a `Co-Authored-By` trailer; it was amended off before anything else happened (commit message only, nothing pushed), per the project's no-trailer rule. The hash in this report, 5700878cb, is the amended commit.
+## User WIP check
 
-## Needs human verification
-
-- The route now puts the unreadable-cost check before the no-purchase-record check, so a non-integer cost with no date reads `unreadable_purchase_cost` (the same as the list row). The review's sketch checked it only after. This is a choice of order, not a change of scope.
-- The disposed/retired figure on the Finance tab (kept on purpose) is now pinned by a test. If the intent later changes, that test is the one to edit.
+- Neither edited file had user WIP: `git diff HEAD --numstat` for both was empty before editing.
+- Staged by explicit path only, and committed with explicit pathspec. No `-a`, stash, checkout, restore or reset was used.
+- The commit (`6b9351f63`) contains exactly the two files above (10 insertions, 4 deletions). The subject is `fix(78): WR-08 book-value route echoes purchaseCostCents only when readable`. There is no `Co-Authored-By` trailer, no `--no-verify`, and no push.
+- After the commit `git diff --cached` is empty, and `git diff --numstat` is identical to the snapshot `/tmp/claude-1000/-home-azureuser-enterprise-omni-agent-ai-platform/4d2b54c2-72df-448a-a2d6-1a2e61c984ba/scratchpad/wip-numstat-before-78fix4.txt`, which was also identical before the edits.
+- The live `omni_platform` database was not touched. No restart or deploy.
 
 ---
 
