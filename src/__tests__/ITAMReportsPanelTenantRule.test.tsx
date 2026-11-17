@@ -276,3 +276,65 @@ describe('custom section with no tenant', () => {
     expect(listItamCustomReports).toHaveBeenCalledWith(undefined);
   });
 });
+
+describe('a Select a tenant rejection on the Reports tab (Phase 78 plan 15)', () => {
+  beforeEach(resetMocks);
+
+  const REJECTION = 'Select a tenant: ITAM figures cover one organization at a time.';
+  const PREBUILT_NOTE = ITAM_KPI_COPY.reportsSelectTenantNote;
+  const CUSTOM_NOTE = ITAM_KPI_COPY.customReportsSelectTenantNote;
+  const runButton = () => screen.getByRole('button', { name: 'Run Report' });
+  const createButton = () => screen.getByRole('button', { name: /Create Custom Report/ });
+
+  it('a saved-list rejection puts the tab into the no-tenant state without a toast', async () => {
+    listItamCustomReports.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(runButton()).toBeDisabled();
+    expect(screen.getByText(CUSTOM_NOTE)).toBeInTheDocument();
+    expect(createButton()).toBeDisabled();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('a pre-built run rejection puts the tab into the no-tenant state without a toast', async () => {
+    runItamPrebuiltReport.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalled());
+    fireEvent.click(runButton());
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(runButton()).toBeDisabled();
+    expect(screen.queryByRole('heading', { name: 'Asset Value', level: 3 })).not.toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('an export rejection puts the tab into the no-tenant state without a toast', async () => {
+    runItamPrebuiltReport.mockResolvedValue(resultFor('Asset Value', 'TAG-1'));
+    generateItamReport.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(runButton());
+    fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('any other rejection still raises its toast and leaves Run Report enabled', async () => {
+    runItamPrebuiltReport.mockRejectedValue(new Error('boom'));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(runButton());
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('boom', 'error'));
+    expect(runButton()).toBeEnabled();
+    expect(screen.queryByText(PREBUILT_NOTE)).not.toBeInTheDocument();
+  });
+
+  it('a tenant change clears the rejected state so the next tenant is enabled', async () => {
+    listItamCustomReports.mockRejectedValueOnce(new Error(REJECTION));
+    const { rerender } = await renderPanel({ tenantId: 't-1' });
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+
+    rerender(<ReportsPanel tenantId="t-2" />);
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalledWith('t-2'));
+    await waitFor(() => expect(runButton()).toBeEnabled());
+    expect(screen.queryByText(PREBUILT_NOTE)).not.toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+});
