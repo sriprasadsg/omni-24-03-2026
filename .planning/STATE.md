@@ -5,11 +5,11 @@ milestone_name: Autonomous Ops
 current_phase: 78
 current_phase_name: Organization & Endpoint Cost API
 status: executing
-stopped_at: Completed 78-11-PLAN.md
-last_updated: "2026-11-17T06:28:01.686Z"
+stopped_at: Completed 78-12-PLAN.md
+last_updated: "2026-11-17T07:28:18.374Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 78 execution started
-state_head: a96451eb8381c2a3b9d848bd3ab953eba9d0649e
+state_head: 49a36b869b64ebcff005d0ea4be8c364d3ca0bf5
 progress:
   total_phases: 8
   completed_phases: 6
@@ -707,6 +707,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 78]: 78-08: no production change; parity held first run, agents $in over 19,500 ids is fast (list page 0.15-0.23s at 20k assets), so the A3 fallback was not needed
 - [Phase 78]: 78-10 gate: 310 phase tests green on real Mongo, full suite 8532 passed; only failure test_patch_rollout_boot (Phase 84, import-time NOW) fails identically on pre-phase fd4e00f24; export suite leaks 7 files per run into backend/static/reports (pre-existing)
 - [Phase 78]: 78-11: ReportsPanel guards every async writer with a runSeq request-sequence ref; result block gated on resultIsCurrent with an exception for the unsaved builder preview; custom report tenant handling unchanged (WR-02 awaits the user)
+- [Phase 78]: 78-12: all seven custom report routes resolve the tenant via resolve_itam_tenant first; saved definitions follow the resolved tenant (A-78-22), Owner without a tenant gets 400
 
 ## Performance Metrics
 
@@ -1045,6 +1046,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 78 P08 | 14 min | 2 tasks | 2 files |
 | Phase 78 P10 | 54 min | 2 tasks | 0 files |
 | Phase 78 P11 | 5 min | 2 tasks | 3 files |
+| Phase 78 P12 | 5 min | 2 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1079,8 +1081,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-17T05:16:37.270Z
-**Stopped at:** Completed 78-11-PLAN.md
+**Last session:** 2026-11-17T07:28:17.998Z
+**Stopped at:** Completed 78-12-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1108,8 +1110,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 78 (Organization & Endpoint Cost API) — READY TO EXECUTE
-Plan: 11 of 11
+Phase: 78 (Organization & Endpoint Cost API) — EXECUTING
+Plan: 12 of 15 (78-12 complete; 78-13..15 pending)
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 78 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)

@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 15 plans (78-01..78-11 executed; gap round 2 plans 78-12..78-15 planned 2026-11-17, not executed)
+**Plans**: 12/15 plans executed (78-01..78-11 executed; gap round 2 plans 78-12..78-15 planned 2026-11-17, not executed)
 **UI hint**: yes
 
 Plans:
@@ -309,7 +309,7 @@ Plans:
 
 **Gap closure round 2** *(from 78-UAT.md gaps G-78-WR04, G-78-IN05, G-78-WR02, G-78-IN04; user decision 2026-11-17, D-13/D-14 amended)*
 **Wave 1**
-- [ ] 78-12-PLAN.md — Custom report routes (save, list, preview, get, delete, run, export) on the shared tenant resolver; real-middleware two-tenant matrix, Support 400/403, Billing 403 (G-78-WR02 server, A-78-22)
+- [x] 78-12-PLAN.md — Custom report routes (save, list, preview, get, delete, run, export) on the shared tenant resolver; real-middleware two-tenant matrix, Support 400/403, Billing 403 (G-78-WR02 server, A-78-22)
 - [ ] 78-13-PLAN.md — Reports tab keeps the shown report, its title, export target and pages together; an export is bound to the tenant it started in (G-78-WR04, G-78-IN05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -769,7 +769,7 @@ Plans:
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
-| 78. Organization & Endpoint Cost API | 11/11 | In Progress | - |
+| 78. Organization & Endpoint Cost API | 12/15 | In Progress | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
