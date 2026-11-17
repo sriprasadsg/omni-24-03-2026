@@ -3,6 +3,10 @@ phase: 78
 review: 78-REVIEW.md
 titles: json
 findings:
+  - id: IN-15
+    severity: info
+    disposition: open
+    title: "Book-value route still echoes a raw non-string purchaseDate that the cost row sanitizes"
   - id: WR-08
     severity: warning
     disposition: fixed
@@ -91,16 +95,17 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 0
-total: 22
-recorded: 2026-11-17T10:57:09.672Z
+open: 1
+total: 23
+recorded: 2026-11-17T10:59:03.112Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-08 | warning | fixed | 78-REVIEW-FIX.md |
+| IN-15 | info | open | - |
+| WR-08 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | WR-07 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-14 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | WR-05 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
