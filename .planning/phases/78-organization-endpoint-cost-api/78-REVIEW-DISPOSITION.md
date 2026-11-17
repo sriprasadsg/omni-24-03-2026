@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: IN-06
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Custom report definitions saved before this change under the Owner's own tenant become unreachable"
   - id: IN-07
     severity: info
@@ -55,7 +55,7 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 1
+open: 0
 total: 13
 recorded: 2026-11-17T09:32:32.785Z
 ---
@@ -64,7 +64,7 @@ recorded: 2026-11-17T09:32:32.785Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| IN-06 | info | open | - |
+| IN-06 | info | fixed | no code change needed: live omni_platform has no itam_reports collection (0 documents, checked read-only 2026-11-17), so no definition is stranded; evidence in 78-REVIEW-FIX.md |
 | IN-07 | info | fixed | 78-REVIEW-FIX.md |
 | IN-08 | info | fixed | 78-REVIEW-FIX.md |
 | IN-09 | info | fixed | 78-REVIEW-FIX.md |
