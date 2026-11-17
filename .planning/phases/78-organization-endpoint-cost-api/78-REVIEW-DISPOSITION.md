@@ -17,7 +17,7 @@ findings:
     title: "An export started before a tenant switch is not cancelled and keeps `exportingFormat` set"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "ReportsPanel `runPrebuilt` has no stale-response guard; the tenant-switch reset does not clear `running` (confirms the 78-UI-REVIEW lead)"
   - id: WR-02
     severity: warning
@@ -39,9 +39,9 @@ findings:
     severity: info
     disposition: open
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 9
+open: 8
 total: 9
-recorded: 2026-11-17T05:25:26.816Z
+recorded: 2026-11-17T05:25:52.322Z
 ---
 
 # Phase 78: Code Review Disposition
@@ -51,7 +51,7 @@ recorded: 2026-11-17T05:25:26.816Z
 | WR-04 | warning | open | - |
 | IN-04 | info | open | - |
 | IN-05 | info | open | - |
-| WR-01 | warning | open | - (not in the current review) |
+| WR-01 | warning | fixed | gap plan 78-11 (b26ea046e, 5278952bd); confirmed fixed by the incremental re-review c16cdf34c ("Prior findings re-assessed") (not in the current review) |
 | WR-02 | warning | open | - (not in the current review) |
 | WR-03 | warning | open | - (not in the current review) |
 | IN-01 | info | open | - (not in the current review) |
