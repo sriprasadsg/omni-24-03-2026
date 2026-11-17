@@ -9,15 +9,15 @@ findings:
     title: "Custom report definitions saved before this change under the Owner's own tenant become unreachable"
   - id: IN-07
     severity: info
-    disposition: open
+    disposition: fixed
     title: "A run in flight for a report is not cancelled when that report is deleted"
   - id: IN-08
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Save, preview and delete do not route a \"Select a tenant\" 400 through `takeTenantRejection`"
   - id: IN-09
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`needsTenant` repeats a condition the role helper already covers"
   - id: WR-04
     severity: warning
@@ -41,23 +41,23 @@ findings:
     title: "Custom report routes are not tenant-resolved, so an Owner gets cross-tenant book values while the cost surfaces return 400"
   - id: WR-03
     severity: warning
-    disposition: open
-    title: "The cost detail route does not return \"the list row\"; its duplicate markers differ when the partner asset is disposed or retired"
+    disposition: fixed
+    title: "Cost detail route does not return \"the list row\" when the partner asset is disposed or retired"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "A fabricated `X-Tenant-ID` from an Owner is accepted and used for writes"
   - id: IN-02
     severity: info
-    disposition: open
-    title: "Asset value report population filter does not normalize `lifecycleStatus` the way `compute_asset_cost` does"
+    disposition: fixed
+    title: "Asset value report population filter does not normalize `lifecycleStatus`"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 8
+open: 1
 total: 13
-recorded: 2026-11-17T08:23:27.454Z
+recorded: 2026-11-17T09:32:32.785Z
 ---
 
 # Phase 78: Code Review Disposition
@@ -65,18 +65,18 @@ recorded: 2026-11-17T08:23:27.454Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | IN-06 | info | open | - |
-| IN-07 | info | open | - |
-| IN-08 | info | open | - |
-| IN-09 | info | open | - |
+| IN-07 | info | fixed | 78-REVIEW-FIX.md |
+| IN-08 | info | fixed | 78-REVIEW-FIX.md |
+| IN-09 | info | fixed | 78-REVIEW-FIX.md |
 | WR-04 | warning | fixed | gap plan 78-13 (3a3353c21..5f4ddc665); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
 | IN-04 | info | fixed | gap plan 78-15 (5bf03c54f..747b2b972); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
 | IN-05 | info | fixed | gap plan 78-13 (cd2ac7ab4, 5f4ddc665); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
 | WR-01 | warning | fixed | gap plan 78-11 (b26ea046e, 5278952bd); confirmed fixed by the incremental re-review c16cdf34c ("Prior findings re-assessed") (not in the current review) |
 | WR-02 | warning | fixed | gap plans 78-12 (79b6bfb9f..8896830ab) and 78-14 (388af39c5..fd11ee317); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
-| WR-03 | warning | open | - (not in the current review) |
-| IN-01 | info | open | - (not in the current review) |
-| IN-02 | info | open | - (not in the current review) |
-| IN-03 | info | open | - (not in the current review) |
+| WR-03 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-01 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-02 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-03 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
