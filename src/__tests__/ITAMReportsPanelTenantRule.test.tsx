@@ -4,7 +4,9 @@
  *  - the five custom report API functions send X-Tenant-ID when given a tenant and none when not;
  *  - the saved-reports list reloads on a tenant switch, never shows the previous tenant's
  *    definitions, and drops a late list response for the previous tenant;
- *  - a save or delete started for one tenant does nothing when it completes in another.
+ *  - a save or delete started for one tenant does nothing when it completes in another;
+ *  - a platform user with no tenant sees the custom section explained and disabled and sends no
+ *    custom request (D-14 amended).
  */
 import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -38,6 +40,7 @@ const showToast = vi.fn();
 vi.mock('../../utils/toast', () => ({ showToast: (...args: unknown[]) => showToast(...args) }));
 
 import { ReportsPanel } from '../../components/itam/ReportsPanel';
+import { ITAM_KPI_COPY } from '../../components/itam/ItamKpiPanel';
 
 const PREBUILT_METAS = [{ key: 'asset_value', title: 'Asset Value', description: 'Book value per asset' }];
 const FIELD_CATALOG = [{ key: 'asset.assetTag', label: 'Asset Tag', entity: 'asset', type: 'text' }];
@@ -219,5 +222,57 @@ describe('ReportsPanel custom section under the tenant rule', () => {
 
     expect(showToast).not.toHaveBeenCalledWith('Report deleted.', 'success');
     expect(listItamCustomReports).toHaveBeenCalledTimes(listCallsAfterSwitch);
+  });
+});
+
+describe('custom section with no tenant', () => {
+  beforeEach(resetMocks);
+
+  const NOTE = ITAM_KPI_COPY.customReportsSelectTenantNote;
+  const createButton = () => screen.getByRole('button', { name: /Create Custom Report/ });
+
+  it('sends no custom request, shows the described note and disables Create Custom Report', async () => {
+    await renderPanel({ needsTenant: true });
+    const note = await screen.findByText(NOTE);
+    expect(note).toHaveAttribute('role', 'status');
+    expect(screen.queryByText('No custom reports yet')).not.toBeInTheDocument();
+    expect(createButton()).toBeDisabled();
+    expect(createButton()).toHaveAttribute('aria-describedby', note.id);
+    fireEvent.click(createButton());
+    expect(screen.queryByLabelText('Report Name')).not.toBeInTheDocument();
+    expect(listItamCustomReports).not.toHaveBeenCalled();
+  });
+
+  it('switching to no tenant hides the list and the open builder and sends no new request', async () => {
+    listItamCustomReports.mockResolvedValue([savedReport('a', 'A report')]);
+    const { rerender } = await renderPanel({ tenantId: 't-1' });
+    expect(await screen.findByText('A report')).toBeInTheDocument();
+    fireEvent.click(createButton());
+    expect(await screen.findByLabelText('Report Name')).toBeInTheDocument();
+    const listCalls = listItamCustomReports.mock.calls.length;
+
+    rerender(<ReportsPanel needsTenant />);
+    expect(await screen.findByText(NOTE)).toBeInTheDocument();
+    expect(screen.queryByText('A report')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Report Name')).not.toBeInTheDocument();
+    expect(listItamCustomReports).toHaveBeenCalledTimes(listCalls);
+  });
+
+  it('choosing a tenant again loads its list, enables Create Custom Report and removes the note', async () => {
+    const { rerender } = await renderPanel({ needsTenant: true });
+    expect(await screen.findByText(NOTE)).toBeInTheDocument();
+
+    rerender(<ReportsPanel tenantId="t-3" />);
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalledWith('t-3'));
+    expect(createButton()).toBeEnabled();
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it('a tenant user sees no custom note and an enabled Create Custom Report', async () => {
+    await renderPanel();
+    await screen.findByText('No custom reports yet');
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+    expect(createButton()).toBeEnabled();
+    expect(listItamCustomReports).toHaveBeenCalledWith(undefined);
   });
 });
