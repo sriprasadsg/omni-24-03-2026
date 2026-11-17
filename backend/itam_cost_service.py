@@ -9,7 +9,7 @@ documents the single read returned.
 Money is integer cents end to end. An unknown cost or book value is None with exactly one
 reason code, never a fabricated zero (D-10). Depreciation is the finance service's own
 function, called unchanged; this module never re-implements the formula and never clamps its
-result.
+result. A model whose salvage value exceeds the asset's purchase cost is marked, not capped.
 """
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
@@ -127,6 +127,9 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
         not model_doc
         or not _is_life(model_doc.get("usefulLifeYears"))
         or not _is_cents(model_doc.get("salvageValueCents"))
+        # Salvage lives on the model, cost on the asset. Salvage above the price paid would value the
+        # asset above its purchase cost, so the model's policy does not fit this asset: not valued.
+        or model_doc["salvageValueCents"] > raw_cost
     ):
         row["reason"] = REASON_NO_DEPRECIATION_POLICY
     else:

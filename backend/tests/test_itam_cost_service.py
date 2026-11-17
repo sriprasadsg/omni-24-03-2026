@@ -34,7 +34,6 @@ D = "2024-03-01"
 GOLDEN = [
     pytest.param(D, 100000, 1, 10000, (2025, 2, 28), 100000, 0, False, id="life1-day-before-anniversary"),
     pytest.param(D, 100000, 1, 10000, (2025, 3, 1), 10000, 1, False, id="life1-on-anniversary"),
-    pytest.param(D, 100000, 3, 150000, (2026, 6, 1), 150000, 2, False, id="salvage-above-cost-pinned"),
     pytest.param(D, 100000, 3, 100000, (2026, 6, 1), 100000, 2, False, id="salvage-equals-cost"),
     pytest.param(D, 0, 3, 0, (2026, 6, 1), 0, 2, False, id="cost-zero"),
     pytest.param("2024-02-29", 120000, 4, 0, (2025, 2, 28), 120000, 0, False, id="leap-day-before"),
@@ -95,6 +94,30 @@ def test_golden_table(date, cost, life, salvage, day, book, years, future):
     assert type(row["bookValueCents"]) is int
     assert row["reason"] is None and row["valued"] is True and row["priced"] is True
     assert (svc.FLAG_FUTURE_PURCHASE_DATE in row["flags"]) is future
+
+
+# purchase date, cost, life, salvage, (y, m, d) of now: the finance function stays pinned (it floors at
+# salvage, which is above the price paid); the cost row marks the asset instead of reporting that figure.
+GOLDEN_SALVAGE_ABOVE_COST = [
+    pytest.param(D, 100000, 3, 150000, (2026, 6, 1), 150000, id="salvage-above-cost"),
+    pytest.param(D, 100000, 3, 100001, (2026, 6, 1), 100002, id="salvage-one-cent-above-cost"),
+    pytest.param(D, 0, 3, 1, (2026, 6, 1), 2, id="cost-zero-salvage-one"),
+]
+
+
+@pytest.mark.parametrize("date,cost,life,salvage,day,finance_book", GOLDEN_SALVAGE_ABOVE_COST)
+def test_salvage_above_cost_is_marked_not_valued(date, cost, life, salvage, day, finance_book):
+    now = datetime(*day, 12, 0, tzinfo=timezone.utc)
+    direct = compute_book_value(
+        purchase_date=date, purchase_cost_cents=cost, useful_life_years=life, salvage_value_cents=salvage, now=now
+    )
+    # the shared function is unchanged and never clamps: its figure is above the price paid
+    assert direct["bookValueCents"] == finance_book and finance_book > cost
+
+    row = svc.compute_asset_cost(_asset(cost=cost, date=date), _model(life, salvage), now)
+    assert row["bookValueCents"] is None and row["yearsElapsed"] is None and row["valued"] is False
+    assert row["reason"] == svc.REASON_NO_DEPRECIATION_POLICY
+    assert row["priced"] is True and row["purchaseCostCents"] == cost
 
 
 async def test_reason_precedence_and_invariant(mongo_db):
