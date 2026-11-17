@@ -21,15 +21,15 @@ findings:
     title: "`needsTenant` repeats a condition the role helper already covers"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The shown result is decoupled from `activeKind`/`activeKey`, so a failed or superseded run leaves the previous report on screen with export buttons for a different report"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The Run button gate depends only on `isSuperAdminRoleName`; other platform tiers fall through to a toast (still open)"
   - id: IN-05
     severity: info
-    disposition: open
+    disposition: fixed
     title: "An export started before a tenant switch is not cancelled and keeps `exportingFormat` set"
   - id: WR-01
     severity: warning
@@ -37,7 +37,7 @@ findings:
     title: "ReportsPanel `runPrebuilt` has no stale-response guard; the tenant-switch reset does not clear `running` (confirms the 78-UI-REVIEW lead)"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Custom report routes are not tenant-resolved, so an Owner gets cross-tenant book values while the cost surfaces return 400"
   - id: WR-03
     severity: warning
@@ -55,7 +55,7 @@ findings:
     severity: info
     disposition: open
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 12
+open: 8
 total: 13
 recorded: 2026-11-17T08:23:27.454Z
 ---
@@ -68,11 +68,11 @@ recorded: 2026-11-17T08:23:27.454Z
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
 | IN-09 | info | open | - |
-| WR-04 | warning | open | - (not in the current review) |
-| IN-04 | info | open | - (not in the current review) |
-| IN-05 | info | open | - (not in the current review) |
+| WR-04 | warning | fixed | gap plan 78-13 (3a3353c21..5f4ddc665); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
+| IN-04 | info | fixed | gap plan 78-15 (5bf03c54f..747b2b972); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
+| IN-05 | info | fixed | gap plan 78-13 (cd2ac7ab4, 5f4ddc665); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
 | WR-01 | warning | fixed | gap plan 78-11 (b26ea046e, 5278952bd); confirmed fixed by the incremental re-review c16cdf34c ("Prior findings re-assessed") (not in the current review) |
-| WR-02 | warning | open | - (not in the current review) |
+| WR-02 | warning | fixed | gap plans 78-12 (79b6bfb9f..8896830ab) and 78-14 (388af39c5..fd11ee317); confirmed fixed by the incremental re-review bbe3cb55b ("Targeted findings") (not in the current review) |
 | WR-03 | warning | open | - (not in the current review) |
 | IN-01 | info | open | - (not in the current review) |
 | IN-02 | info | open | - (not in the current review) |
