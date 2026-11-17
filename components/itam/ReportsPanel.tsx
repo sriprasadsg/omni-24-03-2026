@@ -17,7 +17,7 @@ import {
 } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 import { BarChart3Icon, PlusIcon } from '../icons';
-import { ITAM_KPI_COPY } from './ItamKpiPanel';
+import { ITAM_KPI_COPY, SELECT_TENANT_RE } from './ItamKpiPanel';
 import { ReportResultView, type ExportFormat, type ShownReport } from './ReportResultView';
 
 const PAGE_SIZE = 50;
@@ -53,6 +53,19 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   const [savedLoading, setSavedLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<ItamSavedCustomReport | null>(null);
 
+  // The server's "Select a tenant" 400 for a platform user whose tenant it does not honour (D-15)
+  // means the same as no tenant selected, so it blocks the same controls.
+  const [tenantRejected, setTenantRejected] = useState(false);
+  const blocked = needsTenant || tenantRejected;
+
+  // True when the error is that 400. The message is only matched, never rendered (T-78-07).
+  function takeTenantRejection(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : '';
+    if (!SELECT_TENANT_RE.test(message)) return false;
+    setTenantRejected(true);
+    return true;
+  }
+
   useEffect(() => {
     fetchItamPrebuiltReports().then(setReports).catch(() => setReports([]));
   }, []);
@@ -73,7 +86,10 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       const list = await listItamCustomReports(tenantId);
       if (seq === listSeq.current) setSavedReports(list);
     } catch (e: any) {
-      if (seq === listSeq.current) showToast(e?.message || 'Failed to load saved reports', 'error');
+      if (seq === listSeq.current) {
+        if (takeTenantRejection(e)) return;
+        showToast(e?.message || 'Failed to load saved reports', 'error');
+      }
     } finally {
       if (seq === listSeq.current) setSavedLoading(false);
     }
@@ -101,6 +117,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     // The saved list and any open delete belong to the tenant that was switched away from.
     setSavedReports([]);
     setDeleteTarget(null);
+    setTenantRejected(false);
   }, [tenantId]);
 
   const runPrebuilt = useCallback(async (key: string, targetPage = 1) => {
@@ -112,6 +129,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       setShown({ kind: 'prebuilt', key, page: targetPage, data: r });
     } catch (e: any) {
       if (seq !== runSeq.current) return;
+      if (takeTenantRejection(e)) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
       if (seq === runSeq.current) setPending(null);
@@ -134,6 +152,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       setShown({ kind: 'custom', key: reportId, page: targetPage, data: r });
     } catch (e: any) {
       if (seq !== runSeq.current) return;
+      if (takeTenantRejection(e)) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
       if (seq === runSeq.current) setPending(null);
@@ -209,6 +228,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       await downloadItamReport(generated.filename);
     } catch (e: any) {
       if (epoch !== tenantEpoch.current) return;
+      if (takeTenantRejection(e)) return;
       showToast(e?.message || EXPORT_ERROR, 'error');
     } finally {
       if (epoch === tenantEpoch.current) setExportingFormat(null);
@@ -227,7 +247,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     <div>
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Pre-built Reports</h3>
-        {needsTenant && (
+        {blocked && (
           <p role="status" id={SELECT_TENANT_NOTE_ID} className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {ITAM_KPI_COPY.reportsSelectTenantNote}
           </p>
@@ -244,8 +264,8 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
               </div>
               <button
                 onClick={() => runPrebuilt(r.key, 1)}
-                disabled={needsTenant}
-                aria-describedby={needsTenant ? SELECT_TENANT_NOTE_ID : undefined}
+                disabled={blocked}
+                aria-describedby={blocked ? SELECT_TENANT_NOTE_ID : undefined}
                 className="mt-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
               >
                 Run Report
@@ -260,34 +280,34 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Custom Reports</h3>
           <button
             onClick={() => setBuilderOpen((v) => !v)}
-            disabled={needsTenant}
-            aria-describedby={needsTenant ? CUSTOM_SELECT_TENANT_NOTE_ID : undefined}
+            disabled={blocked}
+            aria-describedby={blocked ? CUSTOM_SELECT_TENANT_NOTE_ID : undefined}
             className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             <PlusIcon size={14} /> Create Custom Report
           </button>
         </div>
 
-        {builderOpen && !needsTenant && (
+        {builderOpen && !blocked && (
           <div className="mb-4">
             <ReportBuilderForm onPreview={handlePreviewCustom} onSave={handleSaveCustom} busy={builderBusy} />
           </div>
         )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          {needsTenant && (
+          {blocked && (
             <p role="status" id={CUSTOM_SELECT_TENANT_NOTE_ID} className="text-xs text-gray-500 dark:text-gray-400">
               {ITAM_KPI_COPY.customReportsSelectTenantNote}
             </p>
           )}
-          {!needsTenant && savedLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
-          {!needsTenant && !savedLoading && savedReports.length === 0 && (
+          {!blocked && savedLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
+          {!blocked && !savedLoading && savedReports.length === 0 && (
             <div className="text-center py-4">
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No custom reports yet</h4>
               <p className="text-gray-500 text-xs">Build a report by picking fields and filters, then save it to reuse anytime.</p>
             </div>
           )}
-          {!needsTenant && !savedLoading && savedReports.length > 0 && (
+          {!blocked && !savedLoading && savedReports.length > 0 && (
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>

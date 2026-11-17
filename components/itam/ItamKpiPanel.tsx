@@ -89,7 +89,7 @@ function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, ta
 }
 
 // R5: the server answers a missing tenant with a 400 whose detail starts "Select a tenant".
-const SELECT_TENANT_RE = /^Select a tenant/i;
+export const SELECT_TENANT_RE = /^Select a tenant/i;
 
 export function ItamKpiPanel({ onDrillDown, tenantId, needsTenant, onGoToTenants }: ItamKpiPanelProps) {
   const [data, setData] = useState<ItamKpis | null>(null);
