@@ -12,24 +12,16 @@ import {
   previewItamCustomReport,
   runItamCustomReport,
   ItamPrebuiltReportMeta,
-  ItamReportRunResult,
   ItamSavedCustomReport,
   ItamCustomReportDefinition,
 } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
-import { BarChart3Icon, DownloadIcon, PlusIcon } from '../icons';
+import { BarChart3Icon, PlusIcon } from '../icons';
 import { ITAM_KPI_COPY } from './ItamKpiPanel';
+import { ReportResultView, type ExportFormat, type ShownReport } from './ReportResultView';
 
 const PAGE_SIZE = 50;
 const EXPORT_ERROR = "Couldn't export report. Try again, or contact an administrator if the problem continues.";
-
-function cellDisplay(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  return String(value);
-}
-
-type ActiveKind = 'prebuilt' | 'custom' | null;
-type ExportFormat = 'pdf' | 'xlsx' | 'csv';
 
 interface ReportsPanelProps {
   // The drill-down seam plan 72-07's KPI tiles attach to (D-18): when set,
@@ -48,15 +40,11 @@ const SELECT_TENANT_NOTE_ID = 'itam-reports-select-tenant-note';
 export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTenant }: ReportsPanelProps) {
   const [reports, setReports] = useState<ItamPrebuiltReportMeta[]>([]);
 
-  const [activeKind, setActiveKind] = useState<ActiveKind>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [result, setResult] = useState<ItamReportRunResult | null>(null);
-  const [running, setRunning] = useState(false);
+  // The shown report and its identity change together, and only the current request writes
+  // them (WR-04); the run in flight is held apart so a failed run leaves the shown report intact.
+  const [shown, setShown] = useState<ShownReport | null>(null);
+  const [pending, setPending] = useState<{ kind: 'prebuilt' | 'custom'; key: string } | null>(null);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
-  const [page, setPage] = useState(1);
-  // True while the shown result is the current unsaved builder preview (Phase 72 D-02),
-  // which renders with activeKind and activeKey both null.
-  const [showingPreview, setShowingPreview] = useState(false);
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderBusy, setBuilderBusy] = useState(false);
@@ -91,30 +79,22 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     if (previousTenantId.current === tenantId) return;
     previousTenantId.current = tenantId;
     runSeq.current += 1;
-    setRunning(false);
-    setShowingPreview(false);
-    setResult(null);
-    setActiveKind(null);
-    setActiveKey(null);
-    setPage(1);
+    setPending(null);
+    setShown(null);
   }, [tenantId]);
 
   const runPrebuilt = useCallback(async (key: string, targetPage = 1) => {
-    setActiveKind('prebuilt');
-    setActiveKey(key);
-    setRunning(true);
-    setShowingPreview(false);
+    setPending({ kind: 'prebuilt', key });
     const seq = ++runSeq.current;
     try {
       const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId);
       if (seq !== runSeq.current) return;
-      setResult(r);
-      setPage(targetPage);
+      setShown({ kind: 'prebuilt', key, page: targetPage, data: r });
     } catch (e: any) {
       if (seq !== runSeq.current) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      if (seq === runSeq.current) setRunning(false);
+      if (seq === runSeq.current) setPending(null);
     }
   }, [tenantId]);
 
@@ -126,27 +106,23 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   }, [focusReportKey]);
 
   const runSavedCustom = useCallback(async (reportId: string, targetPage = 1) => {
-    setActiveKind('custom');
-    setActiveKey(reportId);
-    setRunning(true);
-    setShowingPreview(false);
+    setPending({ kind: 'custom', key: reportId });
     const seq = ++runSeq.current;
     try {
       const r = await runItamCustomReport(reportId, targetPage, PAGE_SIZE);
       if (seq !== runSeq.current) return;
-      setResult(r);
-      setPage(targetPage);
+      setShown({ kind: 'custom', key: reportId, page: targetPage, data: r });
     } catch (e: any) {
       if (seq !== runSeq.current) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      if (seq === runSeq.current) setRunning(false);
+      if (seq === runSeq.current) setPending(null);
     }
   }, []);
 
   function runActivePage(targetPage: number) {
-    if (activeKind === 'prebuilt' && activeKey) runPrebuilt(activeKey, targetPage);
-    else if (activeKind === 'custom' && activeKey) runSavedCustom(activeKey, targetPage);
+    if (shown?.kind === 'prebuilt' && shown.key) runPrebuilt(shown.key, targetPage);
+    else if (shown?.kind === 'custom' && shown.key) runSavedCustom(shown.key, targetPage);
   }
 
   // Unsaved builder preview (D-02): shows on-screen results but carries no
@@ -157,15 +133,11 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setBuilderBusy(true);
     // The preview supersedes any in-flight run, whose response is now dropped.
     const seq = ++runSeq.current;
-    setRunning(false);
+    setPending(null);
     try {
       const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE);
       if (seq !== runSeq.current) return;
-      setActiveKind(null);
-      setActiveKey(null);
-      setResult(r);
-      setPage(targetPage);
-      setShowingPreview(true);
+      setShown({ kind: null, key: null, page: targetPage, data: r });
     } finally {
       setBuilderBusy(false);
     }
@@ -189,11 +161,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     try {
       await deleteItamCustomReport(target.id);
       showToast('Report deleted.', 'success');
-      if (activeKind === 'custom' && activeKey === target.id) {
-        setResult(null);
-        setActiveKind(null);
-        setActiveKey(null);
-      }
+      if (shown?.kind === 'custom' && shown.key === target.id) setShown(null);
       setDeleteTarget(null);
       loadSavedReports();
     } catch (e: any) {
@@ -203,12 +171,14 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   }
 
   async function handleExport(format: ExportFormat) {
-    if (!activeKind || !activeKey) return;
+    if (!shown?.kind || !shown.key) return;
+    // The export target is fixed at click time, from the report on screen.
+    const { kind, key } = shown;
     setExportingFormat(format);
     try {
-      const generated = activeKind === 'prebuilt'
-        ? await generateItamReport(activeKind, activeKey, format, tenantId)
-        : await generateItamReport(activeKind, activeKey, format);
+      const generated = kind === 'prebuilt'
+        ? await generateItamReport(kind, key, format, tenantId)
+        : await generateItamReport(kind, key, format);
       await downloadItamReport(generated.filename);
     } catch (e: any) {
       showToast(e?.message || EXPORT_ERROR, 'error');
@@ -217,10 +187,13 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     }
   }
 
-  const canExport = Boolean(activeKind && activeKey);
-  // The shown result belongs to the current request: a run is active, or it is the
-  // current unsaved builder preview (which carries no activeKind or activeKey).
-  const resultIsCurrent = Boolean(activeKind && activeKey) || showingPreview;
+  // Title of the run in flight: the loaded report's title, falling back to its key.
+  let pendingTitle: string | null = null;
+  if (pending) {
+    pendingTitle = (pending.kind === 'prebuilt'
+      ? reports.find((r) => r.key === pending.key)?.title
+      : savedReports.find((r) => r.id === pending.key)?.name) || pending.key;
+  }
 
   return (
     <div>
@@ -319,101 +292,13 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
         </div>
       </div>
 
-      {(running || result) && resultIsCurrent && (
-        <div>
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{result?.title || activeKey || ''}</h3>
-            {canExport && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleExport('pdf')}
-                  disabled={!!exportingFormat}
-                  className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <DownloadIcon size={14} />
-                  {exportingFormat === 'pdf' ? 'Exporting…' : 'Export PDF'}
-                </button>
-                <button
-                  onClick={() => handleExport('xlsx')}
-                  disabled={!!exportingFormat}
-                  className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <DownloadIcon size={14} />
-                  {exportingFormat === 'xlsx' ? 'Exporting…' : 'Export Excel'}
-                </button>
-                <button
-                  onClick={() => handleExport('csv')}
-                  disabled={!!exportingFormat}
-                  className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <DownloadIcon size={14} />
-                  {exportingFormat === 'csv' ? 'Exporting…' : 'Export CSV'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {running && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
-
-          {!running && result && result.rows.length === 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No matching assets</h3>
-              <p className="text-gray-500 text-xs">Adjust your filters and run the report again.</p>
-            </div>
-          )}
-
-          {!running && result && result.rows.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
-                      {result.columns.map((c) => (
-                        <th key={c} className="py-2 pr-4">{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.map((row, idx) => (
-                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-800">
-                        {result.columns.map((c) => (
-                          <td
-                            key={c}
-                            className="py-2 pr-4 text-gray-700 dark:text-gray-300 truncate max-w-xs"
-                            title={cellDisplay(row[c])}
-                          >
-                            {cellDisplay(row[c])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {activeKind && activeKey && result.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-3 text-xs text-gray-600 dark:text-gray-400">
-                  <button
-                    onClick={() => runActivePage(Math.max(1, page - 1))}
-                    disabled={page <= 1}
-                    className="disabled:opacity-40 hover:text-gray-900 dark:hover:text-white"
-                  >
-                    Previous
-                  </button>
-                  <span>Page {page} of {result.totalPages}</span>
-                  <button
-                    onClick={() => runActivePage(Math.min(result.totalPages, page + 1))}
-                    disabled={page >= result.totalPages}
-                    className="disabled:opacity-40 hover:text-gray-900 dark:hover:text-white"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <ReportResultView
+        shown={shown}
+        pendingTitle={pendingTitle}
+        exportingFormat={exportingFormat}
+        onExport={handleExport}
+        onPage={runActivePage}
+      />
 
       <Modal
         isOpen={!!deleteTarget}
