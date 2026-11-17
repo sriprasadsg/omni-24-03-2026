@@ -8,6 +8,7 @@ import { socketService } from '../services/socketService';
 import { webrtcCallService } from '../services/webrtcCallService';
 import { SupportConversation, SupportMessage, TenantUser } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { Glyph } from './ui/Glyph';
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         closed:      'bg-slate-500/20 text-gray-600 dark:text-slate-400 border-slate-500/30',
     };
     return (
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${map[status] ?? map.open}`}>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${map[status] ?? map.open}`}>
             {status.replace('_', ' ')}
         </span>
     );
@@ -39,7 +40,7 @@ const ChatTypePill: React.FC<{ type: string }> = ({ type }) => {
         admin_to_user:       { label: 'Direct',    cls: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' },
     };
     const { label, cls } = cfg[type] ?? cfg.user_to_admin;
-    return <span className={`px-1.5 py-0.5 rounded text-[10px] ${cls}`}>{label}</span>;
+    return <span className={`px-1.5 py-0.5 rounded text-[11px] ${cls}`}>{label}</span>;
 };
 
 // ── New conversation modal (shared) ──────────────────────────────────────────
@@ -203,12 +204,12 @@ const Bubble: React.FC<{ msg: SupportMessage; isMine: boolean }> = ({ msg, isMin
                 : 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-slate-100 rounded-bl-sm'
         }`}>
             {!isMine && (
-                <p className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 mb-1 capitalize">
+                <p className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 mb-1 capitalize">
                     {msg.sender_role.replace('_', ' ')}
                 </p>
             )}
             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-            <p className={`text-[10px] mt-1 ${isMine ? 'text-teal-800 dark:text-teal-200' : 'text-gray-600 dark:text-slate-400'}`}>
+            <p className={`text-[11px] mt-1 ${isMine ? 'text-teal-800 dark:text-teal-200' : 'text-gray-600 dark:text-slate-400'}`}>
                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
         </div>
@@ -236,7 +237,7 @@ const UserIdentityCard: React.FC<{ convo: SupportConversation; isOnline?: boolea
             </div>
             <div className="min-w-0">
                 <p className="text-teal-100 text-xs font-semibold leading-tight truncate">{name}</p>
-                <p className="text-teal-700 dark:text-teal-300/70 text-[10px] leading-tight truncate">{email} · {role}</p>
+                <p className="text-teal-700 dark:text-teal-300/70 text-[11px] leading-tight truncate">{email} · {role}</p>
             </div>
         </div>
     );
@@ -553,7 +554,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                             <div className="text-[11px] text-gray-600 dark:text-slate-400 truncate">
                                 {c.last_message?.content ?? 'No messages'}
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1">
+                            <p className="text-[11px] text-slate-500 mt-1">
                                 {new Date(c.updated_at).toLocaleDateString()}
                             </p>
                         </button>
@@ -565,7 +566,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
             <div className="flex-1 flex flex-col">
                 {!activeConvo ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-3">
-                        <div className="text-4xl opacity-30">💬</div>
+                        <div className="text-4xl opacity-30"><Glyph e="💬" /></div>
                         <p className="text-sm">Select a conversation</p>
                         {isAdmin(role) && (
                             <button
@@ -664,7 +665,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                                         <Bubble msg={msg} isMine={isMine} />
                                         {showSeen && (
                                             <div className="flex justify-end mb-1 -mt-2 pr-1">
-                                                <span className="text-[10px] text-teal-600 dark:text-teal-400/70">Seen</span>
+                                                <span className="text-[11px] text-teal-600 dark:text-teal-400/70">Seen</span>
                                             </div>
                                         )}
                                     </React.Fragment>

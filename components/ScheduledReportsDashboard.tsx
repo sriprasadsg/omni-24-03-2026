@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch, fetchComplianceFrameworks } from '../services/apiService';
 import type { ComplianceFramework } from '../types';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface ScheduledReport {
   id: string;
@@ -190,7 +191,7 @@ export default function ScheduledReportsDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Scheduled Reports</h1>
+          <h1 className="page-title">Scheduled Reports</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Automated report delivery via email, webhook, Slack, and Teams</p>
         </div>
         <button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
@@ -218,7 +219,7 @@ export default function ScheduledReportsDashboard() {
 
       {reports.length === 0 ? (
         <div className="text-center py-20 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <div className="text-5xl mb-4">📊</div>
+          <div className="text-5xl mb-4"><Glyph e="📊" /></div>
           <p className="text-lg">No scheduled reports yet</p>
           <p className="text-sm mt-2">Set up automated reports delivered to email, Slack, or your SIEM</p>
           <button onClick={() => setShowCreate(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
@@ -248,7 +249,7 @@ export default function ScheduledReportsDashboard() {
               <div className="flex items-center gap-3 mb-3 text-sm">
                 <span className={`font-medium capitalize ${FREQ_COLORS[rep.frequency]}`}>{rep.frequency}</span>
                 <span className="text-gray-500">·</span>
-                <span><span aria-hidden="true">{CHANNEL_ICONS[rep.delivery_channel]}</span> {rep.delivery_channel}</span>
+                <span><span aria-hidden="true"><Glyph e={CHANNEL_ICONS[rep.delivery_channel]} /></span> {rep.delivery_channel}</span>
               </div>
 
               {rep.recipients.length > 0 && (
@@ -261,7 +262,7 @@ export default function ScheduledReportsDashboard() {
                   <span className="text-gray-500">Last run</span>
                   <span className={`font-medium ${rep.last_error ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
                     {rep.last_error
-                      ? <span title={rep.last_error}>⚠ {relativeTime(rep.last_run || rep.last_run_at)}</span>
+                      ? <span title={rep.last_error}><Glyph e="⚠" /> {relativeTime(rep.last_run || rep.last_run_at)}</span>
                       : relativeTime(rep.last_run || rep.last_run_at)}
                   </span>
                 </div>
@@ -274,7 +275,7 @@ export default function ScheduledReportsDashboard() {
                     <div className="flex items-center justify-between">
                       <span className="text-gray-500">Next run</span>
                       <span className={urgentClass}>
-                        {hoursUntil < 24 && hoursUntil > 0 && '⏰ '}
+                        {hoursUntil < 24 && hoursUntil > 0 && <><Glyph e="⏰" /> </>}
                         {relativeTime(nxt)}
                       </span>
                     </div>
@@ -396,7 +397,7 @@ export default function ScheduledReportsDashboard() {
                       <label key={c} className={`flex items-center justify-center gap-1 p-2 rounded border cursor-pointer text-sm transition-colors ${form.delivery_channel === c ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-400'}`}>
                         <input type="radio" name="channel" value={c} checked={form.delivery_channel === c}
                           onChange={() => setForm(p => ({ ...p, delivery_channel: c }))} className="sr-only" />
-                        <span aria-hidden="true">{CHANNEL_ICONS[c]}</span> {c}
+                        <span aria-hidden="true"><Glyph e={CHANNEL_ICONS[c]} /></span> {c}
                       </label>
                     ))}
                   </div>

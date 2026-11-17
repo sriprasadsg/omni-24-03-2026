@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 const API = '/api';
 
@@ -67,9 +68,9 @@ export default function DLPDashboard() {
     };
 
     const tabs = [
-        { id: 'incidents', label: `🚨 Incidents (${incidents.filter(i => i.status === 'open').length})` },
-        { id: 'scan', label: '🔍 Scan File' },
-        { id: 'policies', label: `📋 Policies (${policies.length})` },
+        { id: 'incidents', label: `Incidents (${incidents.filter(i => i.status === 'open').length})` },
+        { id: 'scan', label: 'Scan File' },
+        { id: 'policies', label: `Policies (${policies.length})` },
     ];
 
     if (loading) return (
@@ -87,7 +88,7 @@ export default function DLPDashboard() {
     return (
         <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24 }}>
             <div style={{ marginBottom: 24 }}>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, background: 'linear-gradient(135deg,#f97316,#ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Data Loss Prevention</h1>
+                <h1 className="page-title" style={{ margin: 0 }}>Data Loss Prevention</h1>
                 <p style={{ color: '#64748b', margin: '4px 0 0' }}>PII detection, sensitive data classification, and bulk export monitoring</p>
             </div>
 
@@ -97,7 +98,7 @@ export default function DLPDashboard() {
                     { label: 'Open Incidents', val: incidents.filter(i => i.status === 'open').length, color: '#ef4444' },
                     { label: 'Resolved', val: incidents.filter(i => i.status === 'resolved').length, color: '#22c55e' },
                     { label: 'Critical Findings', val: incidents.reduce((acc, i) => acc + i.findings.filter((f: any) => f.severity === 'critical').length, 0), color: '#ef4444' },
-                    { label: 'Active Policies', val: policies.filter(p => p.enabled).length, color: '#7c3aed' },
+                    { label: 'Active Policies', val: policies.filter(p => p.enabled).length, color: '#0e7490' },
                 ].map(c => (
                     <div key={c.label} style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: '16px 20px', border: '1px solid var(--ink-line-strong)' }}>
                         <div style={{ fontSize: 28, fontWeight: 800, color: c.color }}>{c.val}</div>
@@ -112,7 +113,7 @@ export default function DLPDashboard() {
                     <button key={t.id} onClick={() => setTab(t.id as any)}
                         style={{
                             padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
+                            background: tab === t.id ? '#0e7490' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
                         }}>
                         {t.label}
                     </button>
@@ -127,7 +128,7 @@ export default function DLPDashboard() {
                         <div key={inc.scan_id} style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 20, marginBottom: 12, border: '1px solid var(--ink-line-strong)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: 16 }}>📄 {inc.filename}</div>
+                                    <div style={{ fontWeight: 700, fontSize: 16 }}><Glyph e="📄" /> {inc.filename}</div>
                                     <div style={{ color: '#64748b', fontSize: 12 }}>{new Date(inc.scanned_at).toLocaleString()}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -163,16 +164,16 @@ export default function DLPDashboard() {
                     <div
                         onClick={() => fileRef.current?.click()}
                         style={{ cursor: 'pointer', background: 'var(--ink-panel)', borderRadius: 12, padding: 32, border: '2px dashed var(--ink-line-strong)', textAlign: 'center', marginBottom: 24 }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+                        <div style={{ fontSize: 48, marginBottom: 12 }}><Glyph e="📁" /></div>
                         <p style={{ color: 'var(--ink-muted)', margin: 0 }}>Click or drag a file to scan for PII and sensitive data</p>
                         <p style={{ color: '#475569', fontSize: 12, margin: '8px 0 0' }}>Supports .txt, .csv, .json, .xml, .log and other text-based files</p>
                         <input ref={fileRef} type="file" accept=".txt,.csv,.json,.xml,.log,.py,.js,.ts,.yaml,.yml,.env" onChange={scanFile} style={{ display: 'none' }} />
                     </div>
-                    {scanning && <div style={{ color: '#7c3aed', textAlign: 'center', padding: 20 }}>🔍 Scanning for PII...</div>}
+                    {scanning && <div style={{ color: '#0e7490', textAlign: 'center', padding: 20 }}><Glyph e="🔍" /> Scanning for PII...</div>}
                     {scanResult && (
                         <div style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 24, border: `1px solid ${scanResult.finding_count ? '#ef4444' : '#22c55e'}` }}>
                             <h3 style={{ color: scanResult.finding_count ? '#ef4444' : '#22c55e', margin: '0 0 16px' }}>
-                                {scanResult.finding_count ? `⚠️ ${scanResult.finding_count} PII finding(s) detected` : '✅ No PII detected'}
+                                {scanResult.finding_count ? `⚠️ ${scanResult.finding_count} PII finding(s) detected` : <><Glyph e="✅" /> No PII detected</>}
                             </h3>
                             <div style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
                                 Sensitivity: <strong style={{ color: SENS_COLOR[scanResult.sensitivity] }}>{scanResult.sensitivity?.toUpperCase()}</strong>
@@ -205,7 +206,7 @@ export default function DLPDashboard() {
                                     style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', boxSizing: 'border-box', fontFamily: 'monospace' }} placeholder="\b\d{3} \d{3} \d{4}\b" />
                             </div>
                             <button onClick={addPolicy} disabled={saving}
-                                style={{ padding: '10px 20px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                                style={{ padding: '10px 20px', background: '#0e7490', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
                                 {saving ? 'Saving...' : '+ Add'}
                             </button>
                         </div>

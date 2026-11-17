@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface UserProfile {
   id: string;
@@ -102,7 +103,7 @@ export default function InsiderThreatDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Insider Threat Detection</h1>
+          <h1 className="page-title">Insider Threat Detection</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Behavioral risk scoring, exfiltration indicators, and user activity monitoring</p>
         </div>
         <button onClick={seedData} disabled={seeding}
@@ -149,7 +150,7 @@ export default function InsiderThreatDashboard() {
       {tab === 'alerts' && (
         alerts.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">👁️</div>
+            <div className="text-4xl mb-3"><Glyph e="👁" /></div>
             <p>No insider threat alerts — load demo data to see detections</p>
           </div>
         ) : (
@@ -159,7 +160,7 @@ export default function InsiderThreatDashboard() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span>{CAT_ICONS[a.category] || '⚠️'}</span>
+                      <span><Glyph e={CAT_ICONS[a.category] || '⚠'} /></span>
                       <span className={`text-xs px-2 py-0.5 rounded border font-medium capitalize ${RISK_COLORS[a.severity]?.split(' ').slice(0, 3).join(' ') || ''}`}>
                         {a.severity}
                       </span>
@@ -224,7 +225,7 @@ export default function InsiderThreatDashboard() {
                       <div className="flex flex-wrap gap-1">
                         {p.active_indicators.slice(0, 4).map(ind => (
                           <span key={ind.id} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded">
-                            {CAT_ICONS[ind.category]} {ind.name}
+                            <Glyph e={CAT_ICONS[ind.category]} /> {ind.name}
                           </span>
                         ))}
                         {p.active_indicators.length > 4 && (

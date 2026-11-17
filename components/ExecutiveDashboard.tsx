@@ -3,6 +3,7 @@ import { authFetch } from '../services/apiService';
 import { TrendingUpIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface ExecutiveSummary {
     kpis: {
@@ -61,7 +62,7 @@ export const ExecutiveDashboard: React.FC<{ tenantId?: string }> = ({ tenantId }
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Executive Dashboard</h2>
+                <h1 className="page-title">Executive Dashboard</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     High-level security and compliance metrics
                 </p>
@@ -79,7 +80,7 @@ export const ExecutiveDashboard: React.FC<{ tenantId?: string }> = ({ tenantId }
                         {kpis.compliance_rate.toFixed(1)}%
                     </p>
                     <p className="text-xs text-gray-500 mt-2">
-                        {kpis.compliance_rate >= 90 ? '✓ Meeting SLA targets' : '⚠ Below target'}
+                        {kpis.compliance_rate >= 90 ? '✓ Meeting SLA targets' : <><Glyph e="⚠" /> Below target</>}
                     </p>
                 </div>
 

@@ -108,7 +108,7 @@ const NotificationPreferencesDashboard: React.FC = () => {
     <div className="bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white p-6">
       <div className="max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notification Preferences</h1>
+          <h1 className="page-title">Notification Preferences</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Configure how and when you receive notifications</p>
         </div>
 

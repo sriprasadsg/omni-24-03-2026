@@ -133,7 +133,7 @@ export const SystemHealthDashboard: React.FC = () => {
                 <div className="flex items-center space-x-4">
                     <div className={`w-3 h-3 rounded-full ${getStatusColor(health?.status || '')} animate-pulse`}></div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">System Health</h1>
+                        <h1 className="page-title">System Health</h1>
                         <p className="text-sm text-slate-500">Uptime: {health?.uptime} • Version 2030.0</p>
                     </div>
                 </div>

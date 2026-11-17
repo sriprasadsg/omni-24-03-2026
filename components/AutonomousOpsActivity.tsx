@@ -89,7 +89,7 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
         <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
-                    <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.03em] text-gray-900 dark:text-white">Autonomous Ops</h1>
+                    <h1 className="page-title">Autonomous Ops</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                         Automatic actions within limits you set. Riskier actions wait for your approval, and every decision is listed below.
                     </p>

@@ -199,10 +199,10 @@ export const SoftwareUpdateManagement: React.FC<SoftwareUpdateManagementProps> =
         <div className="container mx-auto space-y-6 p-6">
             {/* Header */}
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
+                <h1 className="page-title mb-2 flex items-center">
                     <BoxIcon className="mr-3 text-primary-500" size={28} />
                     Software Update Management
-                </h2>
+                </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                     Track installed software versions, identify available updates, and deploy updates across your fleet.
                 </p>

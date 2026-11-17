@@ -84,12 +84,12 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                             <span className="text-4xl font-black text-slate-900 dark:text-white">{coverage.exercised}/{SIM_TECHNIQUES.length}</span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Techniques Exercised</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase">Techniques Exercised</span>
                         </div>
                     </div>
                     <div className="mt-4 space-y-1 text-xs text-slate-500">
                         <div className="flex justify-between font-bold"><span className="uppercase">Simulations run</span><span className="text-indigo-600">{history.length}</span></div>
-                        <p className="text-[10px] text-slate-400">Detection results aren't recorded yet, so no detection rate is shown.</p>
+                        <p className="text-[11px] text-slate-400">Detection results aren't recorded yet, so no detection rate is shown.</p>
                     </div>
                 </div>
 
@@ -105,13 +105,13 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                     runs > 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
                                     'bg-amber-500/10 border-amber-500/30 text-amber-600'
                                 }`}>
-                                    <span className="text-[9px] font-black uppercase tracking-tighter text-center leading-tight mb-1">{tactic}</span>
-                                    <span className="text-[10px] font-bold text-center">{supported ? `${runs} run${runs === 1 ? '' : 's'}` : 'No simulation available'}</span>
+                                    <span className="text-[11px] font-black uppercase tracking-tighter text-center leading-tight mb-1">{tactic}</span>
+                                    <span className="text-[11px] font-bold text-center">{supported ? `${runs} run${runs === 1 ? '' : 's'}` : 'No simulation available'}</span>
                                 </div>
                             );
                         })}
                     </div>
-                    <div className="mt-8 flex items-center gap-4 text-[10px] font-bold text-slate-400">
+                    <div className="mt-8 flex items-center gap-4 text-[11px] font-bold text-slate-400">
                         <span className="flex items-center"><span className="w-3 h-3 bg-emerald-500/20 border border-emerald-500/40 rounded mr-1"></span> SIMULATED</span>
                         <span className="flex items-center"><span className="w-3 h-3 bg-amber-500/20 border border-amber-500/40 rounded mr-1"></span> AVAILABLE, NOT RUN</span>
                         <span className="flex items-center"><span className="w-3 h-3 bg-slate-500/10 border border-slate-500/30 rounded mr-1"></span> NO SIMULATION</span>
@@ -125,10 +125,10 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
         <div className="p-6 space-y-6 bg-slate-50 dark:bg-slate-900 min-h-screen">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center tracking-tight">
+                    <h1 className="page-title flex items-center">
                         <BombIcon size={28} className="mr-3 text-red-600" />
                         Security Simulation & Validation
-                    </h2>
+                    </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         Test and validate your detection capabilities with benign attack simulations.
                     </p>
@@ -161,7 +161,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
 
                             <div className="space-y-5">
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Asset</label>
+                                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Asset</label>
                                     <select
                                         value={selectedAsset}
                                         onChange={(e) => setSelectedAsset(e.target.value)}
@@ -175,7 +175,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Injection Technique</label>
+                                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Injection Technique</label>
                                     <select
                                         value={technique}
                                         onChange={(e) => setTechnique(e.target.value)}
@@ -188,7 +188,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Process</label>
+                                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Process</label>
                                     <input
                                         type="text"
                                         value={target}
@@ -207,7 +207,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                         {triggering ? 'Dispatching...' : 'Launch Simulation'}
                                         {!triggering && <ZapIcon size={16} className="ml-2" />}
                                     </button>
-                                    <p className="mt-4 text-[10px] text-slate-400 text-center font-bold">
+                                    <p className="mt-4 text-[11px] text-slate-400 text-center font-bold">
                                         This will trigger a benign simulation flagged by EDR.
                                     </p>
                                 </div>
@@ -228,7 +228,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
 
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50 text-[11px] uppercase font-black text-slate-400 tracking-widest">
                                         <tr>
                                             <th className="px-6 py-4">Timestamp</th>
                                             <th className="px-6 py-4">Asset</th>
@@ -247,16 +247,16 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                                     {assets.find(a => a.id === sim.agentId)?.hostname || sim.agentId}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="px-2 py-1 bg-slate-100 dark:bg-slate-900 rounded text-[10px] font-black font-mono">
+                                                    <span className="px-2 py-1 bg-slate-100 dark:bg-slate-900 rounded text-[11px] font-black font-mono">
                                                         {sim.technique.toUpperCase()}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
                                                         {sim.status.toUpperCase()}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-red-600 dark:text-red-400 font-black font-mono text-[10px]">
+                                                <td className="px-6 py-4 text-red-600 dark:text-red-400 font-black font-mono text-[11px]">
                                                     {sim.caseId}
                                                 </td>
                                             </tr>

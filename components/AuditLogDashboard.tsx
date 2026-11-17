@@ -8,6 +8,7 @@ interface AuditLogDashboardProps {
 
 import { AuditLog as AuditLogTimeline } from './AuditLog';
 import { useTimeZone } from '../contexts/TimeZoneContext';
+import { Glyph } from './ui/Glyph';
 
 export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) => {
     const { timeZone } = useTimeZone();
@@ -73,7 +74,7 @@ export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) =>
         <div className="container mx-auto space-y-6">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Audit Log</h2>
+                    <h1 className="page-title mb-2">Audit Log</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Review user actions and system events.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -94,7 +95,7 @@ export const AuditLogDashboard: React.FC<AuditLogDashboardProps> = ({ logs }) =>
                         onClick={() => setActiveTab('table')}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'table' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                     >
-                        📋 Data Table
+                        <Glyph e="📋" /> Data Table
                     </button>
                 </div>
                 </div>

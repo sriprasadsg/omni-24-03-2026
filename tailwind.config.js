@@ -30,6 +30,11 @@ export default {
                 gray: scale('space'),
                 slate: scale('space'),
                 secondary: scale('space'),
+                // Indigo became a second brand colour (~450 uses: primary buttons, links, active
+                // tabs) and violet is ruled out for the brand, so both follow the cyan primary ramp.
+                // Purple stays Tailwind's: screens use it to tell categories apart.
+                indigo: scale('primary'),
+                violet: scale('primary'),
                 // Legacy aliases kept so older components still resolve to the new system.
                 flash: {
                     cyan: 'rgb(var(--primary-400) / <alpha-value>)',

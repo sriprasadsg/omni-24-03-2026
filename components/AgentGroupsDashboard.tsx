@@ -138,7 +138,7 @@ export default function AgentGroupsDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Agent Groups</h2>
+        <h1 className="page-title">Agent Groups</h1>
         <button onClick={() => setShowCreate(true)}
           className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
           + New Group

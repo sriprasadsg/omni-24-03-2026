@@ -71,7 +71,7 @@ export default function AttackTimelineDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Attack Timeline</h2>
+        <h1 className="page-title">Attack Timeline</h1>
         <div className="flex items-center gap-2 text-sm text-slate-400">
           <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'}`} />
           {loading ? 'Loading...' : `${visible.length} events`}

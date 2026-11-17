@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, PlayCircleIcon, PauseCircleIcon, RefreshCcwIcon } from './icons';
+import { Glyph } from './ui/Glyph';
 
 interface StageData {
     stage: string;
@@ -103,9 +104,9 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="page-title">
                         Staged Deployment: {deployment.id}
-                    </h2>
+                    </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {deployment.patch_ids?.length || 0} patches • {deployment.all_asset_ids?.length || 0} total assets
                     </p>
@@ -145,7 +146,7 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
                 )}
                 {deployment.rollback_reason && (
                     <p className="text-sm text-red-700 dark:text-red-300 mt-2">
-                        ⚠️ Rollback Reason: {deployment.rollback_reason}
+                        <Glyph e="⚠" /> Rollback Reason: {deployment.rollback_reason}
                     </p>
                 )}
             </div>

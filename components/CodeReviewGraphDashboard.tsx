@@ -121,7 +121,7 @@ export const CodeReviewGraphDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h1 className="page-title flex items-center gap-2">
             <GitBranch size={22} className="text-primary-500" />
             Code Review Graph
           </h1>

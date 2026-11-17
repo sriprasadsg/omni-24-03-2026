@@ -47,7 +47,7 @@ export const ServiceMeshDashboard: React.FC = () => {
 
     return (
         <div className="p-6 space-y-6">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="page-title flex items-center gap-2">
                 <Layers className="text-purple-600 dark:text-purple-400" />
                 Service Mesh Observer
             </h1>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface Policy {
   collection: string;
@@ -97,12 +98,12 @@ export default function RetentionPolicyDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Data Retention Policies</h1>
+          <h1 className="page-title">Data Retention Policies</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Configure how long each data collection is stored before automatic purging</p>
         </div>
         <button onClick={runCleanup} disabled={running}
           className="bg-red-700 hover:bg-red-600 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
-          {running ? 'Running Cleanup…' : '🗑 Run Cleanup Now'}
+          {running ? 'Running Cleanup…' : <><Glyph e="🗑" /> Run Cleanup Now</>}
         </button>
       </div>
 
@@ -147,7 +148,7 @@ export default function RetentionPolicyDashboard() {
           <div key={policy.collection} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{COLLECTION_ICONS[policy.collection] || '🗄️'}</span>
+                <span className="text-2xl"><Glyph e={COLLECTION_ICONS[policy.collection] || '🗄'} /></span>
                 <div>
                   <h3 className="font-medium capitalize">{policy.collection.replace(/_/g, ' ')}</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{policy.description}</p>
@@ -207,7 +208,7 @@ export default function RetentionPolicyDashboard() {
       </div>
 
       <div className="mt-6 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4">
-        <p className="text-yellow-800 dark:text-yellow-300 text-sm font-medium mb-1">⚠ Retention Policy Guidelines</p>
+        <p className="text-yellow-800 dark:text-yellow-300 text-sm font-medium mb-1"><Glyph e="⚠" /> Retention Policy Guidelines</p>
         <ul className="text-xs text-yellow-800 dark:text-yellow-200/70 space-y-1 list-disc list-inside">
           <li>Audit logs must be retained for at least 90 days per SOC 2 requirements</li>
           <li>Security events retention of 365+ days recommended for forensic investigations</li>

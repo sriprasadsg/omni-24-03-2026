@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface APIEndpoint {
   id: string;
@@ -87,12 +88,12 @@ export default function APISecurityDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">API Security</h1>
+          <h1 className="page-title">API Security</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Inventory, risk scoring, and abuse detection for all API endpoints</p>
         </div>
         <button onClick={discover} disabled={discovering}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
-          {discovering ? 'Scanning…' : '🔍 Discover Endpoints'}
+          {discovering ? 'Scanning…' : <><Glyph e="🔍" /> Discover Endpoints</>}
         </button>
       </div>
 
@@ -124,7 +125,7 @@ export default function APISecurityDashboard() {
       {tab === 'endpoints' && (
         endpoints.length === 0 ? (
           <div className="text-center py-16 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">🔌</div>
+            <div className="text-4xl mb-3"><Glyph e="🔌" /></div>
             <p>No endpoints discovered yet — click "Discover Endpoints" to scan</p>
           </div>
         ) : (
@@ -173,7 +174,7 @@ export default function APISecurityDashboard() {
           </div>
           {filteredAlerts.length === 0 ? (
             <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="text-4xl mb-3">✅</div><p>No alerts</p>
+              <div className="text-4xl mb-3"><Glyph e="✅" /></div><p>No alerts</p>
             </div>
           ) : (
             filteredAlerts.map(alert => (

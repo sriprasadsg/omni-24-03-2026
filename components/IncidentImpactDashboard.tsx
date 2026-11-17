@@ -40,10 +40,10 @@ export const IncidentImpactDashboard: React.FC<IncidentImpactDashboardProps> = (
     if (!context || context.id === 'dummy-id') {
         return (
             <div className="container mx-auto p-6">
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6 flex items-center">
+                <h1 className="page-title mb-6 flex items-center">
                     <Share2Icon size={24} className="mr-3 text-primary-500" />
                     Incident Impact Analysis
-                </h2>
+                </h1>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <h3 className="text-lg font-bold mb-4 flex items-center"><AlertTriangleIcon className="mr-2 text-red-500" /> Select an Alert</h3>

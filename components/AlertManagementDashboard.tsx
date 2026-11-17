@@ -173,7 +173,7 @@ export const AlertManagementDashboard: React.FC = () => {
     return (
         <div className="container mx-auto space-y-5">
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Alert Management</h2>
+                <h1 className="page-title mb-1">Alert Management</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Review, acknowledge, and dismiss security alerts.</p>
             </div>
 

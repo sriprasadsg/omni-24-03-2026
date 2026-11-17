@@ -110,7 +110,7 @@ export default function ConfigDriftDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Configuration Drift Detection</h2>
+        <h1 className="page-title">Configuration Drift Detection</h1>
         <button onClick={load} className="text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">Refresh</button>
       </div>
 

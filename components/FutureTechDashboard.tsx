@@ -48,8 +48,8 @@ const FutureTechDashboard: React.FC = () => {
     <div className="p-8 bg-transparent dark:bg-[#040812] min-h-screen text-gray-900 dark:text-slate-100 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="mb-10">
-          <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
-            2027 HORIZON
+          <h1 className="page-title mb-2">
+            2027 Horizon
           </h1>
           <p className="text-gray-600 dark:text-slate-400 text-lg">Log provenance and post-quantum readiness</p>
         </div>

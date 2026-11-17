@@ -9,6 +9,7 @@ import { fetchAssets, linkAgentToAsset, authFetch } from '../services/apiService
 import { showToast } from '../utils/toast';
 import { AgentLocationHistory } from './AgentLocationHistory';
 import { AgentUninstallCodeCard } from './AgentUninstallCodeCard';
+import { Glyph } from './ui/Glyph';
 
 const severityClasses: Record<VulnerabilitySeverity, string> = {
     Critical: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
@@ -195,7 +196,7 @@ export const AgentOverviewTab: React.FC<Props> = ({
                             >
                                 <option value="">Select an Asset...</option>
                                 {availableAssets.map(a => (
-                                    <option key={a.id} value={a.id}>{a.hostname} ({a.osType || 'Unknown OS'}) {a.agentStatus === 'Online' ? '⚡' : ''}</option>
+                                    <option key={a.id} value={a.id}>{a.hostname} ({a.osType || 'Unknown OS'}) {a.agentStatus === 'Online' ? <Glyph e="⚡" /> : ''}</option>
                                 ))}
                             </select>
                             <button onClick={handleLinkAsset} disabled={isLinking || !selectedAssetId}

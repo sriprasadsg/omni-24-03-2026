@@ -65,7 +65,7 @@ export const MultiStepApprovalDashboard: React.FC = () => {
     return (
         <div className="container mx-auto p-6">
             <div className="mb-6">
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Approval Workflows</h2>
+                <h1 className="page-title">Approval Workflows</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Review and authorize sensitive operations across the platform.</p>
             </div>
 

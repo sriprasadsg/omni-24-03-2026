@@ -123,7 +123,7 @@ export default function AdvancedHuntingDashboard() {
     <div className="min-h-screen bg-transparent dark:bg-slate-900 text-gray-900 dark:text-white p-6">
       <div className="flex items-center gap-3 mb-6">
         <Shield size={24} className="text-blue-600 dark:text-blue-400" />
-        <h1 className="text-2xl font-bold">Advanced Threat Hunting</h1>
+        <h1 className="page-title">Advanced Threat Hunting</h1>
       </div>
 
       <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-slate-700">

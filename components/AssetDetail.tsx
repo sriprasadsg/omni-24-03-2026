@@ -11,6 +11,7 @@ import { RemoteDesktop } from './RemoteDesktop';
 import { fetchAgents, linkAssetToAgent, authFetch, fetchAssetById } from '../services/apiService';
 import { MonitorIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface AssetDetailProps {
     asset: Asset;
@@ -237,7 +238,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                             <span className={activeTab === tab.id ? 'text-primary-600 dark:text-primary-400' : ''}>{tab.icon}</span>
                             {tab.label}
                             {tab.count !== undefined && (
-                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[10px] font-semibold tabular-nums ${activeTab === tab.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{tab.count}</span>
+                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[11px] font-semibold tabular-nums ${activeTab === tab.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{tab.count}</span>
                             )}
                         </button>
                     ))}
@@ -260,7 +261,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                                             <span className="font-mono text-xs text-gray-800 dark:text-gray-200 flex items-center">
                                                 {disk.isRemovable ? <UsbIcon size={14} className="mr-1 text-blue-500" title="Removable Device" /> : <HardDriveIcon size={14} className="mr-1 text-gray-400" />}
                                                 {disk.device} ({(disk as any).type || (disk as any).fstype || ''})
-                                                {disk.isRemovable && <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md font-sans font-medium uppercase tracking-wider">Removable</span>}
+                                                {disk.isRemovable && <span className="ml-2 px-1.5 py-0.5 text-[11px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md font-sans font-medium uppercase tracking-wider">Removable</span>}
                                             </span>
                                             <span className="text-gray-500 dark:text-gray-400 text-xs">
                                                 Used: <span className="text-gray-700 dark:text-gray-300 font-medium">{disk.used}</span> / Total: <span className="text-gray-700 dark:text-gray-300 font-medium">{disk.total}</span> (Free: <span className="text-green-600 dark:text-green-400 font-medium">{disk.free}</span>)
@@ -367,7 +368,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                                                     >
                                                         <option value="">Select an Agent...</option>
                                                         {availableAgents.map(a => (
-                                                            <option key={a.id} value={a.id}>{a.id} ({a.platform || 'Unknown OS'}) {a.status === 'Online' ? '✅' : '❌'}</option>
+                                                            <option key={a.id} value={a.id}>{a.id} ({a.platform || 'Unknown OS'}) {a.status === 'Online' ? <Glyph e="✅" /> : <Glyph e="❌" />}</option>
                                                         ))}
                                                     </select>
                                                     <div className="flex space-x-2">

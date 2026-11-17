@@ -55,7 +55,7 @@ const NavLink: React.FC<{
         )}
 
         {isOpen && locked && (
-            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+            <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-md"
                 style={{ background: 'rgba(217,119,6,0.15)', color: '#fbbf24', border: '1px solid rgba(217,119,6,0.25)' }}>
                 <Lock size={9} />{locked}
             </span>
@@ -218,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                             <span className="font-semibold text-[15px] tracking-tight text-gray-900 dark:text-white leading-tight">
                                 {branding?.companyName || 'Omni-Agent'}
                             </span>
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-[0.18em]">
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium tracking-[0.18em]">
                                 AI PLATFORM
                             </span>
                         </div>

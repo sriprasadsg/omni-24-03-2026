@@ -42,7 +42,7 @@ const ComplianceOracleDashboard: React.FC = () => {
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen dark:bg-slate-900">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Generative Compliance Oracle</h1>
+                    <h1 className="page-title">Generative Compliance Oracle</h1>
                     <p className="text-slate-500">Transform natural language policies into executable technical rules using AI</p>
                 </div>
                 <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium border border-indigo-100">
@@ -115,7 +115,7 @@ const ComplianceOracleDashboard: React.FC = () => {
                                                 <span className="text-xs font-mono font-bold text-slate-500">{rule.policy_id}</span>
                                                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{rule.rule_name}</span>
                                             </div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${rule.severity === 'Critical' ? 'bg-red-100 text-red-700' :
+                                            <span className={`text-[11px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${rule.severity === 'Critical' ? 'bg-red-100 text-red-700' :
                                                     rule.severity === 'High' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
                                                 }`}>
                                                 {rule.severity}

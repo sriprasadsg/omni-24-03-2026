@@ -87,7 +87,7 @@ export default function GeographicAttackMap() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Geographic Attack Map</h2>
+          <h1 className="page-title">Geographic Attack Map</h1>
           <p className="text-sm text-gray-600 dark:text-slate-400 mt-0.5">{totalEvents.toLocaleString()} events from {countries.length} countries</p>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">

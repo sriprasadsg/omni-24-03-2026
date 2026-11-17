@@ -122,7 +122,7 @@ export default function MAMDashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Mobile Application Management</h1>
+          <h1 className="page-title">Mobile Application Management</h1>
           <p className="text-slate-400 text-sm mt-1">App protection policies, configuration policies, and corporate data protection</p>
         </div>
         <button

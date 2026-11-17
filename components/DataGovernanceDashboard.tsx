@@ -120,9 +120,9 @@ export function DataGovernanceDashboard() {
         <div className="space-y-6 pt-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Data Governance & Quality
-                    </h2>
+                    </h1>
                     <p className="text-muted-foreground mt-1">
                         Compliance, Privacy, and Data Reliability Center
                     </p>

@@ -108,9 +108,9 @@ export const DataUtilizationDashboard: React.FC = () => {
         <div className="container mx-auto space-y-6 animate-fade-in pb-12">
             <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <div>
-                    <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+                    <h1 className="page-title">
                         Data Utilization Dashboard
-                    </h2>
+                    </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1 flex items-center">
                         <Activity className="w-4 h-4 mr-2" /> Monitor bandwidth consumption across all agent endpoints
                     </p>

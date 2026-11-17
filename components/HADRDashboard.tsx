@@ -177,7 +177,7 @@ export const HADRDashboard: React.FC = () => {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
+                    <h1 className="page-title flex items-center gap-3">
                         <ShieldCheckIcon size={32} className="text-blue-600" />
                         HA/DR &amp; BACKUPS
                     </h1>
@@ -204,7 +204,7 @@ export const HADRDashboard: React.FC = () => {
             {/* Status, targets and health — all from /api/hadr/* */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Backup &amp; Recovery Status</h3>
+                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Backup &amp; Recovery Status</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
                             { label: 'Latest Backup', value: summary.latestBackupAgo ?? 'No backups yet' },
@@ -213,12 +213,12 @@ export const HADRDashboard: React.FC = () => {
                             { label: 'Encrypted', value: `${summary.encrypted} of ${backups.length}` },
                         ].map(f => (
                             <div key={f.label} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{f.label}</p>
+                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">{f.label}</p>
                                 <p className="text-lg font-black text-slate-900 dark:text-white">{f.value}</p>
                             </div>
                         ))}
                     </div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-6 mb-2">Reported Issues</h4>
+                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-6 mb-2">Reported Issues</h4>
                     {healthStatus?.issues?.length ? (
                         <ul className="space-y-1">
                             {healthStatus.issues.map((issue, i) => (
@@ -237,7 +237,7 @@ export const HADRDashboard: React.FC = () => {
                         <ClockIcon size={140} />
                     </div>
                     <div>
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Recovery Targets</h3>
+                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8">Recovery Targets</h3>
                         <div className="space-y-8">
                             {[
                                 { label: 'RPO — since last backup', value: summary.latestBackupAgo ?? '—', target: summary.rpoTarget, pct: summary.rpoPct, color: 'bg-blue-500', text: 'text-blue-400' },
@@ -246,10 +246,10 @@ export const HADRDashboard: React.FC = () => {
                                 <div key={t.label}>
                                     <div className="flex justify-between items-end mb-2">
                                         <div>
-                                            <p className={`text-[10px] font-bold uppercase tracking-widest ${t.text}`}>{t.label}</p>
+                                            <p className={`text-[11px] font-bold uppercase tracking-widest ${t.text}`}>{t.label}</p>
                                             <p className="text-3xl font-black italic">{t.value}</p>
                                         </div>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target: {t.target}</span>
+                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Target: {t.target}</span>
                                     </div>
                                     <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
                                         <div className={`${t.pct !== null && t.pct > 100 ? 'bg-red-500' : t.color} h-full rounded-full`} style={{ width: `${Math.min(100, t.pct ?? 0)}%` }}></div>
@@ -259,7 +259,7 @@ export const HADRDashboard: React.FC = () => {
                         </div>
                     </div>
                     <div className="mt-8 pt-6 border-t border-white/10">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Last DR Test</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">Last DR Test</p>
                         <p className={`text-xs font-bold flex items-center gap-2 ${summary.drState.ok ? 'text-emerald-500' : 'text-amber-500'}`}>
                             {summary.drState.ok ? <CheckCircleIcon size={14} /> : <AlertTriangleIcon size={14} />} {summary.drState.label}
                         </p>
@@ -271,7 +271,7 @@ export const HADRDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {summary.tiles.map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
                         <p className={`text-xl font-black ${stat.ok === null ? 'text-slate-400' : stat.ok ? 'text-emerald-500' : 'text-red-500'}`}>{stat.value}</p>
                     </div>
                 ))}
@@ -286,7 +286,7 @@ export const HADRDashboard: React.FC = () => {
                         { id: 'dr-tests', label: 'Disaster Simulation Logs' }
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-8 py-4 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${
+                            className={`px-8 py-4 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${
                                 activeTab === tab.id 
                                 ? 'text-blue-600 border-blue-600 bg-blue-600/5' 
                                 : 'text-slate-500 border-transparent hover:text-slate-700 dark:hover:text-slate-300'
@@ -301,7 +301,7 @@ export const HADRDashboard: React.FC = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead>
-                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                                    <tr className="text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
                                         <th className="pb-4 px-4">Identifier</th>
                                         <th className="pb-4 px-4">Type</th>
                                         <th className="pb-4 px-4">Integrity Status</th>
@@ -317,7 +317,7 @@ export const HADRDashboard: React.FC = () => {
                                         <tr key={backup.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="py-4 px-4 text-sm font-black text-slate-900 dark:text-white font-mono">{backup.backup_id}</td>
                                             <td className="py-4 px-4">
-                                                <span className="text-[10px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded uppercase">{backup.backup_type}</span>
+                                                <span className="text-[11px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded uppercase">{backup.backup_type}</span>
                                             </td>
                                             <td className="py-4 px-4">
                                                 <div className="flex items-center gap-2">
@@ -381,15 +381,15 @@ export const HADRDashboard: React.FC = () => {
                                     <div className="flex-1">
                                         <div className="flex justify-between items-start mb-2">
                                             <h4 className="text-sm font-black uppercase tracking-tighter italic text-slate-900 dark:text-white">{test.test_id}</h4>
-                                            <span className="text-[10px] font-black text-slate-500 font-mono">{new Date(test.started_at).toLocaleString()}</span>
+                                            <span className="text-[11px] font-black text-slate-500 font-mono">{new Date(test.started_at).toLocaleString()}</span>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             <div>
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Achieved RTO</p>
+                                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">Achieved RTO</p>
                                                 <p className="text-xs font-bold">{test.duration_minutes?.toFixed(2)} min</p>
                                             </div>
                                             <div>
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Compliance Status</p>
+                                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">Compliance Status</p>
                                                 <p className={`text-xs font-black ${test.rto_achieved ? 'text-emerald-500' : 'text-red-500'}`}>
                                                     {test.rto_achieved ? 'PASS' : 'FAIL'}
                                                 </p>

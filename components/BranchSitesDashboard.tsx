@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface BranchSite {
   id: string;
@@ -97,7 +98,7 @@ export default function BranchSitesDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Branch Sites &amp; Remote Offices</h1>
+          <h1 className="page-title">Branch Sites &amp; Remote Offices</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Group endpoints by physical location and monitor per-site health and compliance</p>
         </div>
         <button onClick={openCreate} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ Add Site</button>
@@ -122,7 +123,7 @@ export default function BranchSitesDashboard() {
         <div className="lg:col-span-2">
           {sites.length === 0 && (
             <div className="text-center text-gray-500 py-16 bg-white dark:bg-gray-800 rounded-lg">
-              <div className="text-4xl mb-3">🏢</div>
+              <div className="text-4xl mb-3"><Glyph e="🏢" /></div>
               <div>No sites configured yet</div>
               <button onClick={openCreate} className="mt-4 px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">Add your first site</button>
             </div>

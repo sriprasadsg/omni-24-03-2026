@@ -227,7 +227,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                     {groupSupported.length > 0 && (
                                     <button
                                         onClick={() => handleGroupToggle(group.items)}
-                                        className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${
+                                        className={`text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors ${
                                             groupAllOn
                                                 ? 'text-gray-500 border-gray-300 hover:text-red-500 hover:border-red-300 dark:border-gray-600'
                                                 : 'text-primary-600 border-primary-300 hover:bg-primary-50 dark:text-primary-400 dark:border-primary-700'
@@ -258,7 +258,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                                         <div>
                                                             <p className="font-semibold text-sm text-gray-400 dark:text-gray-500">
                                                                 {cap.label}
-                                                                <span className="ml-2 text-[10px] font-medium not-italic px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 uppercase tracking-wide">Not supported by this agent</span>
+                                                                <span className="ml-2 text-[11px] font-medium not-italic px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 uppercase tracking-wide">Not supported by this agent</span>
                                                             </p>
                                                             <p className="text-xs text-gray-400 dark:text-gray-600">{cap.description}</p>
                                                         </div>
@@ -288,7 +288,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                                     <div>
                                                         <p className={`font-semibold text-sm ${isEnabled ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}`}>
                                                             {cap.label}
-                                                            {!isEnabled && <span className="ml-2 text-[10px] font-normal text-gray-400 dark:text-gray-600 italic">disabled</span>}
+                                                            {!isEnabled && <span className="ml-2 text-[11px] font-normal text-gray-400 dark:text-gray-600 italic">disabled</span>}
                                                         </p>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">{cap.description}</p>
                                                     </div>

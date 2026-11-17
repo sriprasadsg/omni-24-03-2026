@@ -48,7 +48,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
               <HelpCircleIcon size={18} className="text-primary-400" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary-400/70 mb-0.5">Feature Guide</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-primary-400/70 mb-0.5">Feature Guide</p>
               <h2 className="text-base font-bold text-white leading-tight">{content.title}</h2>
             </div>
           </div>
@@ -68,7 +68,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
 
           {/* Capabilities */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2.5">Key Capabilities</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-2.5">Key Capabilities</p>
             <ul className="space-y-2">
               {content.capabilities.map((cap, i) => (
                 <li key={i} className="flex items-start gap-2.5">
@@ -85,7 +85,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
           {/* Audience */}
           {content.audience && (
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Best for</span>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Best for</span>
               <span
                 className="text-[11px] font-medium px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(3,105,161,0.12)', border: '1px solid rgba(3,105,161,0.25)', color: 'rgba(125,211,252,0.9)' }}

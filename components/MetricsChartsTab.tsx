@@ -16,6 +16,7 @@ interface MetricsChartsTabProps {
 }
 
 import { useTimeZone } from '../contexts/TimeZoneContext';
+import { Glyph } from './ui/Glyph';
 
 // ... lines_skipped ...
 
@@ -196,7 +197,7 @@ export const MetricsChartsTab: React.FC<MetricsChartsTabProps> = ({ assetId }) =
 
             {!isLoading && data.length === 0 && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <p className="font-medium text-blue-800 dark:text-blue-200">📊 No metrics data available</p>
+                    <p className="font-medium text-blue-800 dark:text-blue-200"><Glyph e="📊" /> No metrics data available</p>
                     <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
                         Metrics will appear once the agent on this asset begins sending heartbeat data with metrics_collection enabled.
                     </p>
@@ -209,7 +210,7 @@ export const MetricsChartsTab: React.FC<MetricsChartsTabProps> = ({ assetId }) =
             {!isLoading && data.length > 0 && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
                     <p className="text-sm text-green-800 dark:text-green-200">
-                        ✅ Showing <strong>{data.length}</strong> live data points from agent metrics (updates every 30s)
+                        <Glyph e="✅" /> Showing <strong>{data.length}</strong> live data points from agent metrics (updates every 30s)
                     </p>
                 </div>
             )}

@@ -98,7 +98,7 @@ export const ComplianceStatus: React.FC<ComplianceStatusProps> = ({ frameworks }
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{selectedFramework.shortName}</h2>
+                <h1 className="page-title">{selectedFramework.shortName}</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{selectedFramework.name}</p>
               </div>
               <button
@@ -137,7 +137,7 @@ export const ComplianceStatus: React.FC<ComplianceStatusProps> = ({ frameworks }
                       cx="50%"
                       cy="50%"
                       outerRadius={100}
-                      fill="#8884d8"
+                      fill="#0891b2"
                       dataKey="value"
                       label={(props) => {
                         const RADIAN = Math.PI / 180;

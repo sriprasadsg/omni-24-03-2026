@@ -263,7 +263,7 @@ const NotificationCenter: React.FC = () => {
                                         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${emailEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                                     </button>
                                 </div>
-                                <p className="text-[10px] text-gray-500">Configure SMTP recipients in Settings → Email Notifications</p>
+                                <p className="text-[11px] text-gray-500">Configure SMTP recipients in Settings → Email Notifications</p>
                             </div>
 
                             {configMsg && (
@@ -324,7 +324,7 @@ const NotificationCenter: React.FC = () => {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between mb-1">
                                                             <span className="text-sm font-semibold text-white truncate pr-8">{notif.title}</span>
-                                                            <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                                                            <span className="text-[11px] text-gray-500 whitespace-nowrap">
                                                                 {new Date(notif.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                             </span>
                                                         </div>
@@ -335,13 +335,13 @@ const NotificationCenter: React.FC = () => {
                                                         <div className="flex items-center gap-3">
                                                             <div className="flex items-center gap-1">
                                                                 {Object.keys(notif.channels).map(channel => (
-                                                                    <span key={channel} className="text-[10px] text-gray-600 uppercase font-bold">{channel}</span>
+                                                                    <span key={channel} className="text-[11px] text-gray-600 uppercase font-bold">{channel}</span>
                                                                 ))}
                                                             </div>
                                                             {!notif.read && (
                                                                 <button
                                                                     onClick={() => handleMarkRead(notif.alert_id)}
-                                                                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+                                                                    className="text-[11px] text-blue-400 hover:underline flex items-center gap-1"
                                                                 >
                                                                     <CheckIcon size={10} /> Mark read
                                                                 </button>

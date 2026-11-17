@@ -255,7 +255,7 @@ export const PredictiveHealthTab: React.FC<PredictiveHealthTabProps> = ({ data }
                                 <Line
                                     type="monotone"
                                     dataKey="memory_prediction"
-                                    stroke="#8b5cf6"
+                                    stroke="#06b6d4"
                                     strokeWidth={2}
                                     dot={false}
                                     activeDot={{ r: 4 }}

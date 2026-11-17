@@ -108,9 +108,9 @@ export function ABTestingDashboard() {
         <div className="space-y-6 pt-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-400 to-green-400 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Experimentation Platform
-                    </h2>
+                    </h1>
                     <p className="text-muted-foreground mt-1">
                         A/B Testing & Feature Flag Management
                     </p>

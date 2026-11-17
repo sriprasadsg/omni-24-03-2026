@@ -24,7 +24,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const Badge: React.FC<{ label: string; color: string }> = ({ label, color }) => (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${CATEGORY_COLORS[color] || CATEGORY_COLORS.core}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider ${CATEGORY_COLORS[color] || CATEGORY_COLORS.core}`}>
         {label}
     </span>
 );
@@ -62,7 +62,7 @@ const BundleCard: React.FC<{
             </div>
             <div>
                 <h3 className="font-bold text-gray-900 dark:text-white text-sm">{bundle.name}</h3>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{bundle.price_hint} · {bundle.feature_count} features</span>
+                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{bundle.price_hint} · {bundle.feature_count} features</span>
             </div>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">{bundle.description}</p>
@@ -223,7 +223,7 @@ const BundleManagementDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Feature Bundle Management</h1>
+                    <h1 className="page-title">Feature Bundle Management</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Assign feature bundles to customers — mix and match to build the exact plan they need.
                     </p>
@@ -267,7 +267,7 @@ const BundleManagementDashboard: React.FC = () => {
                                             <Badge label={f.minTier} color="core" />
                                         </div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{f.description}</p>
-                                        <code className="text-[10px] text-indigo-500 dark:text-indigo-400 mt-1 block font-mono">{f.key}</code>
+                                        <code className="text-[11px] text-indigo-500 dark:text-indigo-400 mt-1 block font-mono">{f.key}</code>
                                     </div>
                                 ))}
                             </div>
@@ -331,7 +331,7 @@ const BundleManagementDashboard: React.FC = () => {
                                 placeholder="e.g. cissp_oracle, chaos_engineering"
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
-                            <p className="text-[10px] text-gray-400 mt-1.5">
+                            <p className="text-[11px] text-gray-400 mt-1.5">
                                 Valid keys: {allFeatureKeys.slice(0, 10).join(', ')}…
                             </p>
                         </div>

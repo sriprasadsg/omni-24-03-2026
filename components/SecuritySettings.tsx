@@ -120,7 +120,7 @@ export const SecuritySettings: React.FC = () => {
                             </div>
 
                             <div className="text-left bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Manual Secret</p>
+                                <p className="text-[11px] uppercase font-bold text-gray-400 mb-1">Manual Secret</p>
                                 <div className="flex items-center justify-between">
                                     <code className="text-sm font-mono text-primary-600 dark:text-primary-400 tracking-wider">{setupData.secret}</code>
                                     <button onClick={() => navigator.clipboard.writeText(setupData.secret)} className="text-gray-400 hover:text-primary-500"><CopyIcon size={14} /></button>
@@ -169,7 +169,7 @@ export const SecuritySettings: React.FC = () => {
                                     <span className="text-xs font-bold uppercase tracking-wider">Device Status</span>
                                 </div>
                                 <p className="text-sm font-semibold dark:text-white">Active Device</p>
-                                <p className="text-[10px] text-gray-500">Authenticator Application</p>
+                                <p className="text-[11px] text-gray-500">Authenticator Application</p>
                             </div>
                             <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-3 text-amber-500 mb-2">
@@ -177,7 +177,7 @@ export const SecuritySettings: React.FC = () => {
                                     <span className="text-xs font-bold uppercase tracking-wider">Recovery</span>
                                 </div>
                                 <p className="text-sm font-semibold dark:text-white">{mfaStatus.backup_codes_remaining} Codes Left</p>
-                                <p className="text-[10px] text-gray-500">Unused backup recovery codes</p>
+                                <p className="text-[11px] text-gray-500">Unused backup recovery codes</p>
                             </div>
                         </div>
                     )}
@@ -215,10 +215,10 @@ export const SecuritySettings: React.FC = () => {
                                         </div>
                                         <div>
                                             <p className="text-sm font-bold dark:text-white">{provider.name}</p>
-                                            <p className="text-[10px] text-green-500 flex items-center gap-1"><CheckIcon size={10} /> Active Integration</p>
+                                            <p className="text-[11px] text-green-500 flex items-center gap-1"><CheckIcon size={10} /> Active Integration</p>
                                         </div>
                                     </div>
-                                    <span className="px-2 py-1 text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 rounded uppercase font-bold tracking-tight">External</span>
+                                    <span className="px-2 py-1 text-[11px] bg-gray-100 dark:bg-gray-800 text-gray-500 rounded uppercase font-bold tracking-tight">External</span>
                                 </div>
                             ))}
                         </div>

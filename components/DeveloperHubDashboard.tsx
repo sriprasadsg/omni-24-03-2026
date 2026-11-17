@@ -14,7 +14,7 @@ const MethodBadge: React.FC<{ method: ApiDocEndpoint['method'] }> = ({ method })
         DELETE: 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30',
     };
     return (
-        <span className={`px-3 py-1 text-[10px] font-black rounded-lg border uppercase tracking-widest ${colors[method]}`}>
+        <span className={`px-3 py-1 text-[11px] font-black rounded-lg border uppercase tracking-widest ${colors[method]}`}>
             {method}
         </span>
     );
@@ -24,10 +24,10 @@ export const DeveloperHubDashboard: React.FC<DeveloperHubDashboardProps> = ({ en
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <BookKeyIcon size={36} className="text-emerald-500" />
                     Developer Hub
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg font-medium">
                     Explore the Omni-Agent AI Platform API to build custom integrations and automations.
                 </p>
@@ -40,13 +40,13 @@ export const DeveloperHubDashboard: React.FC<DeveloperHubDashboardProps> = ({ en
                         API Reference
                     </h3>
                     <div className="flex gap-2">
-                        <span className="px-3 py-1 bg-green-500/10 text-green-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-green-500/20">v2.0 Stable</span>
-                        <span className="px-3 py-1 bg-blue-500/10 text-blue-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-500/20">REST API</span>
+                        <span className="px-3 py-1 bg-green-500/10 text-green-500 rounded-lg text-[11px] font-black uppercase tracking-widest border border-green-500/20">v2.0 Stable</span>
+                        <span className="px-3 py-1 bg-blue-500/10 text-blue-500 rounded-lg text-[11px] font-black uppercase tracking-widest border border-blue-500/20">REST API</span>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="text-[10px] font-black uppercase tracking-widest bg-black/20 dark:bg-white/5 text-gray-500">
+                        <thead className="text-[11px] font-black uppercase tracking-widest bg-black/20 dark:bg-white/5 text-gray-500">
                             <tr>
                                 <th scope="col" className="px-8 py-5 w-32">Method</th>
                                 <th scope="col" className="px-6 py-5">Endpoint Path</th>

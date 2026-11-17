@@ -29,7 +29,7 @@ const NodeCard: React.FC<{ node: AttackPath['nodes'][0] }> = ({ node }) => {
                 </div>
                 <div>
                     <p className="font-bold text-gray-800 dark:text-gray-100 uppercase tracking-tight">{node.label}</p>
-                    <p className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">{node.type}</p>
+                    <p className="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">{node.type}</p>
                 </div>
             </div>
         </div>
@@ -52,10 +52,10 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <NetworkIcon size={36} className="text-primary-500" />
                     Attack Path Analysis
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Strategic visualization of potential adversary paths to your crown jewel assets.
                 </p>
@@ -86,7 +86,7 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
                                     <div className="flex flex-col items-center py-2">
                                         <div className="h-16 w-1 bg-gradient-to-b from-primary-500 to-indigo-500 rounded-full relative shadow-[0_0_15px_rgba(79,70,229,0.5)]">
                                             <div className="absolute top-1/2 left-4 whitespace-nowrap">
-                                                <div className="bg-white/5 dark:bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-black text-indigo-500 uppercase tracking-widest">
+                                                <div className="bg-white/5 dark:bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[11px] font-black text-indigo-500 uppercase tracking-widest">
                                                     {(displayPath.edges || []).find(e => e.source === node.id)?.vulnerability}
                                                 </div>
                                             </div>

@@ -3,6 +3,7 @@ import { listPrompts, createPrompt, ingestKnowledge, queryKnowledge } from '../s
 import { SparklesIcon, UploadIcon } from './icons';
 import { showToast } from '../utils/toast';
 import ModelTrainingDashboard from './ModelTrainingDashboard';
+import { Glyph } from './ui/Glyph';
 
 const LLMOpsDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'prompts' | 'knowledge' | 'training'>('prompts');
@@ -57,17 +58,17 @@ const LLMOpsDashboard: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <SparklesIcon size={36} className="text-cyan-500" />
                     LLMOps & Knowledge Center
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Manage prompt engineering pipelines and semantic knowledge retrieval.
                 </p>
             </header>
 
             <div className="glass-premium rounded-3xl overflow-hidden shadow-2xl">
-                <div className="border-b border-white/10 dark:border-white/5 bg-black/5 dark:bg-white/5">
+                <div className="border-b border-gray-200 dark:border-white/10 dark:border-white/5 bg-gray-100 dark:bg-black/5 dark:bg-white/5">
                     <nav className="flex space-x-2 px-6" aria-label="Tabs">
                         <button
                             onClick={() => setActiveTab('prompts')}
@@ -85,7 +86,7 @@ const LLMOpsDashboard: React.FC = () => {
                             onClick={() => setActiveTab('training')}
                             className={`flex items-center gap-2 py-5 px-4 font-bold text-sm transition-all border-b-2 ${activeTab === 'training' ? 'border-blue-500 text-blue-500 dark:text-blue-400 bg-blue-500/5' : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'}`}
                         >
-                            🧠 Train Custom Model
+                            <Glyph e="🧠" /> Train Custom Model
                         </button>
                     </nav>
                 </div>
@@ -93,19 +94,19 @@ const LLMOpsDashboard: React.FC = () => {
                 <div className="p-8">
                     {activeTab === 'prompts' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
+                            <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10 space-y-4">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     <SparklesIcon size={20} className="text-cyan-500" />
                                     Create Prompt
                                 </h2>
                                 <input
-                                    className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-cyan-500 outline-none"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-cyan-500 outline-none"
                                     placeholder="Prompt Name (e.g., system-audit)"
                                     value={newPrompt.name}
                                     onChange={e => setNewPrompt({ ...newPrompt, name: e.target.value })}
                                 />
                                 <textarea
-                                    className="w-full bg-white/5 border border-white/10 p-3 rounded-xl h-48 text-sm font-mono focus:ring-2 focus:ring-cyan-500 outline-none"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl h-48 text-sm font-mono focus:ring-2 focus:ring-cyan-500 outline-none"
                                     placeholder="Template... Use {var} for variables"
                                     value={newPrompt.template}
                                     onChange={e => setNewPrompt({ ...newPrompt, template: e.target.value })}
@@ -118,14 +119,14 @@ const LLMOpsDashboard: React.FC = () => {
                                 </button>
                             </div>
 
-                            <div className="glass p-6 rounded-2xl border border-white/10">
+                            <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                                 <h2 className="text-xl font-bold mb-6">Active Registry</h2>
                                 <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                                     {prompts.map((p, i) => (
-                                        <div key={i} className="p-4 bg-white/5 rounded-xl border-l-4 border-cyan-500 hover:bg-white/10 transition-colors group">
+                                        <div key={i} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border-l-4 border-cyan-500 hover:bg-white/10 transition-colors group">
                                             <div className="flex justify-between items-start mb-2">
                                                 <h3 className="font-bold text-gray-800 dark:text-gray-200">{p.name}</h3>
-                                                <span className="text-[10px] font-black bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 px-2 py-0.5 rounded uppercase tracking-widest">v{p.version}</span>
+                                                <span className="text-[11px] font-black bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 px-2 py-0.5 rounded uppercase tracking-widest">v{p.version}</span>
                                             </div>
                                             <pre className="text-xs text-gray-500 dark:text-gray-400 font-mono line-clamp-3 group-hover:line-clamp-none transition-all">{p.template}</pre>
                                         </div>
@@ -143,13 +144,13 @@ const LLMOpsDashboard: React.FC = () => {
 
                     {activeTab === 'knowledge' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
+                            <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10 space-y-4">
                                 <h2 className="text-xl font-bold flex items-center gap-2 text-green-500">
                                     <UploadIcon size={20} />
                                     Ingest Knowledge
                                 </h2>
                                 <textarea
-                                    className="w-full bg-white/5 border border-white/10 p-3 rounded-xl h-48 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl h-48 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                                     placeholder="Paste documentation or text here..."
                                     value={ingestText}
                                     onChange={e => setIngestText(e.target.value)}
@@ -163,11 +164,11 @@ const LLMOpsDashboard: React.FC = () => {
                                 {ingestStatus && <p className="text-center text-xs font-bold text-cyan-400 animate-pulse">{ingestStatus}</p>}
                             </div>
 
-                            <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
+                            <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10 space-y-4">
                                 <h2 className="text-xl font-bold mb-2 text-purple-500 italic">Semantic Search</h2>
                                 <div className="flex gap-2">
                                     <input
-                                        className="flex-1 bg-white/5 border border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none"
+                                        className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none"
                                         placeholder="Ask a question..."
                                         value={queryText}
                                         onChange={e => setQueryText(e.target.value)}
@@ -177,11 +178,11 @@ const LLMOpsDashboard: React.FC = () => {
 
                                 <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 mt-4">
                                     {searchResults.map((r, i) => (
-                                        <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/10 hover:border-purple-500/30 transition-all">
+                                        <div key={i} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 hover:border-purple-500/30 transition-all">
                                             <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-medium">{r.content}</p>
-                                            <div className="flex justify-between items-center mt-3 border-t border-white/5 pt-2">
-                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Source: {r.source}</span>
-                                                <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-tighter uppercase font-mono">Score: {r.relevance?.toFixed(4) || 'N/A'}</span>
+                                            <div className="flex justify-between items-center mt-3 border-t border-gray-200 dark:border-white/5 pt-2">
+                                                <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Source: {r.source}</span>
+                                                <span className="text-[11px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-black tracking-tighter uppercase font-mono">Score: {r.relevance?.toFixed(4) || 'N/A'}</span>
                                             </div>
                                         </div>
                                     ))}

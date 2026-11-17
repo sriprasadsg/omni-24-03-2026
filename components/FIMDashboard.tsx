@@ -168,7 +168,7 @@ export default function FIMDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">File Integrity Monitoring</h2>
+        <h1 className="page-title">File Integrity Monitoring</h1>
         <span className="text-sm text-gray-600 dark:text-slate-400">{stats.agents_monitored} agents monitored</span>
       </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 const API = '/api';
 
@@ -123,16 +124,16 @@ export const XDRDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white text-2xl shadow-lg shadow-cyan-500/25">
-                    🌐
+                    <Glyph e="🌐" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">XDR — Extended Detection & Response</h1>
+                    <h1 className="page-title">XDR — Extended Detection & Response</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Cross-domain telemetry correlation · MITRE ATT&CK intelligence · Auto-response loop</p>
                 </div>
                 <div className="ml-auto flex gap-2">
                     <button onClick={runAnalysis} disabled={analyzing}
                         className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
-                        {analyzing ? '⏳ Analyzing…' : '⚡ Run Correlation Analysis'}
+                        {analyzing ? '⏳ Analyzing…' : <><Glyph e="⚡" /> Run Correlation Analysis</>}
                     </button>
                     <button onClick={loadAll} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                         ↻
@@ -208,7 +209,7 @@ export const XDRDashboard: React.FC = () => {
                                 const pal = SEVERITY_PALETTE[c.severity] || SEVERITY_PALETTE.low;
                                 return (
                                     <div key={c.id || i} className={`flex items-center gap-3 p-3 rounded-lg border ${pal.bg} ${pal.border}`}>
-                                        <span className="text-xl">{meta.icon}</span>
+                                        <span className="text-xl"><Glyph e={meta.icon} /></span>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-sm font-semibold ${pal.text}`}>{meta.label}</span>
@@ -272,7 +273,7 @@ export const XDRDashboard: React.FC = () => {
                                 const count = patternBreakdown[key] || 0;
                                 return (
                                     <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                        <span className="text-lg w-7 text-center">{meta.icon}</span>
+                                        <span className="text-lg w-7 text-center"><Glyph e={meta.icon} /></span>
                                         <div className="flex-1">
                                             <div className="text-sm font-medium text-gray-900 dark:text-white">{meta.label}</div>
                                             <div className="text-xs text-gray-400">{meta.tactic}</div>
@@ -308,7 +309,7 @@ export const XDRDashboard: React.FC = () => {
                             return (
                                 <div key={c.id || i} className={`bg-white dark:bg-gray-800 rounded-xl border-l-4 p-5 shadow-sm ${c.severity === 'critical' ? 'border-red-500' : c.severity === 'high' ? 'border-orange-500' : c.severity === 'medium' ? 'border-yellow-500' : 'border-blue-500'}`}>
                                     <div className="flex items-start gap-4">
-                                        <span className="text-3xl">{meta.icon}</span>
+                                        <span className="text-3xl"><Glyph e={meta.icon} /></span>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 flex-wrap mb-2">
                                                 <span className="text-base font-bold text-gray-900 dark:text-white">{meta.label}</span>
@@ -368,7 +369,7 @@ export const XDRDashboard: React.FC = () => {
                         })}
                         {filtered.length === 0 && !loading && (
                             <div className="text-center text-gray-400 py-16">
-                                <div className="text-4xl mb-3">🔍</div>
+                                <div className="text-4xl mb-3"><Glyph e="🔍" /></div>
                                 <div className="text-sm">No correlations found. Click <strong>Run Correlation Analysis</strong> to scan recent events.</div>
                             </div>
                         )}
@@ -387,7 +388,7 @@ export const XDRDashboard: React.FC = () => {
                             { label: 'False Positives', value: hunts.falsePositives, icon: '✅', color: 'text-green-600' },
                         ].map(item => (
                             <div key={item.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 text-center">
-                                <div className="text-3xl mb-2">{item.icon}</div>
+                                <div className="text-3xl mb-2"><Glyph e={item.icon} /></div>
                                 <div className={`text-3xl font-bold ${item.color}`}>{item.value}</div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.label}</div>
                             </div>
@@ -441,7 +442,7 @@ export const XDRDashboard: React.FC = () => {
                         return (
                             <div key={key} className={`bg-white dark:bg-gray-800 rounded-xl border-2 p-5 ${detected ? 'border-red-300 dark:border-red-700 shadow-md' : 'border-gray-200 dark:border-gray-700'}`}>
                                 <div className="flex items-center gap-3 mb-3">
-                                    <span className="text-3xl">{meta.icon}</span>
+                                    <span className="text-3xl"><Glyph e={meta.icon} /></span>
                                     <div>
                                         <div className="font-bold text-gray-900 dark:text-white text-sm">{meta.label}</div>
                                         <div className="text-xs font-mono text-gray-400">{meta.tactic}</div>

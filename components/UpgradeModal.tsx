@@ -84,7 +84,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Up to 50 agents</p>
                         </div>
                         <div className="rounded-xl border-2 border-primary-500 bg-primary-50 dark:bg-primary-900/20 p-3 text-center relative">
-                            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Popular</span>
+                            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Popular</span>
                             <p className="text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider mb-1">Enterprise</p>
                             <p className="text-2xl font-extrabold text-gray-900 dark:text-white">$149<span className="text-xs font-normal text-gray-500">/mo</span></p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Unlimited agents</p>

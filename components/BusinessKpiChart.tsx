@@ -64,7 +64,7 @@ export const BusinessKpiChart: React.FC = () => {
           >
             <CartesianGrid stroke="#f5f5f5" />
             <XAxis dataKey="name" scale="band" tick={{ fontSize: 12 }} />
-            <YAxis yAxisId="left" orientation="left" stroke="#8884d8" tick={{ fontSize: 12 }} />
+            <YAxis yAxisId="left" orientation="left" stroke="#0891b2" tick={{ fontSize: 12 }} />
             <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" tick={{ fontSize: 12 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: '12px' }} />

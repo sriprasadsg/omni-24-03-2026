@@ -77,12 +77,12 @@ export function RollbackDashboard() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>AUTOMATION</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Rollback & Checkpoints</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>AUTOMATION</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Rollback & Checkpoints</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>System state checkpoints created before autonomous actions — restore any point</p>
         </div>
         <button onClick={() => { void fetchCheckpoints(); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -135,8 +135,8 @@ export function RollbackDashboard() {
                 {ckpt.status === 'available' && (
                   <button onClick={() => restore(ckpt.id)} disabled={restoring === ckpt.id}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(99,102,241,.15)',
-                      border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 6,
+                      display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(8,145,178,.15)',
+                      border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 6,
                       padding: '5px 12px', cursor: restoring === ckpt.id ? 'wait' : 'pointer', fontSize: '0.78em', fontWeight: 600,
                     }}>
                     <RotateCcw size={11} className={restoring === ckpt.id ? 'animate-spin' : ''} />

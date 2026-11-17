@@ -99,7 +99,7 @@ export const RemediationDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-2xl font-bold dark:text-white flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <ShieldAlertIcon className="text-indigo-600" />
                         Compliance Remediation
                         <span className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-800">

@@ -89,7 +89,7 @@ export const JobsDashboard: React.FC = () => {
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Job Orchestration</h1>
+                        <h1 className="page-title">Job Orchestration</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Monitor background agent tasks and system health</p>
                     </div>
                     <div className="flex items-center space-x-4">

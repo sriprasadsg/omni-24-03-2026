@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { authFetch } from '../services/apiService';
 import { socketService } from '../services/socketService';
+import { Glyph } from './ui/Glyph';
 
 interface Tactic { id: string; name: string; techniques: Technique[]; }
 interface Technique { id: string; name: string; }
@@ -160,20 +161,20 @@ export default function MitreAttackHeatmap() {
             {/* ── Header ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, background: 'linear-gradient(135deg,#7c3aed,#ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <h1 className="page-title" style={{ margin: 0 }}>
                         MITRE ATT&CK® Heatmap
                     </h1>
                     <p style={{ color: '#64748b', margin: '4px 0 0' }}>Enterprise Matrix — Detection Coverage View</p>
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <div style={{ background: 'var(--ink-panel)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: totalCovered > 0 ? '#7c3aed' : '#ef4444' }}>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: totalCovered > 0 ? '#0e7490' : '#ef4444' }}>
                             {totalCovered}/{totalTech}
                         </div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>Techniques detected</div>
                     </div>
                     <button onClick={exportNavigator}
-                        style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: 'white', border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontWeight: 600 }}>
+                        style={{ background: 'linear-gradient(135deg,#0e7490,#155e75)', color: 'white', border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontWeight: 600 }}>
                         ⬇ Export Navigator Layer
                     </button>
                 </div>
@@ -202,7 +203,7 @@ export default function MitreAttackHeatmap() {
 
                 {/* Refresh spinner */}
                 {refreshing && (
-                    <span style={{ fontSize: 11, color: '#7c3aed' }}>↻ Refreshing…</span>
+                    <span style={{ fontSize: 11, color: '#0e7490' }}>↻ Refreshing…</span>
                 )}
 
                 {/* Toggle auto-refresh */}
@@ -223,8 +224,8 @@ export default function MitreAttackHeatmap() {
                     disabled={refreshing}
                     style={{
                         fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: refreshing ? 'not-allowed' : 'pointer',
-                        fontWeight: 600, background: 'rgba(124,58,237,0.15)', color: 'var(--ink-violet)',
-                        border: '1px solid #7c3aed', opacity: refreshing ? 0.5 : 1,
+                        fontWeight: 600, background: 'rgba(14,116,144,0.15)', color: 'var(--ink-violet)',
+                        border: '1px solid #0e7490', opacity: refreshing ? 0.5 : 1,
                     }}>
                     ↻ Refresh Now
                 </button>
@@ -288,7 +289,7 @@ export default function MitreAttackHeatmap() {
                 <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 380, background: 'var(--ink-panel)', borderLeft: '1px solid var(--ink-line-strong)', padding: 24, overflowY: 'auto', zIndex: 100 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <div>
-                            <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700 }}>{selected.technique_id}</div>
+                            <div style={{ fontSize: 12, color: '#0e7490', fontWeight: 700 }}>{selected.technique_id}</div>
                             <h3 style={{ margin: '4px 0 0', fontSize: 18 }}>{selected.technique_name}</h3>
                             <div style={{ fontSize: 12, color: '#64748b' }}>{selected.tactic_name}</div>
                         </div>
@@ -297,20 +298,20 @@ export default function MitreAttackHeatmap() {
                     <p style={{ color: 'var(--ink-muted)', fontSize: 14, lineHeight: 1.6 }}>{selected.description}</p>
                     {selected.mitigations?.length > 0 && (
                         <div style={{ marginBottom: 16 }}>
-                            <h4 style={{ color: '#22c55e', margin: '0 0 8px', fontSize: 13 }}>🛡 Mitigations</h4>
+                            <h4 style={{ color: '#22c55e', margin: '0 0 8px', fontSize: 13 }}><Glyph e="🛡" /> Mitigations</h4>
                             {selected.mitigations.map((m, i) => (
                                 <div key={i} style={{ color: 'var(--ink-muted)', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--ink-line-strong)' }}>{m}</div>
                             ))}
                         </div>
                     )}
                     {selected.detection && (
-                        <div style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid #7c3aed', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                            <h4 style={{ color: 'var(--ink-violet)', margin: '0 0 6px', fontSize: 13 }}>🔍 Detection Guidance</h4>
+                        <div style={{ background: 'rgba(14,116,144,0.1)', border: '1px solid #0e7490', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                            <h4 style={{ color: 'var(--ink-violet)', margin: '0 0 6px', fontSize: 13 }}><Glyph e="🔍" /> Detection Guidance</h4>
                             <p style={{ color: 'var(--ink-muted)', fontSize: 13, margin: 0 }}>{selected.detection}</p>
                         </div>
                     )}
                     <a href={selected.mitre_url} target="_blank" rel="noopener noreferrer"
-                        style={{ color: '#7c3aed', fontSize: 13, textDecoration: 'none' }}>
+                        style={{ color: '#0e7490', fontSize: 13, textDecoration: 'none' }}>
                         View on MITRE ATT&CK →
                     </a>
                 </div>

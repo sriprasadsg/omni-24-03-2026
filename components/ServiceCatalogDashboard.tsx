@@ -22,10 +22,10 @@ export const ServiceCatalogDashboard: React.FC<ServiceCatalogDashboardProps> = (
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <PuzzleIcon size={36} className="text-primary-500" />
                     Service Catalog (IDP)
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Provision new services using approved, secure-by-default templates.
                 </p>
@@ -42,7 +42,7 @@ export const ServiceCatalogDashboard: React.FC<ServiceCatalogDashboardProps> = (
                     templates.map(template => (
                         <div key={template.id} className="glass-premium rounded-3xl p-8 flex flex-col hover:scale-[1.02] transition-all border border-white/10 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-4">
-                                <span className="px-2 py-1 bg-primary-500/10 text-primary-500 rounded text-[10px] font-black uppercase tracking-widest border border-primary-500/20">Template</span>
+                                <span className="px-2 py-1 bg-primary-500/10 text-primary-500 rounded text-[11px] font-black uppercase tracking-widest border border-primary-500/20">Template</span>
                             </div>
                             <div className="flex-grow">
                                 <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-3 italic uppercase tracking-tighter">
@@ -52,7 +52,7 @@ export const ServiceCatalogDashboard: React.FC<ServiceCatalogDashboardProps> = (
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 leading-relaxed line-clamp-2">{template.description}</p>
                                 <div className="mt-6 flex flex-wrap gap-2">
                                     {template.tags.map(tag => (
-                                        <span key={tag} className="px-3 py-1 text-[10px] font-black rounded-lg bg-black/5 dark:bg-white/10 text-gray-500 dark:text-gray-400 uppercase tracking-widest border border-white/5">{tag}</span>
+                                        <span key={tag} className="px-3 py-1 text-[11px] font-black rounded-lg bg-black/5 dark:bg-white/10 text-gray-500 dark:text-gray-400 uppercase tracking-widest border border-white/5">{tag}</span>
                                     ))}
                                 </div>
                             </div>

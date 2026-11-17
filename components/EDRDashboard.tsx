@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 // Use relative path so the Vite dev-server proxy routes it to localhost:5000
 const API = '/api';
@@ -33,10 +34,10 @@ const SEVERITY_CONFIG = {
 };
 
 const ACTION_OPTIONS = [
-    { value: 'kill_process', label: '⚡ Kill Process', danger: true },
-    { value: 'quarantine_file', label: '📦 Quarantine File', danger: true },
-    { value: 'isolate_host', label: '🔒 Isolate Host', danger: true },
-    { value: 'restore_host', label: '🔓 Restore Host', danger: false },
+    { value: 'kill_process', label: 'Kill Process', danger: true },
+    { value: 'quarantine_file', label: 'Quarantine File', danger: true },
+    { value: 'isolate_host', label: 'Isolate Host', danger: true },
+    { value: 'restore_host', label: 'Restore Host', danger: false },
     { value: 'rollback_ransomware', label: '⏪ Ransomware Rollback (VSS)', danger: true },
 ];
 
@@ -158,9 +159,9 @@ export function EDRDashboard({ token }: { token?: string }) {
         <div style={{ padding: '24px', fontFamily: 'Inter, system-ui, sans-serif' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🛡️</div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#0e7490)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}><Glyph e="🛡" /></div>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: pal.text }}>Real-Time EDR Dashboard</h1>
+                    <h1 className="page-title" style={{ margin: 0 }}>Real-Time EDR Dashboard</h1>
                     <p style={{ margin: 0, fontSize: 13, color: pal.muted }}>Endpoint Detection & Response — Powered by ETW + psutil</p>
                 </div>
                 <button onClick={load} style={{ marginLeft: 'auto', padding: '8px 16px', borderRadius: 8, background: '#0f172a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>↻ Refresh</button>
@@ -170,7 +171,7 @@ export function EDRDashboard({ token }: { token?: string }) {
             {summary && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
                     {[
-                        { label: 'Total Alerts (24h)', value: summary.total_alerts_24h, color: '#6366f1' },
+                        { label: 'Total Alerts (24h)', value: summary.total_alerts_24h, color: '#0891b2' },
                         { label: 'Unacknowledged', value: summary.unacknowledged, color: '#f97316' },
                         { label: 'Critical (Unack)', value: summary.critical_unacknowledged, color: '#ef4444' },
                         { label: 'High Severity', value: summary.by_severity?.high || 0, color: '#eab308' },
@@ -189,11 +190,11 @@ export function EDRDashboard({ token }: { token?: string }) {
                     <button key={tab} onClick={() => setActiveTab(tab)} style={{
                         padding: '10px 20px', border: 'none', background: 'none', cursor: 'pointer',
                         fontSize: 14, fontWeight: activeTab === tab ? 700 : 400,
-                        color: activeTab === tab ? '#6366f1' : '#64748b',
-                        borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
+                        color: activeTab === tab ? '#0891b2' : '#64748b',
+                        borderBottom: activeTab === tab ? '2px solid #0891b2' : '2px solid transparent',
                         marginBottom: -2,
                     }}>
-                        {tab === 'alerts' ? '🚨 Live Alerts' : tab === 'response' ? '⚡ Response Actions' : '🔍 IOC Blocklist'}
+                        {tab === 'alerts' ? <><Glyph e="🚨" /> Live Alerts</> : tab === 'response' ? <><Glyph e="⚡" /> Response Actions</> : <><Glyph e="🔍" /> IOC Blocklist</>}
                     </button>
                 ))}
             </div>
@@ -223,7 +224,7 @@ export function EDRDashboard({ token }: { token?: string }) {
                         </div>
                     ) : filteredAlerts.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: 48, background: pal.subtle, borderRadius: 12, color: pal.muted }}>
-                            <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
+                            <div style={{ fontSize: 48, marginBottom: 8 }}><Glyph e="✅" /></div>
                             <div style={{ fontWeight: 600 }}>No active alerts</div>
                             <div style={{ fontSize: 13, marginTop: 4 }}>Agent EDR telemetry will appear here automatically when threats are detected.</div>
                         </div>
@@ -242,9 +243,9 @@ export function EDRDashboard({ token }: { token?: string }) {
                                                 <div style={{ fontWeight: 600, fontSize: 14, color: pal.text }}>{alert.type.replace(/_/g, ' ')}</div>
                                                 <div style={{ fontSize: 13, color: pal.textSoft, marginTop: 4 }}>{alert.description}</div>
                                                 <div style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#94a3b8' }}>
-                                                    {alert.process?.name && <span>🔧 Process: <b>{alert.process.name}</b> (PID {alert.process.pid})</span>}
-                                                    {alert.hostname && <span>💻 Host: <b>{alert.hostname}</b></span>}
-                                                    <span>🕐 {new Date(alert.timestamp).toLocaleString()}</span>
+                                                    {alert.process?.name && <span><Glyph e="🔧" /> Process: <b>{alert.process.name}</b> (PID {alert.process.pid})</span>}
+                                                    {alert.hostname && <span><Glyph e="💻" /> Host: <b>{alert.hostname}</b></span>}
+                                                    <span><Glyph e="🕐" /> {new Date(alert.timestamp).toLocaleString()}</span>
                                                     {alert.process?.sha256 && <span style={{ fontFamily: 'monospace' }}>SHA256: {alert.process.sha256.slice(0, 16)}…</span>}
                                                 </div>
                                             </div>
@@ -270,7 +271,7 @@ export function EDRDashboard({ token }: { token?: string }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24 }}>
                     {/* Manual Action Panel */}
                     <div style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 12, padding: 24 }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>⚡ Dispatch Response Action</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}><Glyph e="⚡" /> Dispatch Response Action</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>AGENT ID</label>
@@ -302,14 +303,14 @@ export function EDRDashboard({ token }: { token?: string }) {
                             )}
                             <button onClick={dispatchAction} disabled={responding === 'dispatch' || !responseAgent}
                                 style={{ padding: '10px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: !responseAgent ? 0.5 : 1 }}>
-                                {responding === 'dispatch' ? 'Dispatching...' : '🚀 Dispatch Action'}
+                                {responding === 'dispatch' ? 'Dispatching...' : <><Glyph e="🚀" /> Dispatch Action</>}
                             </button>
                         </div>
                     </div>
 
                     {/* Response History */}
                     <div>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>📋 Response History</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}><Glyph e="📋" /> Response History</h3>
                         {responseHistory.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: 32, background: pal.subtle, borderRadius: 12, color: pal.muted }}>
                                 No response actions dispatched yet
@@ -338,7 +339,7 @@ export function EDRDashboard({ token }: { token?: string }) {
             {activeTab === 'ioc' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 24 }}>
                     <div style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 12, padding: 24 }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>➕ Add IOC to Blocklist</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}><Glyph e="➕" /> Add IOC to Blocklist</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>SHA-256 Hash (optional)</label>
@@ -364,13 +365,13 @@ export function EDRDashboard({ token }: { token?: string }) {
                             </div>
                             {feedback && <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.1)', color: '#16a34a', fontSize: 13 }}>{feedback.msg}</div>}
                             <button onClick={addIOC} disabled={!iocDesc}
-                                style={{ padding: '10px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: !iocDesc ? 0.5 : 1 }}>
+                                style={{ padding: '10px', borderRadius: 8, border: 'none', background: '#0891b2', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: !iocDesc ? 0.5 : 1 }}>
                                 Add to Blocklist
                             </button>
                         </div>
                     </div>
                     <div>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>🔍 Current IOC Blocklist ({iocList.length})</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}><Glyph e="🔍" /> Current IOC Blocklist ({iocList.length})</h3>
                         {iocList.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: 32, background: pal.subtle, borderRadius: 12, color: pal.muted }}>No IOCs in blocklist yet</div>
                         ) : (

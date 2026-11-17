@@ -407,7 +407,7 @@ export const PartnersDashboard: React.FC = () => {
     <div className="container mx-auto space-y-6 p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold leading-tight text-gray-900 dark:text-white">Partners</h1>
+          <h1 className="page-title">Partners</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Appoint partners, give each a pool of agent seats and set which screens they may sell.
           </p>

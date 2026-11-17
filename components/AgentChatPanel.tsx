@@ -11,6 +11,7 @@ import { authFetch } from '../services/apiService';
 import { socketService } from '../services/socketService';
 import { Agent } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { Glyph } from './ui/Glyph';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -205,9 +206,9 @@ const Bubble: React.FC<{ msg: ChatMessage; myUsername: string }> = ({ msg, myUse
     return (
         <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
             <div className={`max-w-[72%] rounded-2xl px-4 py-2.5 text-sm ${bubbleCls}`}>
-                <p className={`text-[10px] font-semibold mb-1 ${labelCls}`}>{label}</p>
+                <p className={`text-[11px] font-semibold mb-1 ${labelCls}`}>{label}</p>
                 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                <p className={`text-[10px] mt-1 opacity-60`}>{timeStr}</p>
+                <p className={`text-[11px] mt-1 opacity-60`}>{timeStr}</p>
             </div>
         </div>
     );
@@ -228,11 +229,11 @@ const SessionItem: React.FC<{
             <span className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1">{session.agent_hostname}</span>
             <div className="flex gap-1 flex-shrink-0">
                 {session.escalated && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                         ↑ Escalated
                     </span>
                 )}
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                     session.status === 'active'
                         ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                         : 'bg-slate-500/20 text-gray-600 dark:text-slate-400 border-slate-500/30'
@@ -241,14 +242,14 @@ const SessionItem: React.FC<{
         </div>
         <div className="flex items-center gap-1.5 mb-0.5">
             {session.initiator_type === 'endpoint' && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">
-                    🖥 Endpoint initiated
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">
+                    <Glyph e="🖥" /> Endpoint initiated
                 </span>
             )}
             <p className="text-xs text-gray-600 dark:text-slate-400 truncate">{session.subject}</p>
         </div>
         <p className="text-[11px] text-slate-500 truncate">{session.last_message?.content ?? 'No messages'}</p>
-        <p className="text-[10px] text-slate-600 mt-1">{new Date(session.updated_at).toLocaleString()}</p>
+        <p className="text-[11px] text-slate-600 mt-1">{new Date(session.updated_at).toLocaleString()}</p>
     </button>
 );
 
@@ -326,7 +327,7 @@ const EscalateModal: React.FC<{
                         </div>
                         <div>
                             <p className="text-gray-900 dark:text-white text-xs font-medium">All Platform Admins</p>
-                            <p className="text-gray-600 dark:text-slate-400 text-[10px]">Broadcast to all — fastest response</p>
+                            <p className="text-gray-600 dark:text-slate-400 text-[11px]">Broadcast to all — fastest response</p>
                         </div>
                         {selectedAdmin === '' && <UserCheck size={13} className="text-amber-700 dark:text-amber-400 ml-auto" />}
                     </button>
@@ -347,7 +348,7 @@ const EscalateModal: React.FC<{
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-gray-900 dark:text-white text-xs font-medium truncate">{a.name}</p>
-                                <p className="text-gray-600 dark:text-slate-400 text-[10px] truncate">{a.email} · {a.role}</p>
+                                <p className="text-gray-600 dark:text-slate-400 text-[11px] truncate">{a.email} · {a.role}</p>
                             </div>
                             {selectedAdmin === a.username && <UserCheck size={13} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />}
                         </button>
@@ -571,16 +572,16 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({ initialAgent, onClose }
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <Monitor size={14} className="text-indigo-600 dark:text-indigo-400" />
                                     <h3 className="font-semibold text-sm">{activeSession.agent_hostname}</h3>
-                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                                         activeSession.status === 'active'
                                             ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30'
                                             : 'bg-slate-500/20 text-gray-600 dark:text-slate-400 border-slate-500/30'
                                     }`}>{activeSession.status}</span>
                                     {activeSession.initiator_type === 'endpoint' && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">🖥 Endpoint initiated</span>
+                                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300"><Glyph e="🖥" /> Endpoint initiated</span>
                                     )}
                                     {activeSession.escalated && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">↑ Escalated to Platform Admin</span>
+                                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">↑ Escalated to Platform Admin</span>
                                     )}
                                 </div>
                                 <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{activeSession.subject}</p>

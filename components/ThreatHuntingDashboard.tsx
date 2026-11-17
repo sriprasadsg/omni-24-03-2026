@@ -4,6 +4,7 @@ import { UebaFinding, AuditLog, User } from '../types';
 import { UsersIcon, AlertTriangleIcon, CheckIcon } from './icons';
 import { UebaFindingDetailModal } from './UebaFindingDetailModal';
 import { ThreatHunting } from './ThreatHunting';
+import { Glyph } from './ui/Glyph';
 
 interface ThreatHuntingDashboardProps {
     findings: UebaFinding[];
@@ -41,7 +42,7 @@ export const ThreatHuntingDashboard: React.FC<ThreatHuntingDashboardProps> = ({ 
         <div className="container mx-auto space-y-6">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Threat Hunting Center</h2>
+                    <h1 className="page-title mb-2">Threat Hunting Center</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Proactively identify threats using AI or behavioral analytics.</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex">
@@ -49,13 +50,13 @@ export const ThreatHuntingDashboard: React.FC<ThreatHuntingDashboardProps> = ({ 
                         onClick={() => setActiveTab('ai')}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'ai' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                     >
-                        ⚡ Active AI Hunt
+                        <Glyph e="⚡" /> Active AI Hunt
                     </button>
                     <button
                         onClick={() => setActiveTab('ueba')}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'ueba' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                     >
-                        🛡️ UEBA Findings
+                        <Glyph e="🛡" /> UEBA Findings
                     </button>
                 </div>
             </div>

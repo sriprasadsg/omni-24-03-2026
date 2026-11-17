@@ -66,7 +66,7 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">AI Model Registry</h2>
+                    <h1 className="page-title">AI Model Registry</h1>
                     <p className="text-gray-500 dark:text-gray-400">Track and version control your AI assets</p>
                 </div>
                 <button

@@ -1,6 +1,7 @@
 import React from 'react';
 import { DownloadIcon, ChevronDownIcon } from './icons';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface CodeBlockProps {
     command: string;
@@ -143,11 +144,11 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
                     <p className="text-xs text-blue-700 dark:text-blue-400">Click-to-install wizard — includes service + evidence collection</p>
                     {buildState === 'building' && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                            🔄 Building installer with Spyglass evidence collection… this may take 15–30s
+                            <Glyph e="🔄" /> Building installer with Spyglass evidence collection… this may take 15–30s
                         </p>
                     )}
                     {buildError && (
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">❌ {buildError}</p>
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1"><Glyph e="❌" /> {buildError}</p>
                     )}
                 </div>
                 <button
@@ -159,7 +160,7 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
                             : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                 >
-                    {buildState === 'building' ? '⏳ Building…' : buildState === 'done' ? '✅ Download .exe' : 'Download .exe'}
+                    {buildState === 'building' ? '⏳ Building…' : buildState === 'done' ? <><Glyph e="✅" /> Download .exe</> : 'Download .exe'}
                 </button>
             </div>
             ) : (

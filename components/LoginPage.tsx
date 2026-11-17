@@ -7,6 +7,7 @@ import { User } from '../types';
 import { SignupForm } from './SignupForm';
 import MFAVerifyModal from './MFAVerifyModal';
 import * as api from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 const SmartCTA: React.FC<{ isLoading: boolean }> = ({ isLoading }) => {
     // This submits the email/password form, so it says what it does ("Get
@@ -329,7 +330,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                             {/* Error Message */}
                             {error && (
                                 <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                                    <span className="mt-0.5 text-red-400 flex-shrink-0">⚠</span>
+                                    <span className="mt-0.5 text-red-400 flex-shrink-0"><Glyph e="⚠" /></span>
                                     <p className="text-sm text-red-300">{error}</p>
                                </div>
                             )}

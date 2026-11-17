@@ -136,7 +136,7 @@ export const WebhookManagement: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Webhook Management</h1>
+                    <h1 className="page-title">Webhook Management</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure webhooks to receive real-time event notifications</p>
                 </div>
                 <button

@@ -313,7 +313,7 @@ export const PartnerPortal: React.FC = () => {
       <header className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-semibold leading-tight text-gray-900 dark:text-white">Partner portal</h1>
+            <h1 className="page-title">Partner portal</h1>
             {data?.partner?.name && <p className="text-sm text-gray-600 dark:text-gray-400 break-words">{data.partner.name}</p>}
           </div>
           <div className="flex flex-wrap gap-2">

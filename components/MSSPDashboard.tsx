@@ -160,7 +160,7 @@ export default function MSSPDashboard() {
       <div className="flex items-center gap-3">
         <Globe className="w-7 h-7 text-blue-600 dark:text-blue-400" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MSSP Dashboard</h1>
+          <h1 className="page-title">MSSP Dashboard</h1>
           <p className="text-gray-600 dark:text-slate-400 text-sm">Multi-tenant security operations overview</p>
         </div>
       </div>

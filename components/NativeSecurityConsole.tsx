@@ -24,7 +24,7 @@ export function NativeSecurityConsole() {
   return (
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold">Native Security Console</h1>
+        <h1 className="page-title">Native Security Console</h1>
         <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Offline scan verdicts, local vulnerability findings, file-integrity drift, and the
           autonomous remediation queue — all agent-native, no external SIEM dependency.

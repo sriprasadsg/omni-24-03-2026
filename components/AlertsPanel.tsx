@@ -63,7 +63,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts }) => {
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-center gap-3 flex-wrap">
                         <p className={`text-xs font-black uppercase tracking-widest ${classes.text}`}>{alert.severity}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">{new Date(alert.timestamp).toLocaleString(undefined, { timeZone })}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 font-mono">{new Date(alert.timestamp).toLocaleString(undefined, { timeZone })}</p>
                       </div>
                       <ChevronDownIcon size={18} className={`transform transition-transform duration-200 flex-shrink-0 text-gray-400 ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
@@ -74,12 +74,12 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts }) => {
               {isExpanded && (
                 <div className={`px-4 pb-4 border-t pt-4 ${classes.border}`}>
                   <div className="space-y-2 text-xs">
-                    <h4 className="font-black text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[10px]">Details</h4>
+                    <h4 className="font-black text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px]">Details</h4>
                     <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${classes.text}`}>
                       {alert.message}
                     </p>
                     <p className="text-gray-500 dark:text-gray-400 pt-2 flex items-center gap-2">
-                      <span className="font-bold text-[10px] uppercase tracking-wider">Source:</span>
+                      <span className="font-bold text-[11px] uppercase tracking-wider">Source:</span>
                       <span className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded border border-white/10">{alert.source}</span>
                     </p>
                   </div>

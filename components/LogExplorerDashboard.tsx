@@ -64,31 +64,31 @@ export const LogExplorerDashboard: React.FC = () => {
         <div className="p-6 space-y-6">
             <header className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500 flex items-center gap-3">
+                    <h1 className="page-title flex items-center gap-3">
                         <DatabaseIcon className="text-blue-400" />
                         Log Explorer (SIEM)
                     </h1>
-                    <p className="text-white/60 mt-1">Centralized log ingestion and threat hunting</p>
+                    <p className="text-gray-500 dark:text-white/60 mt-1">Centralized log ingestion and threat hunting</p>
                 </div>
             </header>
 
             {/* Top Toolbar (Search & Filter) */}
             <div className="glass p-4 rounded-xl flex items-center gap-4">
                 <div className="relative flex-1">
-                    <SearchIcon className="absolute left-3 top-3 text-white/40" size={18} />
+                    <SearchIcon className="absolute left-3 top-3 text-gray-400 dark:text-white/40" size={18} />
                     <input
                         type="text"
                         placeholder="Search logs using KQL-like syntax (e.g. source_ip:10.0.0.1 AND severity:High)..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={handleSearchKeyDown}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-100 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500/50"
                     />
                 </div>
                 <select
                     value={sourceFilter}
                     onChange={(e) => setSourceFilter(e.target.value)}
-                    className="bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500/50"
+                    className="bg-gray-100 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500/50"
                 >
                     <option value="">All Sources</option>
                     <option value="syslog">Syslog / Network</option>
@@ -107,26 +107,26 @@ export const LogExplorerDashboard: React.FC = () => {
             {/* Visualization Stats Panel */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="glass p-6 rounded-xl md:col-span-1">
-                    <h3 className="text-sm font-medium text-white/60 flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-white/60 flex items-center gap-2 mb-4">
                         <FilterIcon size={16} /> Log Sources
                     </h3>
                     <div className="space-y-4">
                         {stats && stats.sources && Object.entries(stats.sources).map(([key, count]) => (
                             <div key={key} className="flex justify-between items-center text-sm">
-                                <span className="flex items-center gap-2 text-white/80 capitalize">
+                                <span className="flex items-center gap-2 text-gray-700 dark:text-white/80 capitalize">
                                     {getSourceIcon(key)} {key.replace('_', ' ')}
                                 </span>
-                                <span className="font-mono text-white/60">{String(count)}</span>
+                                <span className="font-mono text-gray-500 dark:text-white/60">{String(count)}</span>
                             </div>
                         ))}
                         {(!stats || Object.keys(stats.sources || {}).length === 0) && (
-                            <div className="text-white/40 text-sm italic">No data ingested</div>
+                            <div className="text-gray-400 dark:text-white/40 text-sm italic">No data ingested</div>
                         )}
                     </div>
                 </div>
 
                 <div className="glass p-6 rounded-xl md:col-span-3 flex flex-col">
-                    <h3 className="text-sm font-medium text-white/60 flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-white/60 flex items-center gap-2 mb-4">
                         <BarChart2Icon size={16} /> Volume Timeline
                     </h3>
                     {/* Fake histogram visualizer */}
@@ -145,12 +145,12 @@ export const LogExplorerDashboard: React.FC = () => {
                             );
                         })}
                         {(!stats || !stats.histogram) && (
-                            <div className="absolute inset-0 flex items-center justify-center text-white/40">
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-white/40">
                                 No timeline data available
                             </div>
                         )}
                     </div>
-                    <div className="flex justify-between text-xs text-white/40 mt-2">
+                    <div className="flex justify-between text-xs text-gray-400 dark:text-white/40 mt-2">
                         <span>Past Hour</span>
                         <span>Now</span>
                     </div>
@@ -159,34 +159,34 @@ export const LogExplorerDashboard: React.FC = () => {
 
             {/* Log Table */}
             <div className="glass rounded-xl overflow-hidden shadow-2xl">
-                <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+                <div className="p-4 border-b border-gray-200 dark:border-white/5 flex justify-between items-center bg-gray-50 dark:bg-white/5">
                     <h2 className="text-lg font-semibold flex items-center gap-2">
                         <DatabaseIcon className="text-blue-400" size={20} />
                         Log Events
                     </h2>
-                    <span className="text-xs font-mono text-white/40">{logs.length} events loaded</span>
+                    <span className="text-xs font-mono text-gray-400 dark:text-white/40">{logs.length} events loaded</span>
                 </div>
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 bg-[#1a1b23] z-10">
+                        <thead className="sticky top-0 bg-gray-50 dark:bg-[#1a1b23] z-10">
                             <tr>
-                                <th className="p-4 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap">Timestamp</th>
-                                <th className="p-4 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap">Source</th>
-                                <th className="p-4 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap">Severity</th>
-                                <th className="p-4 text-xs font-medium text-white/40 uppercase tracking-wider">Message</th>
+                                <th className="p-4 text-xs font-medium text-gray-400 dark:text-white/40 uppercase tracking-wider whitespace-nowrap">Timestamp</th>
+                                <th className="p-4 text-xs font-medium text-gray-400 dark:text-white/40 uppercase tracking-wider whitespace-nowrap">Source</th>
+                                <th className="p-4 text-xs font-medium text-gray-400 dark:text-white/40 uppercase tracking-wider whitespace-nowrap">Severity</th>
+                                <th className="p-4 text-xs font-medium text-gray-400 dark:text-white/40 uppercase tracking-wider">Message</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5 text-sm font-mono align-top">
+                        <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-sm font-mono align-top">
                             {logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="p-8 text-center text-white/40">
+                                    <td colSpan={4} className="p-8 text-center text-gray-400 dark:text-white/40">
                                         No logs matching your query.
                                     </td>
                                 </tr>
                             ) : (
                                 logs.map((log: any) => (
                                     <tr key={log.id} className="hover:bg-white/5 transition-colors group">
-                                        <td className="p-4 whitespace-nowrap text-white/60">
+                                        <td className="p-4 whitespace-nowrap text-gray-500 dark:text-white/60">
                                             {new Date(log.timestamp).toLocaleString()}
                                         </td>
                                         <td className="p-4 whitespace-nowrap">
@@ -200,7 +200,7 @@ export const LogExplorerDashboard: React.FC = () => {
                                                 {log.severity || 'Info'}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-white/80 break-words max-w-[500px]">
+                                        <td className="p-4 text-gray-700 dark:text-white/80 break-words max-w-[500px]">
                                             <div className="truncate group-hover:whitespace-normal group-hover:break-all">
                                                 {log.raw_message || JSON.stringify(log)}
                                             </div>

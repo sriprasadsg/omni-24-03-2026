@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { authFetch } from '../services/apiService';
 import { SparklesIcon, ActivityIcon, WifiIcon, CpuIcon, RefreshCwIcon, UserIcon } from './icons';
+import { Glyph } from './ui/Glyph';
 
 interface RiskScore {
     userId: string;
@@ -147,7 +148,7 @@ export const AIAnomalyDashboard: React.FC = () => {
         <div className="space-y-5">
             {error && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 text-sm">
-                    <span className="shrink-0">⚠</span>
+                    <span className="shrink-0"><Glyph e="⚠" /></span>
                     {error}
                     <button onClick={() => load(true)} className="ml-auto underline hover:no-underline">Retry</button>
                 </div>
@@ -155,10 +156,10 @@ export const AIAnomalyDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <SparklesIcon size={22} className="text-purple-600 dark:text-purple-400" />
                         AI Anomaly Detection
-                    </h2>
+                    </h1>
                     <p className="text-sm text-gray-600 dark:text-slate-400 mt-0.5">
                         Behavioral deviation scores aggregated from UEBA (ML model) and NDR (network baseline)
                     </p>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface EmailThreat {
   id: string;
@@ -103,7 +104,7 @@ export default function EmailSecurityDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Email Security</h1>
+          <h1 className="page-title">Email Security</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Phishing detection, DMARC/SPF/DKIM enforcement, quarantine management</p>
         </div>
         <button onClick={seedData} disabled={seeding}
@@ -140,7 +141,7 @@ export default function EmailSecurityDashboard() {
       {tab === 'threats' && (
         threats.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">📧</div><p>No email threats detected — load demo data</p>
+            <div className="text-4xl mb-3"><Glyph e="📧" /></div><p>No email threats detected — load demo data</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -219,7 +220,7 @@ export default function EmailSecurityDashboard() {
       {tab === 'quarantine' && (
         quarantine.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">✅</div><p>Quarantine is empty</p>
+            <div className="text-4xl mb-3"><Glyph e="✅" /></div><p>Quarantine is empty</p>
           </div>
         ) : (
           <div className="space-y-2">

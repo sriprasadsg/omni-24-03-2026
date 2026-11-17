@@ -77,7 +77,7 @@ export const PredictiveHealthDashboard: React.FC = () => {
         <div className="p-6 space-y-6 bg-slate-50 dark:bg-slate-900 min-h-screen">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Predictive Health Dashboard</h1>
+                    <h1 className="page-title">Predictive Health Dashboard</h1>
                     <p className="text-slate-500 dark:text-slate-400">AIOps-powered failure forecasting and risk analysis</p>
                 </div>
                 <div className="flex space-x-2">
@@ -174,7 +174,7 @@ export const PredictiveHealthDashboard: React.FC = () => {
                                         <p className="text-xs font-bold text-slate-400 uppercase mb-1">Top Indicators</p>
                                         <div className="flex flex-wrap gap-1">
                                             {host.top_indicators.map((ind, i) => (
-                                                <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
+                                                <span key={i} className="text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
                                                     {ind}
                                                 </span>
                                             ))}
@@ -228,7 +228,7 @@ export const PredictiveHealthDashboard: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
-                            <div className="flex justify-between text-[10px] text-slate-400 mt-2">
+                            <div className="flex justify-between text-[11px] text-slate-400 mt-2">
                                 <span>Mon</span>
                                 <span>Tue</span>
                                 <span>Wed</span>

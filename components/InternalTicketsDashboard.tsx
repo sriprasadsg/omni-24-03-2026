@@ -27,6 +27,7 @@ import { DRAFT_PANEL, REPLY_PICKER, fill } from './serviceDesk/serviceDeskCopy';
 import { SparklesIcon } from './icons';
 import { fetchTicketDesk, postTicketComment } from '../services/serviceDesk/ticketApi';
 import type { TicketDeskView } from '../services/serviceDesk/types';
+import { Glyph } from './ui/Glyph';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -341,7 +342,7 @@ const TicketModal: React.FC<{
 
           {/* Agent / Host selector */}
           <div className="border border-gray-200 dark:border-slate-700 rounded-xl p-3 space-y-2 bg-gray-50 dark:bg-slate-800/30">
-            <p className="text-gray-600 dark:text-slate-400 text-xs font-medium flex items-center gap-1.5">🖥 Agent / Host <span className="text-slate-600">(optional)</span></p>
+            <p className="text-gray-600 dark:text-slate-400 text-xs font-medium flex items-center gap-1.5"><Glyph e="🖥" /> Agent / Host <span className="text-slate-600">(optional)</span></p>
             <div ref={agentRef} className="relative">
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -381,7 +382,7 @@ const TicketModal: React.FC<{
               <div className="grid grid-cols-2 gap-2 mt-1 text-xs bg-teal-100 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700/30 rounded-lg px-3 py-2">
                 <div><span className="text-slate-500">Hostname</span><p className="text-gray-900 dark:text-white font-mono">{form.agent_hostname}</p></div>
                 <div><span className="text-slate-500">Tenant</span><p className="text-gray-900 dark:text-white">{form.tenant_name || '—'}</p></div>
-                <div className="col-span-2"><span className="text-slate-500">Agent ID</span><p className="text-gray-700 dark:text-slate-300 font-mono text-[10px] break-all">{form.agent_id}</p></div>
+                <div className="col-span-2"><span className="text-slate-500">Agent ID</span><p className="text-gray-700 dark:text-slate-300 font-mono text-[11px] break-all">{form.agent_id}</p></div>
               </div>
             )}
           </div>
@@ -435,7 +436,7 @@ const StatCard = ({label,value,color,sub,active,onClick}:{label:string;value:num
     ${active ? 'border-teal-500/50 bg-teal-100 dark:bg-teal-900/10' : 'border-gray-200 dark:border-slate-700/60 hover:border-gray-300 dark:hover:border-slate-600'}`}>
     <span className="text-xs text-gray-600 dark:text-slate-400">{label}</span>
     <span className={`text-2xl font-bold ${color}`}>{value}</span>
-    {sub && <span className="text-[10px] text-slate-500">{sub}</span>}
+    {sub && <span className="text-[11px] text-slate-500">{sub}</span>}
   </div>
 );
 
@@ -820,7 +821,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
         <div className="px-6 pt-5 pb-3 border-b border-gray-200 dark:border-slate-800">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1">
-              <h1 className="text-xl font-semibold mr-3">Tickets</h1>
+              <h1 className="page-title mr-3">Tickets</h1>
               {/* Main view toggle */}
               {(['tickets', 'reports'] as const).map(v => (
                 <button key={v} onClick={() => setMainView(v)}
@@ -828,7 +829,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     ${mainView === v
                       ? 'bg-teal-600 text-white'
                       : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800'}`}>
-                  {v === 'reports' ? '📊 Reports' : '🎫 Tickets'}
+                  {v === 'reports' ? <><Glyph e="📊" /> Reports</> : <><Glyph e="🎫" /> Tickets</>}
                 </button>
               ))}
             </div>
@@ -851,7 +852,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
           {mainView === 'reports' && (
             <div className="text-xs text-gray-600 dark:text-slate-400 mt-1 mb-1">
-              Showing aggregated analytics. Switch to <strong className="text-teal-600 dark:text-teal-400">🎫 Tickets</strong> to manage individual tickets.
+              Showing aggregated analytics. Switch to <strong className="text-teal-600 dark:text-teal-400"><Glyph e="🎫" /> Tickets</strong> to manage individual tickets.
             </div>
           )}
 
@@ -986,13 +987,13 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     <td className="px-3 py-2 max-w-[260px]">
                       <div className="truncate font-medium text-gray-900 dark:text-white">{t.title}</div>
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                        {t.escalated && <span className="text-[9px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-semibold">ESCALATED</span>}
+                        {t.escalated && <span className="text-[11px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-semibold">ESCALATED</span>}
                         {t.approval_required && t.approval_status !== 'approved' &&
-                          <span className="text-[9px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold">PENDING APPROVAL</span>}
+                          <span className="text-[11px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold">PENDING APPROVAL</span>}
                         {t.desk?.draftWaiting === true && (t.reporter || '').toLowerCase() !== userEmail.toLowerCase() &&
                           <DeskChip tone="blue" icon={SparklesIcon}>{DRAFT_PANEL.chipDraftWaiting}</DeskChip>}
-                        {visibleComments(t, userEmail, null).length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><MessageSquare size={9}/>{visibleComments(t, userEmail, null).length}</span>}
-                        {t.attachments?.length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><Paperclip size={9}/>{t.attachments.length}</span>}
+                        {visibleComments(t, userEmail, null).length > 0 && <span className="text-[11px] text-slate-500 flex items-center gap-0.5"><MessageSquare size={9}/>{visibleComments(t, userEmail, null).length}</span>}
+                        {t.attachments?.length > 0 && <span className="text-[11px] text-slate-500 flex items-center gap-0.5"><Paperclip size={9}/>{t.attachments.length}</span>}
                       </div>
                     </td>
                     <td className="px-3 py-2">
@@ -1054,16 +1055,16 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                           onClick={() => openTicket(t)}
                           className={`bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl p-3 ${isTicketStaff ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:border-teal-600/40 transition-all ${selected?.id===t.id ? 'border-teal-600/50' : ''}`}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-mono text-slate-500">{t.ticket_number}</span>
+                            <span className="text-[11px] font-mono text-slate-500">{t.ticket_number}</span>
                             <PriorityBadge p={t.priority}/>
                           </div>
                           <p className="text-sm text-gray-900 dark:text-white font-medium line-clamp-2 mb-2">{t.title}</p>
                           <div className="flex items-center gap-1 flex-wrap">
-                            {t.escalated && <span className="text-[9px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1 py-0.5 rounded">ESC</span>}
+                            {t.escalated && <span className="text-[11px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1 py-0.5 rounded">ESC</span>}
                             <SlaBadge status={t.sla_status} mins={t.sla_remaining_minutes}/>
-                            {t.due_date && <span className="text-[10px] text-slate-500">{fmt(t.due_date)}</span>}
+                            {t.due_date && <span className="text-[11px] text-slate-500">{fmt(t.due_date)}</span>}
                           </div>
-                          {t.assignee && <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1"><User size={9}/>{t.assignee}</p>}
+                          {t.assignee && <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1"><User size={9}/>{t.assignee}</p>}
                         </div>
                       ))}
                     </div>
@@ -1094,7 +1095,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono text-slate-500">{selected.ticket_number}</span>
                 {selected.escalated && (
-                  <span className="text-[9px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-bold">
+                  <span className="text-[11px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-bold">
                     ESCALATED L{selected.escalation_level}
                   </span>
                 )}
@@ -1131,7 +1132,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               .filter(s => s !== selected.status)
               .map(s => (
                 <button key={s} onClick={() => handlePatch({status: s})}
-                  className="text-[10px] px-2 py-1 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white rounded transition-colors">
+                  className="text-[11px] px-2 py-1 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white rounded transition-colors">
                   → {s.replace('_',' ')}
                 </button>
               ))}
@@ -1164,7 +1165,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                 {/* Agent context banner — shown when ticket was raised by/for an agent */}
                 {(selected.agent_hostname || selected.agent_id) && (
                   <div className="rounded-lg border border-teal-200 dark:border-teal-700/50 bg-teal-100 dark:bg-teal-900/20 px-3 py-2.5 flex items-start gap-2.5">
-                    <span className="text-teal-600 dark:text-teal-400 mt-0.5">🖥</span>
+                    <span className="text-teal-600 dark:text-teal-400 mt-0.5"><Glyph e="🖥" /></span>
                     <div className="flex-1 min-w-0">
                       <p className="text-teal-700 dark:text-teal-300 text-xs font-semibold mb-1">Agent Context</p>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
@@ -1179,7 +1180,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         {selected.agent_id && (
                           <div className="col-span-2">
                             <span className="text-slate-500">Agent ID</span>
-                            <p className="text-gray-700 dark:text-slate-300 font-mono text-[10px] break-all">{selected.agent_id}</p>
+                            <p className="text-gray-700 dark:text-slate-300 font-mono text-[11px] break-all">{selected.agent_id}</p>
                           </div>
                         )}
                       </div>
@@ -1265,7 +1266,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     const level    = info.access_level || info.permission_level || 'read';
                     return (
                       <div className="rounded-xl border border-purple-200 dark:border-purple-700/40 bg-purple-100 dark:bg-purple-900/15 p-3 space-y-2">
-                        <p className="text-purple-700 dark:text-purple-300 text-xs font-semibold flex items-center gap-1.5">🔑 Access Request</p>
+                        <p className="text-purple-700 dark:text-purple-300 text-xs font-semibold flex items-center gap-1.5"><Glyph e="🔑" /> Access Request</p>
                         <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-slate-800/60 rounded px-3 py-2 text-xs">
                           <div><span className="text-gray-600 dark:text-slate-400">Resource:</span><p className="text-gray-900 dark:text-white font-medium">{resource}</p></div>
                           <div><span className="text-gray-600 dark:text-slate-400">Level:</span><p className="text-purple-700 dark:text-purple-300 font-medium capitalize">{level}</p></div>
@@ -1293,7 +1294,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   if (tags.includes('vulnerability') || tags.includes('cve') || type === 'security') {
                     return (
                       <div className="rounded-xl border border-rose-200 dark:border-rose-700/40 bg-rose-100 dark:bg-rose-900/15 p-3 space-y-2">
-                        <p className="text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5">🛡 Security Finding</p>
+                        <p className="text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5"><Glyph e="🛡" /> Security Finding</p>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           {info.cve_id     && <div><span className="text-gray-600 dark:text-slate-400">CVE:</span><p className="text-rose-700 dark:text-rose-300 font-mono">{info.cve_id}</p></div>}
                           {info.cvss_score && <div><span className="text-gray-600 dark:text-slate-400">CVSS:</span><p className="text-gray-900 dark:text-white font-bold">{info.cvss_score}</p></div>}
@@ -1314,7 +1315,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   if (tags.includes('config-change') || tags.includes('configuration') || type === 'change') {
                     return (
                       <div className="rounded-xl border border-yellow-200 dark:border-yellow-700/40 bg-yellow-100 dark:bg-yellow-900/15 p-3 space-y-2">
-                        <p className="text-yellow-800 dark:text-yellow-300 text-xs font-semibold flex items-center gap-1.5">⚙ Configuration Change</p>
+                        <p className="text-yellow-800 dark:text-yellow-300 text-xs font-semibold flex items-center gap-1.5"><Glyph e="⚙" /> Configuration Change</p>
                         {info.config_key && <p className="text-xs text-slate-300 font-mono bg-slate-800/60 rounded px-2 py-1">{info.config_key}: {String(info.config_value ?? '—')}</p>}
                         {isTicketStaff && !isDone && (
                           <div className="flex gap-2 pt-1">
@@ -1468,7 +1469,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     <div key={c.id} className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-teal-600 dark:text-teal-400">{c.author}</span>
-                        <span className="text-[10px] text-slate-500">{fmtTime(c.created_at)}</span>
+                        <span className="text-[11px] text-slate-500">{fmtTime(c.created_at)}</span>
                       </div>
                       <CommentBody comment={c} className="text-sm text-gray-800 dark:text-slate-200 whitespace-pre-wrap break-words" />
                       <CommentMarks comment={c} />
@@ -1567,7 +1568,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       <Paperclip size={14} className="text-gray-600 dark:text-slate-400 flex-shrink-0"/>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900 dark:text-white truncate">{a.filename}</p>
-                        <p className="text-[10px] text-slate-500">{fileSize(a.size)} · {a.uploaded_by} · {fmtTime(a.created_at)}</p>
+                        <p className="text-[11px] text-slate-500">{fileSize(a.size)} · {a.uploaded_by} · {fmtTime(a.created_at)}</p>
                       </div>
                       {isTicketStaff && (
                       <button onClick={() => handleDeleteAttachment(a.id)} aria-label={`Delete ${a.filename}`}
@@ -1607,10 +1608,10 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-teal-600 dark:text-teal-400 font-medium">{w.hours}h</span>
-                          <span className="text-[10px] text-slate-500">{fmtTime(w.created_at)}</span>
+                          <span className="text-[11px] text-slate-500">{fmtTime(w.created_at)}</span>
                         </div>
                         <p className="text-gray-700 dark:text-slate-300">{w.description || <span className="text-slate-600">No description</span>}</p>
-                        <p className="text-[10px] text-slate-600 mt-0.5">by {w.author}</p>
+                        <p className="text-[11px] text-slate-600 mt-0.5">by {w.author}</p>
                       </div>
                     </div>
                   ))}

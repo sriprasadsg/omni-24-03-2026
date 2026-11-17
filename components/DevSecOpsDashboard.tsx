@@ -163,10 +163,10 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
             <header>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                        <h1 className="page-title flex items-center gap-3">
                             <GitPullRequestDraftIcon size={36} className="text-primary-500" />
                             {mode === 'sast-only' ? 'SAST Security Analysis' : mode === 'sbom-only' ? 'Software Bill of Materials (SBOM)' : 'DevSecOps Dashboard'}
-                        </h2>
+                        </h1>
                         <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                             Shift-left security by integrating SAST, DAST, and SCA into your CI/CD pipelines.
                         </p>
@@ -182,7 +182,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
 
             <div className="glass-premium rounded-3xl overflow-hidden shadow-2xl">
                 {mode === 'full' && (
-                    <div className="border-b border-white/10 dark:border-white/5 bg-black/5 dark:bg-white/5">
+                    <div className="border-b border-gray-200 dark:border-white/10 dark:border-white/5 bg-gray-100 dark:bg-black/5 dark:bg-white/5">
                         <nav className="flex space-x-2 px-6" aria-label="Tabs">
                             <button
                                 onClick={() => setActiveView('sast')}
@@ -203,7 +203,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                     {activeView === 'sast' ? (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                <div className="glass p-6 rounded-2xl border border-white/10">
+                                <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Tracked Repos</p>
                                     <p className="text-3xl font-black">{repositories.length}</p>
                                 </div>
@@ -211,14 +211,14 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                     <p className="text-xs font-black text-red-500 uppercase tracking-widest mb-1">Critical Findings</p>
                                     <p className="text-3xl font-black text-red-600 dark:text-red-400">{sastFindings.filter(f => f.severity === 'High').length}</p>
                                 </div>
-                                <div className="glass p-6 rounded-2xl border border-white/10">
+                                <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Issues</p>
                                     <p className="text-3xl font-black">{sastFindings.length}</p>
                                 </div>
                             </div>
-                            <div className="overflow-x-auto rounded-2xl border border-white/5">
+                            <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-white/5">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-gray-400 uppercase bg-black/5 dark:bg-white/5 font-black">
+                                    <thead className="text-xs text-gray-400 uppercase bg-gray-100 dark:bg-black/5 dark:bg-white/5 font-black">
                                         <tr>
                                             <th className="px-6 py-4">Finding</th>
                                             <th className="px-6 py-4">Location</th>
@@ -226,7 +226,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                             <th className="px-6 py-4">Repository</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                         {sastFindings.map(finding => {
                                             const repo = repositories.find(r => r.id === finding.repositoryId);
                                             return (
@@ -234,9 +234,9 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                                     <td className="px-6 py-5">
                                                         <div className="font-bold text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{finding.type}</div>
                                                     </td>
-                                                    <td className="px-6 py-5 font-mono text-[10px] text-indigo-500 font-bold uppercase">{finding.fileName}:{finding.line}</td>
+                                                    <td className="px-6 py-5 font-mono text-[11px] text-indigo-500 font-bold uppercase">{finding.fileName}:{finding.line}</td>
                                                     <td className="px-6 py-5">
-                                                        <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest ${finding.severity === 'High' ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-500 text-white'}`}>
+                                                        <span className={`px-3 py-1 text-[11px] font-black rounded-full uppercase tracking-widest ${finding.severity === 'High' ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-500 text-white'}`}>
                                                             {finding.severity}
                                                         </span>
                                                     </td>
@@ -251,11 +251,11 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                     ) : (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                <div className="glass p-6 rounded-2xl border border-white/10">
+                                <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">SBOM Inventory</p>
                                     <p className="text-3xl font-black">{sboms.length}</p>
                                 </div>
-                                <div className="glass p-6 rounded-2xl border border-white/10">
+                                <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                                     <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Deps</p>
                                     <p className="text-3xl font-black">{totalComponents}</p>
                                 </div>
@@ -270,12 +270,12 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                     placeholder="Search components..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-semibold text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 font-semibold text-sm focus:ring-2 focus:ring-primary-500 outline-none"
                                 />
                             </div>
-                            <div className="overflow-x-auto rounded-2xl border border-white/5">
+                            <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-white/5">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-gray-400 uppercase bg-black/5 dark:bg-white/5 font-black">
+                                    <thead className="text-xs text-gray-400 uppercase bg-gray-100 dark:bg-black/5 dark:bg-white/5 font-black">
                                         <tr>
                                             <th className="px-6 py-4">Component</th>
                                             <th className="px-6 py-4">Version</th>
@@ -283,21 +283,21 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                             <th className="px-6 py-4">Vulnerabilities</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                         {filteredComponents.map(component => (
                                             <tr key={component.id} onClick={() => setViewingComponent(component)} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
                                                 <td className="px-6 py-5">
                                                     <div className="font-bold text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{component.name}</div>
                                                 </td>
                                                 <td className="px-6 py-5 font-mono text-xs font-bold text-indigo-500">{component.version}</td>
-                                                <td className="px-6 py-5 uppercase text-[10px] font-black text-gray-400 tracking-widest">{component.type}</td>
+                                                <td className="px-6 py-5 uppercase text-[11px] font-black text-gray-400 tracking-widest">{component.type}</td>
                                                 <td className="px-6 py-5">
                                                     {component.vulnerabilities.length > 0 ? (
-                                                        <span className="px-3 py-1 text-[10px] font-black rounded-full uppercase bg-red-500 text-white animate-pulse">
+                                                        <span className="px-3 py-1 text-[11px] font-black rounded-full uppercase bg-red-500 text-white animate-pulse">
                                                             {component.vulnerabilities.length} CVEs Found
                                                         </span>
                                                     ) : (
-                                                        <span className="px-3 py-1 text-[10px] font-black rounded-full uppercase bg-green-500 text-white">
+                                                        <span className="px-3 py-1 text-[11px] font-black rounded-full uppercase bg-green-500 text-white">
                                                             Secure
                                                         </span>
                                                     )}

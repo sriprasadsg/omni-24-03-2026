@@ -62,7 +62,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                             <div key={idx} className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
                                 <div className={`w-2 h-2 rounded-full ${step.color} mb-3 shadow-[0_0_8px_rgba(255,255,255,0.5)]`}></div>
                                 <div className="text-sm font-bold">{step.label}</div>
-                                <div className="text-[10px] text-white/60 uppercase tracking-tighter mt-1">{step.status} • {step.date}</div>
+                                <div className="text-[11px] text-white/60 uppercase tracking-tighter mt-1">{step.status} • {step.date}</div>
                             </div>
                         ))}
                     </div>
@@ -76,7 +76,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                     </div>
                     <div className="p-0">
                         <table className="w-full text-left">
-                            <thead className="bg-gray-50 dark:bg-gray-900/50 text-[10px] uppercase font-bold text-gray-500">
+                            <thead className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase font-bold text-gray-500">
                                 <tr>
                                     <th className="px-6 py-4">Legacy Algorithm</th>
                                     <th className="px-6 py-4">PQC Replacement (NIST)</th>
@@ -95,7 +95,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                                         <td className="px-6 py-4 font-bold text-indigo-600 dark:text-indigo-400">{row.pqc}</td>
                                         <td className="px-6 py-4 text-sm text-gray-500">{row.complexity}</td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                                            <span className={`px-2 py-1 rounded text-[11px] font-bold uppercase ${
                                                 row.priority === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
                                             }`}>{row.priority}</span>
                                         </td>
@@ -135,7 +135,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center tracking-tight">
+                    <h1 className="page-title flex items-center">
                         <ShieldCheckIcon size={28} className="mr-3 text-indigo-600" />
                         Zero Trust & Quantum-Ready Security
                     </h1>
@@ -210,7 +210,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Device Trust Scores</h2>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Monitoring</span>
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Live Monitoring</span>
                             </div>
                             <div className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {deviceScores.map(device => (
@@ -218,7 +218,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                                         <div className="flex justify-between items-center mb-3">
                                             <div>
                                                 <span className="font-bold text-sm text-slate-900 dark:text-white">{device.deviceId}</span>
-                                                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Endpoint Identity Verified</p>
+                                                <p className="text-[11px] text-slate-500 uppercase font-bold tracking-tighter">Endpoint Identity Verified</p>
                                             </div>
                                             <div className={`text-2xl font-black ${device.score >= 90 ? 'text-emerald-500' :
                                                 device.score >= 70 ? 'text-amber-500' :
@@ -263,7 +263,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Active Session Risks</h2>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Real-time UEBA</span>
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Real-time UEBA</span>
                             </div>
                             <div className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {sessionRisks.map(session => (
@@ -272,14 +272,14 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                                             <div>
                                                 <span className="font-bold text-sm text-slate-900 dark:text-white">{session.userId}</span>
                                                 <div className="flex items-center mt-1">
-                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold uppercase">
+                                                    <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold uppercase">
                                                         {session.authLevel}
                                                     </span>
-                                                    <span className="text-[10px] text-slate-400 ml-2 font-mono">{session.sessionId.substring(0, 8)}...</span>
+                                                    <span className="text-[11px] text-slate-400 ml-2 font-mono">{session.sessionId.substring(0, 8)}...</span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Risk Score</p>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Risk Score</p>
                                                 <span className={`text-2xl font-black ${session.riskScore < 30 ? 'text-emerald-500' :
                                                     session.riskScore < 60 ? 'text-amber-500' :
                                                         'text-red-500'
@@ -290,22 +290,22 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             {session.factors.unusualLocation && (
-                                                <span className="text-[10px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
+                                                <span className="text-[11px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
                                                     <AlertTriangleIcon size={10} className="mr-1" /> UNUSUAL LOCATION
                                                 </span>
                                             )}
                                             {session.factors.unusualTime && (
-                                                <span className="text-[10px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
+                                                <span className="text-[11px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
                                                     <AlertTriangleIcon size={10} className="mr-1" /> ANOMALOUS TIME
                                                 </span>
                                             )}
                                             {session.factors.newDevice && (
-                                                <span className="text-[10px] font-bold px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-lg flex items-center border border-amber-100 dark:border-amber-900/30">
+                                                <span className="text-[11px] font-bold px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-lg flex items-center border border-amber-100 dark:border-amber-900/30">
                                                     <AlertTriangleIcon size={10} className="mr-1" /> NEW DEVICE
                                                 </span>
                                             )}
                                             {session.factors.suspiciousActivity && (
-                                                <span className="text-[10px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
+                                                <span className="text-[11px] font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center border border-red-100 dark:border-red-900/30">
                                                     <AlertTriangleIcon size={10} className="mr-1" /> SUSPICIOUS ACTIVITY
                                                 </span>
                                             )}
@@ -332,7 +332,7 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50 text-[11px] uppercase font-black text-slate-400 tracking-widest">
                                     <tr>
                                         <th className="px-6 py-4">Algorithm</th>
                                         <th className="px-6 py-4">Usage Context</th>
@@ -348,17 +348,17 @@ const ZeroTrustQuantumDashboard: React.FC = () => {
                                             <td className="px-6 py-4 text-slate-500 font-medium">{item.usage}</td>
                                             <td className="px-6 py-4">
                                                 {item.quantumVulnerable ? (
-                                                    <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-[10px] font-bold border border-red-200 dark:border-red-900/50">
+                                                    <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-bold border border-red-200 dark:border-red-900/50">
                                                         VULNERABLE
                                                     </span>
                                                 ) : (
-                                                    <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-900/50">
+                                                    <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50">
                                                         QUANTUM-SAFE
                                                     </span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${item.migrationPriority === 'High' ? 'bg-red-600 text-white shadow-lg shadow-red-500/20' :
+                                                <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${item.migrationPriority === 'High' ? 'bg-red-600 text-white shadow-lg shadow-red-500/20' :
                                                     item.migrationPriority === 'Medium' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
                                                         'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                                                     }`}>

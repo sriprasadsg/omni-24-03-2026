@@ -32,10 +32,10 @@ export const DistributedTracingDashboard: React.FC<DistributedTracingDashboardPr
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <GitMergeIcon size={36} className="text-primary-500" />
                     Distributed Tracing
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Visualize request flows and identify performance bottlenecks in your microservices architecture.
                 </p>
@@ -71,8 +71,8 @@ export const DistributedTracingDashboard: React.FC<DistributedTracingDashboardPr
                         <svg className="absolute inset-0 w-full h-full -z-10 opacity-30">
                             <defs>
                                 <linearGradient id="trace-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" stopColor="#4f46e5" />
-                                    <stop offset="100%" stopColor="#818cf8" />
+                                    <stop offset="0%" stopColor="#0e7490" />
+                                    <stop offset="100%" stopColor="#22d3ee" />
                                 </linearGradient>
                             </defs>
                             <line x1="200" y1="192" x2="320" y2="192" stroke="url(#trace-grad)" strokeWidth="3" strokeDasharray="5,5" />
@@ -101,7 +101,7 @@ export const DistributedTracingDashboard: React.FC<DistributedTracingDashboardPr
                                     <tr key={trace.id} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
                                         <td className="px-6 py-5">
                                             <div className="font-mono text-xs font-bold text-primary-600 dark:text-primary-400 group-hover:translate-x-1 transition-transform">{trace.rootSpan.name}</div>
-                                            <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-tighter">{trace.id.substring(0, 12)}...</div>
+                                            <div className="text-[11px] text-gray-400 mt-1 uppercase tracking-tighter">{trace.id.substring(0, 12)}...</div>
                                         </td>
                                         <td className="px-6 py-5">
                                             <div className="flex items-center gap-2 font-semibold">

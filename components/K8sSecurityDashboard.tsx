@@ -98,7 +98,7 @@ export default function K8sSecurityDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Kubernetes Security</h1>
+          <h1 className="page-title">Kubernetes Security</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">CIS Benchmark assessment, RBAC audit, pod security, and container hardening</p>
         </div>
         <button onClick={() => setShowAdd(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">

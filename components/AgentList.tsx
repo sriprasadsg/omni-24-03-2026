@@ -218,7 +218,7 @@ const AgentCard: React.FC<{
                                 {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
                                 <span className="truncate">{formatGeo(agent.geo)}</span>
                                 {agent.geo.vpn_heuristic === true && (
-                                    <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20">
+                                    <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20">
                                         <WifiIcon size={10} />
                                         likely VPN/hosting
                                     </span>

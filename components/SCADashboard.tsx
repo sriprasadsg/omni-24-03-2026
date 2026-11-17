@@ -116,7 +116,7 @@ export default function SCADashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Security Configuration Assessment</h2>
+        <h1 className="page-title">Security Configuration Assessment</h1>
         <span className="text-sm text-gray-600 dark:text-slate-400">{stats.agents_scanned} agents scanned</span>
       </div>
 

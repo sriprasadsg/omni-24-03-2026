@@ -147,7 +147,7 @@ export function UEBADashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <UserIcon className="text-purple-600 dark:text-purple-400" size={28} />
                         User & Entity Behavior Analytics (UEBA)
                     </h1>
@@ -235,7 +235,7 @@ export function UEBADashboard() {
                                                     <div className={`text-lg font-bold ${getScoreColor(user.score)}`}>
                                                         {user.score}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">
+                                                    <div className="text-[11px] text-slate-500 uppercase tracking-wider">
                                                         Risk Score
                                                     </div>
                                                 </div>
@@ -320,8 +320,8 @@ export function UEBADashboard() {
                                                 <AreaChart data={userHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                                     <defs>
                                                         <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor={selectedUser.score > 50 ? "#ef4444" : "#8b5cf6"} stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor={selectedUser.score > 50 ? "#ef4444" : "#8b5cf6"} stopOpacity={0} />
+                                                            <stop offset="5%" stopColor={selectedUser.score > 50 ? "#ef4444" : "#06b6d4"} stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor={selectedUser.score > 50 ? "#ef4444" : "#06b6d4"} stopOpacity={0} />
                                                         </linearGradient>
                                                     </defs>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
@@ -335,7 +335,7 @@ export function UEBADashboard() {
                                                     <Area
                                                         type="monotone"
                                                         dataKey="score"
-                                                        stroke={selectedUser.score > 50 ? "#ef4444" : "#8b5cf6"}
+                                                        stroke={selectedUser.score > 50 ? "#ef4444" : "#06b6d4"}
                                                         strokeWidth={3}
                                                         fillOpacity={1}
                                                         fill="url(#colorRisk)"

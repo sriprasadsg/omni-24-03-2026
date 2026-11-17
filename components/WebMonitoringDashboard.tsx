@@ -104,8 +104,8 @@ export const WebMonitoringDashboard: React.FC = () => {
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-gray-100 italic tracking-tighter">
-                        WEB MONITORING <span className="text-primary-600 not-italic">LIVE</span>
+                    <h1 className="page-title">
+                        Web Monitoring <span className="text-primary-600 dark:text-primary-400">Live</span>
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 font-bold uppercase text-xs tracking-widest">
                         Outbound Request Tracking & Web Server Log Analysis
@@ -113,7 +113,7 @@ export const WebMonitoringDashboard: React.FC = () => {
                 </div>
                 <div className="flex gap-4">
                     <div className="glass-premium px-4 py-2 rounded-2xl border-l-4 border-primary-500">
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Connections</p>
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Active Connections</p>
                         <p className="text-2xl font-black text-gray-800 dark:text-gray-100">{webConnections.length}</p>
                     </div>
                 </div>
@@ -209,7 +209,7 @@ export const WebMonitoringDashboard: React.FC = () => {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+                            <tr className="text-gray-400 text-[11px] font-black uppercase tracking-widest border-b border-white/5">
                                 <th className="pb-4 px-4 font-black">Agent / Process</th>
                                 <th className="pb-4 px-4 font-black">Destination</th>
                                 <th className="pb-4 px-4 font-black">Port</th>
@@ -222,7 +222,7 @@ export const WebMonitoringDashboard: React.FC = () => {
                                     <td className="py-4 px-4">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-gray-800 dark:text-gray-200">{conn.process || 'Unknown'}</span>
-                                            <span className="text-[10px] text-gray-500 uppercase tracking-tighter">PID: {conn.pid}</span>
+                                            <span className="text-[11px] text-gray-500 uppercase tracking-tighter">PID: {conn.pid}</span>
                                         </div>
                                     </td>
                                     <td className="py-4 px-4">
@@ -234,7 +234,7 @@ export const WebMonitoringDashboard: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="py-4 px-4">
-                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${conn.port === 443 ? 'bg-green-100 text-green-700 dark:bg-green-900/30' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30'}`}>
+                                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${conn.port === 443 ? 'bg-green-100 text-green-700 dark:bg-green-900/30' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30'}`}>
                                             {conn.port === 443 ? 'HTTPS' : conn.port === 80 ? 'HTTP' : conn.port}
                                         </span>
                                     </td>

@@ -84,7 +84,7 @@ export const AiPolicyEngine: React.FC = () => {
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-gray-900 dark:text-white">{policy.name}</h4>
-                                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${policy.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        <span className={`text-[11px] uppercase font-bold px-1.5 py-0.5 rounded ${policy.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                                             {policy.isActive ? 'Active' : 'Inactive'}
                                         </span>
                                     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 type Tab = 'tia' | 'lia' | 'notices' | 'contracts';
 
@@ -162,7 +163,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
         <div className="space-y-2">
           {expiring.length > 0 && (
             <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-300">
-              ⚠ {expiring.length} contract(s) expiring within 30 days
+              <Glyph e="⚠" /> {expiring.length} contract(s) expiring within 30 days
             </div>
           )}
           <div className="flex justify-between items-center">

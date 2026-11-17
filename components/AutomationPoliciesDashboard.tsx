@@ -227,7 +227,7 @@ export const AutomationPoliciesDashboard: React.FC<AutomationPoliciesDashboardPr
                 {/* Page header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                     <div>
-                        <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Automation Policies</h2>
+                        <h1 className="page-title">Automation Policies</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                             Define rules for when the Omni-Agent AI can perform actions autonomously.
                         </p>

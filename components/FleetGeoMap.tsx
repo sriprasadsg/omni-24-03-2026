@@ -95,7 +95,7 @@ export function FleetGeoMap() {
   if (error && !data) {
     return (
       <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
-        <div className="mb-6"><h1 className="text-2xl font-bold">Fleet Geo Map</h1></div>
+        <div className="mb-6"><h1 className="page-title">Fleet Geo Map</h1></div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-red-200 dark:border-red-900/50">
           <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
         </div>
@@ -108,7 +108,7 @@ export function FleetGeoMap() {
   return (
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Fleet Geo Map</h1>
+        <h1 className="page-title">Fleet Geo Map</h1>
         <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Where the fleet physically is — {located.length} located
           {unlocatedCount > 0 ? `, ${unlocatedCount} unlocated` : ''} of {filtered.length} shown.

@@ -84,7 +84,7 @@ const SimulationDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex flex-wrap justify-between items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Digital Twin Simulation</h1>
+                    <h1 className="page-title">Digital Twin Simulation</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">Predict the impact of changes before applying them to production</p>
                 </div>
                 {twinState && (

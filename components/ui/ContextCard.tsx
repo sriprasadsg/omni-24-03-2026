@@ -1,4 +1,5 @@
 import React from 'react';
+import { Glyph } from './Glyph';
 
 interface ContextCardProps {
   type: 'finding' | 'recommendation' | 'metric' | 'alert';
@@ -49,7 +50,7 @@ export const ContextCard: React.FC<ContextCardProps> = ({
   return (
     <div className={`p-4 rounded-lg border-l-4 ${styles.borderColor} ${styles.bgColor} my-2`}>
       <div className="flex items-start gap-3">
-        <span className="text-xl">{styles.icon}</span>
+        <span className="text-xl"><Glyph e={styles.icon} /></span>
         <div className="flex-1">
           <div className={`font-semibold ${styles.textColor}`}>{title}</div>
           <div className="text-slate-300 mt-1">{description}</div>

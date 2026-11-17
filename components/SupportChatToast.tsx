@@ -83,11 +83,11 @@ const SingleToast: React.FC<{
                                     <span className="text-gray-400 font-normal ml-1">· {toast.senderName}</span>
                                 )}
                             </span>
-                            <span className="text-[10px] text-gray-500 ml-2 flex-shrink-0">{timeLabel}</span>
+                            <span className="text-[11px] text-gray-500 ml-2 flex-shrink-0">{timeLabel}</span>
                         </div>
 
                         {/* Sub-header */}
-                        <p className="text-[10px] text-teal-400 font-medium uppercase tracking-wide mb-1.5">
+                        <p className="text-[11px] text-teal-400 font-medium uppercase tracking-wide mb-1.5">
                             Support Chat
                         </p>
 
@@ -109,7 +109,7 @@ const SingleToast: React.FC<{
 
                 {/* Open chat CTA */}
                 <div className="mt-2.5 flex items-center justify-end">
-                    <span className="text-[10px] text-teal-400 group-hover:text-teal-300 flex items-center gap-0.5 transition-colors">
+                    <span className="text-[11px] text-teal-400 group-hover:text-teal-300 flex items-center gap-0.5 transition-colors">
                         Open Support Chat <ArrowIcon size={11} />
                     </span>
                 </div>

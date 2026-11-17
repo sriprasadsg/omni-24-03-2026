@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface MFAVerifyModalProps {
     /** From /auth/login's mfa_required answer; not used with stepUp. */
@@ -57,7 +58,7 @@ export default function MFAVerifyModal({ mfaSessionToken, stepUp = false, onSucc
             <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 16, padding: 32, width: 400, maxWidth: '90vw', color: '#f1f5f9' }}>
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                    <div style={{ fontSize: 48, marginBottom: 8 }}>🔐</div>
+                    <div style={{ fontSize: 48, marginBottom: 8 }}><Glyph e="🔐" /></div>
                     <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Two-Factor Authentication</h2>
                     <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
                         {useBackup ? 'Enter one of your 8-digit backup codes' : 'Enter the 6-digit code from your authenticator app'}
@@ -101,13 +102,13 @@ export default function MFAVerifyModal({ mfaSessionToken, stepUp = false, onSucc
 
                 {/* Action buttons */}
                 <button onClick={verify} disabled={loading || !code}
-                    style={{ width: '100%', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 10, padding: 14, cursor: 'pointer', fontSize: 16, fontWeight: 700, marginBottom: 12, opacity: !code ? 0.5 : 1 }}>
+                    style={{ width: '100%', background: '#0e7490', color: 'white', border: 'none', borderRadius: 10, padding: 14, cursor: 'pointer', fontSize: 16, fontWeight: 700, marginBottom: 12, opacity: !code ? 0.5 : 1 }}>
                     {loading ? 'Verifying...' : 'Verify'}
                 </button>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <button onClick={() => { setUseBackup(!useBackup); setCode(''); setError(''); }}
-                        style={{ background: 'none', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>
+                        style={{ background: 'none', border: 'none', color: '#0e7490', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>
                         {useBackup ? '← Use authenticator code' : 'Use backup code instead'}
                     </button>
                     <button onClick={onCancel}

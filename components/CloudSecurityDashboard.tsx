@@ -42,7 +42,7 @@ export const CloudSecurityDashboard: React.FC<CloudSecurityDashboardProps> = ({ 
 
     return (
         <div className="container mx-auto">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Cloud Security Posture Management (CSPM)</h2>
+            <h1 className="page-title mb-2">Cloud Security Posture Management (CSPM)</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Continuously monitor your cloud environments for misconfigurations and security risks.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">

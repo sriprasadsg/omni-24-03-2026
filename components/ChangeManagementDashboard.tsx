@@ -176,7 +176,7 @@ const ChangeManagementDashboard: React.FC = () => {
     <div className="bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Change Management</h1>
+          <h1 className="page-title">Change Management</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">CAB workflow and change advisory board approvals</p>
         </div>
         <button

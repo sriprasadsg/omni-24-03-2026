@@ -79,11 +79,11 @@ export function IaCSecurityDashboard() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>DevSecOps</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>IaC Security</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>DevSecOps</div>
+          <h1 className="page-title" style={{ margin: 0 }}>IaC Security</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>Terraform · CloudFormation · Kubernetes YAML · Helm — static policy validation</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -109,7 +109,7 @@ export function IaCSecurityDashboard() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>Frameworks: </span>
           {stats.frameworks_checked?.map(f => (
-            <span key={f} style={{ background: 'rgba(99,102,241,.12)', border: '1px solid rgba(99,102,241,.25)', color: 'var(--ink-accent)', borderRadius: 6, padding: '3px 10px', fontSize: '0.75em', fontWeight: 600 }}>{f}</span>
+            <span key={f} style={{ background: 'rgba(8,145,178,.12)', border: '1px solid rgba(8,145,178,.25)', color: 'var(--ink-accent)', borderRadius: 6, padding: '3px 10px', fontSize: '0.75em', fontWeight: 600 }}>{f}</span>
           ))}
           <span style={{ marginLeft: 'auto', fontSize: '0.78em', color: 'var(--ink-muted)' }}>{stats.rules_applied} rules applied</span>
         </div>
@@ -119,7 +119,7 @@ export function IaCSecurityDashboard() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {['all', 'critical', 'high', 'medium', 'low', 'suppressed'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
-            background: filter === f ? 'rgba(99,102,241,.2)' : 'transparent',
+            background: filter === f ? 'rgba(8,145,178,.2)' : 'transparent',
             border: '1px solid var(--ink-line)', color: filter === f ? 'var(--ink-accent)' : 'var(--ink-muted)',
             borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 600, textTransform: 'capitalize',
           }}>{f}</button>

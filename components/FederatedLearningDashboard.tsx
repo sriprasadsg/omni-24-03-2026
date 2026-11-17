@@ -123,7 +123,7 @@ export const FederatedLearningDashboard: React.FC = () => {
     <div className="p-6 space-y-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+          <h1 className="page-title flex items-center">
             <BookOpenCheckIcon size={32} className="mr-3 text-primary-600" />
             Federated Learning Dashboard
           </h1>
@@ -313,7 +313,7 @@ export const FederatedLearningDashboard: React.FC = () => {
             <YAxis stroke="#9ca3af" label={{ value: 'Aggregated Loss', angle: -90, position: 'insideLeft' }} />
             <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem' }} />
             <Legend />
-            <Line type="monotone" dataKey="loss" stroke="#8884d8" name="Loss" />
+            <Line type="monotone" dataKey="loss" stroke="#0891b2" name="Loss" />
           </LineChart>
         </ResponsiveContainer>
       </div>

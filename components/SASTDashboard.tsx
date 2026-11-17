@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ShieldCheckIcon, AlertTriangleIcon, CodeIcon, RefreshCwIcon, CheckCircleIcon, XCircleIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface Scan {
     scan_id: string;
@@ -188,7 +189,7 @@ export const SASTDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Static Application Security Testing
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -331,7 +332,7 @@ export const SASTDashboard: React.FC = () => {
                                         <code className="text-sm text-green-400 font-mono">{vuln.code_snippet}</code>
                                     </div>
                                     <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-                                        💡 {vuln.recommendation}
+                                        <Glyph e="💡" /> {vuln.recommendation}
                                     </p>
                                 </div>
                                 <button
@@ -346,7 +347,7 @@ export const SASTDashboard: React.FC = () => {
                     {vulnerabilities.length === 0 && (
                         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-12 text-center">
                             <ShieldCheckIcon size={64} className="mx-auto mb-4 text-green-600 opacity-50" />
-                            <p className="text-green-700 dark:text-green-300 font-semibold">No open vulnerabilities! ✅</p>
+                            <p className="text-green-700 dark:text-green-300 font-semibold">No open vulnerabilities! <Glyph e="✅" /></p>
                         </div>
                     )}
                 </div>

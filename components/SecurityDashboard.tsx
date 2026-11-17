@@ -221,7 +221,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                             <span className={activeView === tab.id ? 'text-primary-600 dark:text-primary-400' : ''}>{tab.icon}</span>
                             {tab.label}
                             {tab.count !== undefined && (
-                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[10px] font-semibold tabular-nums ${activeView === tab.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{tab.count}</span>
+                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[11px] font-semibold tabular-nums ${activeView === tab.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{tab.count}</span>
                             )}
                         </button>
                     ))}

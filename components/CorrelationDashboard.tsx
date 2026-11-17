@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangleIcon, ShieldAlertIcon, ActivityIcon, TrendingUpIcon } from './icons';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface Correlation {
     id: string;
@@ -146,7 +147,7 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         SIEM Correlation Engine
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -285,11 +286,11 @@ export const CorrelationDashboard: React.FC<CorrelationDashboardProps> = ({ tena
                                         {correlation.pattern}
                                     </h3>
                                     <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                        <span>📊 {correlation.event_count} events</span>
+                                        <span><Glyph e="📊" /> {correlation.event_count} events</span>
                                         {correlation.entity_value && (
-                                            <span>🎯 {correlation.entity_type}: {correlation.entity_value}</span>
+                                            <span><Glyph e="🎯" /> {correlation.entity_type}: {correlation.entity_value}</span>
                                         )}
-                                        <span>🕐 {new Date(correlation.detected_at).toLocaleString()}</span>
+                                        <span><Glyph e="🕐" /> {new Date(correlation.detected_at).toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>

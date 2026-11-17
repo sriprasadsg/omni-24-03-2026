@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface Anomaly {
   id: string;
@@ -90,7 +91,7 @@ export default function NDRDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Network Detection & Response</h1>
+          <h1 className="page-title">Network Detection & Response</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Behavioral traffic analysis, anomaly detection, and east-west threat hunting</p>
         </div>
         <div className="flex gap-2">
@@ -100,7 +101,7 @@ export default function NDRDashboard() {
           </button>
           <button onClick={runDetection} disabled={detecting}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
-            {detecting ? 'Detecting…' : '🔍 Run Detection'}
+            {detecting ? 'Detecting…' : <><Glyph e="🔍" /> Run Detection</>}
           </button>
         </div>
       </div>
@@ -139,7 +140,7 @@ export default function NDRDashboard() {
 
       {anomalies.length === 0 ? (
         <div className="text-center py-16 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <div className="text-5xl mb-4">🌐</div>
+          <div className="text-5xl mb-4"><Glyph e="🌐" /></div>
           <p className="text-lg">No anomalies detected</p>
           <p className="text-sm mt-2">Load demo data or run detection to see network anomalies</p>
         </div>
@@ -149,7 +150,7 @@ export default function NDRDashboard() {
             <div key={a.id} className={`bg-white dark:bg-gray-800 rounded-xl p-5 border ${a.severity === 'critical' ? 'border-red-200 dark:border-red-800' : 'border-gray-200 dark:border-gray-700'}`}>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{TYPE_ICONS[a.type] || '⚠️'}</span>
+                  <span className="text-2xl"><Glyph e={TYPE_ICONS[a.type] || '⚠'} /></span>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded border font-medium capitalize ${SEV_COLORS[a.severity] || ''}`}>

@@ -37,7 +37,7 @@ export const TenantManagementDashboard: React.FC<TenantManagementDashboardProps>
     return (
         <div className="container mx-auto p-6">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Tenant Management</h1>
+                <h1 className="page-title">Tenant Management</h1>
                 <div className="flex items-center gap-3">
                 <button
                     onClick={() => setPlansOpen(true)}

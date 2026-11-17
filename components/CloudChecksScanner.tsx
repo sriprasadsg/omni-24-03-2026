@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Cloud, Play, Shield, AlertTriangle, CheckCircle, XCircle, Search, Filter, RefreshCw } from 'lucide-react';
+import { Glyph } from './ui/Glyph';
 
 interface CloudCheck {
   id: string;
@@ -144,7 +145,7 @@ export default function CloudChecksScanner() {
             const pct = total ? Math.round((data.pass || 0) / total * 100) : 0;
             return (
               <div key={prov} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400">{PROVIDER_ICONS[prov]} {prov.toUpperCase()}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400"><Glyph e={PROVIDER_ICONS[prov]} /> {prov.toUpperCase()}</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pct}%</p>
                 <p className="text-xs text-gray-400">{data.pass || 0} pass · {data.fail || 0} fail</p>
               </div>
@@ -230,7 +231,7 @@ export default function CloudChecksScanner() {
                       {r.result === 'FAIL' && r.detail && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.detail}</p>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                      <span>{PROVIDER_ICONS[r.provider]} {r.provider?.toUpperCase()}</span>
+                      <span><Glyph e={PROVIDER_ICONS[r.provider]} /> {r.provider?.toUpperCase()}</span>
                       <span className="text-gray-400 mx-1">·</span>
                       <span>{r.service}</span>
                     </td>
@@ -262,7 +263,7 @@ export default function CloudChecksScanner() {
                     <p className="text-xs text-gray-400 mt-0.5">{c.description}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                    <span>{PROVIDER_ICONS[c.provider]} {c.provider?.toUpperCase()}</span>
+                    <span><Glyph e={PROVIDER_ICONS[c.provider]} /> {c.provider?.toUpperCase()}</span>
                     <span className="text-gray-400 mx-1">·</span>
                     <span>{c.service}</span>
                   </td>

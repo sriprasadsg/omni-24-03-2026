@@ -52,7 +52,7 @@ export const NetworkDeviceList: React.FC<NetworkDeviceListProps> = ({ devices })
                                 </td>
                                 <td className="px-6 py-4 font-semibold text-gray-800 dark:text-gray-200">
                                     {device.hostname}
-                                    {device.scanEngine === 'nmap' && <span className="ml-1 text-[10px] bg-blue-100 text-blue-800 px-1 rounded">Nmap</span>}
+                                    {device.scanEngine === 'nmap' && <span className="ml-1 text-[11px] bg-blue-100 text-blue-800 px-1 rounded">Nmap</span>}
                                 </td>
                                 <td className="px-6 py-4">{device.deviceType}</td>
                                 <td className="px-6 py-4">{device.vendor || '-'}</td>

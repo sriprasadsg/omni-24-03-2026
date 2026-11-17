@@ -275,7 +275,7 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
 
     return (
         <div className="container mx-auto">
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">Settings & Configuration</h2>
+            <h1 className="page-title mb-6">Settings & Configuration</h1>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
                 <div className="border-b border-gray-200 dark:border-gray-700">

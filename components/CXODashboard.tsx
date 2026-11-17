@@ -14,11 +14,11 @@ const StatCard: React.FC<{ title: string; value: string; change?: number; trend?
             {icon}
         </div>
         <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
             <p className="text-3xl font-black text-gray-800 dark:text-gray-100 italic tracking-tighter">{value}</p>
             {/* Only shown when a measured month-over-month change exists */}
             {change !== undefined && (
-                <p className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+                <p className={`text-[11px] font-bold flex items-center gap-1 mt-1 ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
                     {trend === 'up' ? <TrendingUpIcon size={10} /> : <ArrowDownRightIcon size={10} />}
                     {trend === 'up' ? '+' : ''}{change}% vs last month
                 </p>
@@ -54,8 +54,8 @@ export const threatTrendDirection = (days: { critical: number; high: number; med
 };
 
 const OS_FAMILIES = [
-    { name: 'Windows', match: /windows/i, color: '#6366f1' },
-    { name: 'Linux', match: /linux|ubuntu|debian|centos|rhel|red hat|fedora|suse/i, color: '#8b5cf6' },
+    { name: 'Windows', match: /windows/i, color: '#0891b2' },
+    { name: 'Linux', match: /linux|ubuntu|debian|centos|rhel|red hat|fedora|suse/i, color: '#06b6d4' },
     { name: 'macOS', match: /mac|darwin/i, color: '#ec4899' },
 ];
 
@@ -215,7 +215,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
         <>
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                    <h1 className="page-title flex items-center gap-3">
                         <TrendingUpIcon size={36} className="text-primary-500" />
                         Executive Insights
                     </h1>
@@ -440,7 +440,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                                             <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                                                 {framework.shortName || framework.name}
                                             </p>
-                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${statusColor}`}>
+                                            <span className={`text-[11px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${statusColor}`}>
                                                 {statusText}
                                             </span>
                                         </div>
@@ -450,7 +450,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                                                 style={{ width: `${framework.progress}%` }}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">{framework.progress}% compliant — click for breakdown</p>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">{framework.progress}% compliant — click for breakdown</p>
                                     </div>
                                 </div>
                             );
@@ -473,7 +473,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                                     }`}></div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{alert.message}</p>
-                                    <p className="text-[10px] text-gray-500 mt-0.5">{new Date(alert.timestamp).toLocaleString(undefined, { timeZone })}</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">{new Date(alert.timestamp).toLocaleString(undefined, { timeZone })}</p>
                                 </div>
                             </div>
                         ))}

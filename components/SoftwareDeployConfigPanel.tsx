@@ -242,7 +242,7 @@ export function SoftwareDeployConfigPanel({
                                     <div key={task.task_id} className="bg-slate-800/50 p-2 rounded border border-slate-700">
                                         <div className="flex justify-between items-center mb-1">
                                             <span className="font-mono text-slate-400">{(task.task_id || 'unknown').substring(0, 8)}…</span>
-                                            <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${isOk ? 'bg-green-500/20 text-green-400' : isBad ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                            <span className={`px-1.5 py-0.5 rounded text-[11px] uppercase font-bold ${isOk ? 'bg-green-500/20 text-green-400' : isBad ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
                                                 {task.status}
                                             </span>
                                         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldSearchIcon, AlertTriangleIcon } from './icons';
 import { scanArtifact, fetchThreatIntelFeed, fetchThreatIntelStats, ThreatIntelScan, ThreatIntelStats } from '../services/threatIntelService';
+import { Glyph } from './ui/Glyph';
 
 interface ThreatIntelFeedEnhancedProps {
     tenantId: string;
@@ -201,7 +202,7 @@ export const ThreatIntelFeedEnhanced: React.FC<ThreatIntelFeedEnhancedProps> = (
                             </div>
                             {(item.malicious || 0) > 0 && (
                                 <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold">
-                                    ⚠️ {item.malicious} engines detected this as malicious
+                                    <Glyph e="⚠" /> {item.malicious} engines detected this as malicious
                                 </div>
                             )}
                         </div>

@@ -4,6 +4,7 @@ import { authFetch } from '../services/apiService';
 import { Secret, SecretsTableTab } from './SecretsTableTab';
 import { CreateSecretModal, ViewSecretModal } from './SecretsModals';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface AuditLog {
     id: string;
@@ -228,7 +229,7 @@ export const SecretsManagementDashboard: React.FC = () => {
 
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Secrets Management
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Centralized secrets storage with automatic rotation</p>
@@ -328,7 +329,7 @@ export const SecretsManagementDashboard: React.FC = () => {
                         {secrets.filter(s => isRotationDue(s)).length === 0 && (
                             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-12 text-center">
                                 <ShieldCheckIcon size={64} className="mx-auto mb-4 text-green-600 opacity-50" />
-                                <p className="text-green-700 dark:text-green-300 font-semibold">All secrets are up to date! ✅</p>
+                                <p className="text-green-700 dark:text-green-300 font-semibold">All secrets are up to date! <Glyph e="✅" /></p>
                             </div>
                         )}
                     </div>
@@ -393,7 +394,7 @@ export const SecretsManagementDashboard: React.FC = () => {
                                                 <span className="font-semibold">File:</span> {finding.file_path} (Line {finding.line})
                                             </p>
                                             <p className="text-sm text-red-700 dark:text-red-300 font-semibold">
-                                                ⚠️ {finding.recommendation}
+                                                <Glyph e="⚠" /> {finding.recommendation}
                                             </p>
                                         </div>
                                     </div>

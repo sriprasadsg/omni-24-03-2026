@@ -61,7 +61,7 @@ export const SustainabilityDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <h1 className="page-title flex items-center">
                         <ActivityIcon size={28} className="mr-3 text-green-600" />
                         Sustainability & Green IT
                     </h1>
@@ -155,7 +155,7 @@ export const SustainabilityDashboard: React.FC = () => {
                                 cx="50%"
                                 cy="50%"
                                 outerRadius={80}
-                                fill="#8884d8"
+                                fill="#0891b2"
                                 dataKey="value"
                                 label={(props) => {
                                     const RADIAN = Math.PI / 180;

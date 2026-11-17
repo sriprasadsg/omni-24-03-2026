@@ -50,7 +50,7 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
             {/* Header */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Advanced BI Analytics</h1>
+                    <h1 className="page-title">Advanced BI Analytics</h1>
                     <p className="text-slate-500 dark:text-slate-400">Deep operational insights and predictive risk modeling.</p>
                 </div>
                 <div className="flex space-x-3">
@@ -100,8 +100,8 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
                                 <Radar
                                     name="Current Risk"
                                     dataKey="A"
-                                    stroke="#6366f1"
-                                    fill="#6366f1"
+                                    stroke="#0891b2"
+                                    fill="#0891b2"
                                     fillOpacity={0.5}
                                 />
                                 <Tooltip
@@ -137,7 +137,7 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
                                 />
                                 <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
                                 <Area type="monotone" dataKey="forecast" fill="#10b981" fillOpacity={0.1} stroke="none" />
-                                <Bar dataKey="actual" barSize={20} fill="#6366f1" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="actual" barSize={20} fill="#0891b2" radius={[4, 4, 0, 0]} />
                                 <Line type="monotone" dataKey="forecast" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} strokeDasharray="5 5" />
                             </ComposedChart>
                         </ResponsiveContainer>
@@ -157,7 +157,7 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
                                 data={data.asset_distribution}
                                 dataKey="size"
                                 stroke="#fff"
-                                fill="#6366f1"
+                                fill="#0891b2"
                             >
                                 <Tooltip
                                     contentStyle={{ backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', border: 'none', borderRadius: '12px' }}

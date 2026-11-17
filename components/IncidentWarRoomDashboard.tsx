@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ShieldAlertIcon, ClockIcon, UsersIcon, MessageSquareIcon, FileTextIcon, ActivityIcon, PlusIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface Incident {
     id: string;
@@ -177,21 +178,21 @@ const IncidentWarRoomDashboard: React.FC = () => {
                         <ShieldAlertIcon size={28} />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white uppercase italic">Incident War Room</h1>
+                        <h1 className="page-title">Incident War Room</h1>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping text-white"></span>
-                            <p className="text-[10px] font-black text-gray-600 dark:text-slate-400 uppercase tracking-widest">Active Crisis Mode • Tactical Command Center</p>
+                            <p className="text-[11px] font-black text-gray-600 dark:text-slate-400 uppercase tracking-widest">Active Crisis Mode • Tactical Command Center</p>
                         </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="hidden md:flex -space-x-2 mr-4">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-slate-950 bg-white dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-gray-600 dark:text-slate-400">
+                            <div key={i} className="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-slate-950 bg-white dark:bg-slate-800 flex items-center justify-center text-[11px] font-bold text-gray-600 dark:text-slate-400">
                                 {String.fromCharCode(64 + i)}
                             </div>
                         ))}
-                        <div className="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-slate-950 bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white">
+                        <div className="w-8 h-8 rounded-full border-2 border-gray-200 dark:border-slate-950 bg-indigo-600 flex items-center justify-center text-[11px] font-bold text-white">
                             +4
                         </div>
                     </div>
@@ -208,9 +209,9 @@ const IncidentWarRoomDashboard: React.FC = () => {
                 {/* Sidebar: Incident List */}
                 <div className="lg:col-span-3 space-y-4">
                     <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-2xl p-4">
-                        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center justify-between">
+                        <h2 className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center justify-between">
                             Active Feed
-                            <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[8px]">{incidents.length}</span>
+                            <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[11px]">{incidents.length}</span>
                         </h2>
                         <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 custom-scrollbar">
                             {incidents.map(inc => (
@@ -222,17 +223,17 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                         : 'bg-white/40 dark:bg-slate-900/40 border-gray-200 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700'
                                     }`}>
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className={`text-[9px] px-2 py-0.5 rounded font-black tracking-tighter ${SEV_COLORS[inc.severity]}`}>
+                                        <span className={`text-[11px] px-2 py-0.5 rounded font-black tracking-tighter ${SEV_COLORS[inc.severity]}`}>
                                             {inc.severity}
                                         </span>
-                                        <span className="text-[9px] font-mono text-slate-500">{inc.incident_number}</span>
+                                        <span className="text-[11px] font-mono text-slate-500">{inc.incident_number}</span>
                                     </div>
                                     <h3 className={`text-sm font-bold leading-tight ${selected?.id === inc.id ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-300'}`}>
                                         {inc.title}
                                     </h3>
                                     <div className="flex items-center gap-2 mt-3">
                                         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[inc.status] || 'bg-slate-500'} bg-current`}></span>
-                                        <span className={`text-[10px] font-bold uppercase tracking-tighter ${STATUS_COLORS[inc.status] || 'text-slate-500'}`}>
+                                        <span className={`text-[11px] font-bold uppercase tracking-tighter ${STATUS_COLORS[inc.status] || 'text-slate-500'}`}>
                                             {inc.status}
                                         </span>
                                     </div>
@@ -268,12 +269,12 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                             </p>
                                         </div>
                                         <div className="bg-white/50 dark:bg-slate-950/50 p-4 rounded-2xl border border-gray-200 dark:border-slate-800 w-full md:w-64">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Lifecycle Control</p>
+                                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Lifecycle Control</p>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {['open', 'investigating', 'contained', 'resolved'].map(s => (
                                                     <button key={s}
                                                         onClick={() => updateStatus(selected.id, s)}
-                                                        className={`text-[9px] font-black uppercase tracking-widest py-2 rounded-lg border transition-all ${
+                                                        className={`text-[11px] font-black uppercase tracking-widest py-2 rounded-lg border transition-all ${
                                                             selected.status === s 
                                                             ? 'bg-red-600 border-red-500 text-white' 
                                                             : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-slate-500 hover:text-gray-700 dark:hover:text-slate-300'
@@ -317,12 +318,12 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-3 mb-1">
                                                             <span className="text-gray-900 dark:text-white font-bold text-sm uppercase italic">{e.event}</span>
-                                                            <span className="text-[10px] text-slate-500 font-mono">{new Date(e.timestamp).toLocaleTimeString()}</span>
+                                                            <span className="text-[11px] text-slate-500 font-mono">{new Date(e.timestamp).toLocaleTimeString()}</span>
                                                         </div>
                                                         {e.detail && <p className="text-gray-600 dark:text-slate-400 text-xs leading-relaxed mb-1">{e.detail}</p>}
                                                         <div className="flex items-center gap-2">
                                                             <UsersIcon size={10} className="text-slate-600" />
-                                                            <span className="text-[10px] text-slate-500 font-bold uppercase">{e.actor}</span>
+                                                            <span className="text-[11px] text-slate-500 font-bold uppercase">{e.actor}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -333,14 +334,14 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                     placeholder="Add tactical milestone..."
                                                     className="flex-1 bg-transparent border-none text-sm text-gray-900 dark:text-white placeholder-slate-600 focus:ring-0" />
                                                 <button onClick={() => { if (tlEvent.trim()) { addTimelineEvent(selected.id, tlEvent); setTlEvent(''); } }}
-                                                    className="bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                                    className="bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">
                                                     POST MILESTONE
                                                 </button>
                                                 <button onClick={() => enrichFromCorrelations(selected.id)}
                                                     disabled={enriching}
                                                     title="Auto-add recent high-severity SIEM correlations to this timeline"
-                                                    className="bg-red-100 dark:bg-red-900/40 hover:bg-red-100 dark:hover:bg-red-900/70 border border-red-200 dark:border-red-700/50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-700 dark:text-red-300 transition-all disabled:opacity-50 flex items-center gap-1">
-                                                    {enriching ? '⏳' : '⚡'} ENRICH
+                                                    className="bg-red-100 dark:bg-red-900/40 hover:bg-red-100 dark:hover:bg-red-900/70 border border-red-200 dark:border-red-700/50 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-red-700 dark:text-red-300 transition-all disabled:opacity-50 flex items-center gap-1">
+                                                    {enriching ? '⏳' : <Glyph e="⚡" />} ENRICH
                                                 </button>
                                             </div>
                                         </div>
@@ -359,8 +360,8 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                         <div className="flex-1">
                                                             <p className={`text-sm font-bold ${t.status === 'done' ? 'text-slate-500 line-through' : 'text-gray-800 dark:text-slate-200'}`}>{t.title}</p>
                                                             <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-[9px] font-black uppercase text-slate-500">{t.assignee}</span>
-                                                                <span className={`text-[8px] font-black uppercase px-1.5 rounded border ${
+                                                                <span className="text-[11px] font-black uppercase text-slate-500">{t.assignee}</span>
+                                                                <span className={`text-[11px] font-black uppercase px-1.5 rounded border ${
                                                                     t.priority === 'high' ? 'text-red-500 border-red-500/30' : 'text-slate-500 border-gray-200 dark:border-slate-800'
                                                                 }`}>{t.priority}</span>
                                                             </div>
@@ -369,11 +370,11 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                 ))}
                                             </div>
                                             <div className="mt-8 bg-white/50 dark:bg-slate-950/50 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 border-dashed">
-                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Assign New Task</p>
+                                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Assign New Task</p>
                                                 <div className="flex flex-col md:flex-row gap-3">
                                                     <input placeholder="Task definition..." className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
                                                     <input placeholder="Assignee" className="md:w-48 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
-                                                    <button className="bg-white text-slate-950 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">CREATE TASK</button>
+                                                    <button className="bg-white text-slate-950 px-6 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">CREATE TASK</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -385,8 +386,8 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                 {selected.chat.map((m, i) => (
                                                     <div key={i} className="flex flex-col items-start max-w-[80%]">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{m.user}</span>
-                                                            <span className="text-[9px] text-slate-600 font-mono">{new Date(m.timestamp).toLocaleTimeString()}</span>
+                                                            <span className="text-[11px] font-black text-red-500 uppercase tracking-widest">{m.user}</span>
+                                                            <span className="text-[11px] text-slate-600 font-mono">{new Date(m.timestamp).toLocaleTimeString()}</span>
                                                         </div>
                                                         <div className="bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 p-4 rounded-2xl rounded-tl-none">
                                                             <p className="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{m.message}</p>
@@ -399,7 +400,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                     onKeyDown={e => e.key === 'Enter' && sendChat(selected.id)}
                                                     placeholder="Operational comms secure..."
                                                     className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm focus:border-red-500 transition-all pr-32" />
-                                                <button onClick={() => sendChat(selected.id)} className="absolute right-3 top-2 bottom-2 px-6 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 transition-all">SEND</button>
+                                                <button onClick={() => sendChat(selected.id)} className="absolute right-3 top-2 bottom-2 px-6 bg-red-600 text-white rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-red-500 transition-all">SEND</button>
                                             </div>
                                         </div>
                                     )}
@@ -416,14 +417,14 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                     <div className="aspect-square bg-white dark:bg-slate-900 rounded-xl mb-4 flex items-center justify-center text-slate-700 group-hover:text-red-500/40 transition-colors">
                                                         <FileTextIcon size={48} />
                                                     </div>
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{file.type}</p>
+                                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1">{file.type}</p>
                                                     <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{file.name}</p>
-                                                    <p className="text-[9px] text-slate-600 mt-2">{file.size}</p>
+                                                    <p className="text-[11px] text-slate-600 mt-2">{file.size}</p>
                                                 </div>
                                             ))}
                                             <div className="border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center p-4 hover:border-red-500/30 transition-all cursor-pointer">
                                                 <PlusIcon size={24} className="text-slate-700 mb-2" />
-                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Upload Evidence</p>
+                                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Upload Evidence</p>
                                             </div>
                                         </div>
                                     )}
@@ -433,30 +434,30 @@ const IncidentWarRoomDashboard: React.FC = () => {
                             {/* Tactical HUD */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-3xl p-6">
-                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Threat Origin</h3>
+                                    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Threat Origin</h3>
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500">RU</div>
                                         <div>
                                             <p className="text-sm font-black">Moscow, Russia</p>
-                                            <p className="text-[10px] text-slate-500">IP: 92.14.88.102 (VPN)</p>
+                                            <p className="text-[11px] text-slate-500">IP: 92.14.88.102 (VPN)</p>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-3xl p-6">
-                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Containment Delta</h3>
+                                    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Containment Delta</h3>
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-500 font-black">42m</div>
                                         <div>
                                             <p className="text-sm font-black">Time to Contain</p>
-                                            <p className="text-[10px] text-slate-500">Below organizational SLA</p>
+                                            <p className="text-[11px] text-slate-500">Below organizational SLA</p>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-3xl p-6">
-                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Team Presence</h3>
+                                    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Team Presence</h3>
                                     <div className="flex -space-x-2">
                                         {[1, 2, 3, 4, 5].map(i => (
-                                            <div key={i} className="w-10 h-10 rounded-full border-4 border-gray-200 dark:border-slate-900 bg-white dark:bg-slate-800 flex items-center justify-center text-[10px] font-black">
+                                            <div key={i} className="w-10 h-10 rounded-full border-4 border-gray-200 dark:border-slate-900 bg-white dark:bg-slate-800 flex items-center justify-center text-[11px] font-black">
                                                 U{i}
                                             </div>
                                         ))}
@@ -487,13 +488,13 @@ const IncidentWarRoomDashboard: React.FC = () => {
                             </div>
                             <div className="space-y-6">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Primary Title</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">Primary Title</label>
                                     <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                                         placeholder="Identify the threat vector..."
                                         className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm text-gray-900 dark:text-white focus:border-red-500 transition-all" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Priority Tier</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">Priority Tier</label>
                                     <div className="grid grid-cols-4 gap-3">
                                         {['P1', 'P2', 'P3', 'P4'].map(s => (
                                             <button key={s}
@@ -509,7 +510,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Tactical Summary</label>
+                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">Tactical Summary</label>
                                     <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                                         rows={4} placeholder="Initial assessment, observable IOCs, and affected assets..."
                                         className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm text-gray-900 dark:text-white focus:border-red-500 transition-all resize-none" />

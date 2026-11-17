@@ -96,7 +96,7 @@ export const CertificatesDashboard: React.FC = () => {
         <div className="container mx-auto space-y-5">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Certificate Management</h2>
+                    <h1 className="page-title">Certificate Management</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Track TLS/SSL certificate expiry across your infrastructure</p>
                 </div>
                 <button onClick={() => setShowAdd(true)}

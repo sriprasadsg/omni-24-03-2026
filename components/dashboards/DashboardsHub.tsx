@@ -56,7 +56,7 @@ function DashboardView({ id, canDesign, onBack, onEdit }: { id: string; canDesig
           <ArrowLeft className="h-4 w-4" /> Dashboards
         </button>
         <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">{detail.name}</h1>
+          <h1 className="page-title">{detail.name}</h1>
           {detail.description && <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{detail.description}</p>}
         </div>
         {canDesign && (
@@ -120,7 +120,7 @@ export function DashboardsHub() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Dashboards</h1>
+          <h1 className="page-title">Dashboards</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
             {canDesign ? 'Design dashboards from the screens your organization has, and choose who sees each one.'
                        : 'Dashboards your administrator shared with you.'}

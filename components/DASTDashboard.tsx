@@ -51,7 +51,7 @@ export const DASTDashboard: React.FC = () => {
 
     return (
         <div className="p-6 space-y-6">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="page-title flex items-center gap-2">
                 <Activity className="text-blue-600 dark:text-blue-400" />
                 Dynamic Application Security Testing (DAST)
             </h1>

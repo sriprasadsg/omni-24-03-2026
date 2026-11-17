@@ -109,7 +109,7 @@ const SwarmDashboard: React.FC = () => {
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen dark:bg-slate-900">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Autonomous Agent Swarms</h1>
+                    <h1 className="page-title">Autonomous Agent Swarms</h1>
                     <p className="text-slate-500">Collaborative AI agents solving complex tasks autonomously</p>
                 </div>
                 <div className="flex gap-2">
@@ -158,7 +158,7 @@ const SwarmDashboard: React.FC = () => {
                                 >
                                     <div className="flex justify-between items-start mb-1">
                                         <span className="text-xs font-mono text-slate-400">{m.id.slice(0, 8)}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${m.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                        <span className={`text-[11px] px-2 py-0.5 rounded-full ${m.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                             {m.status}
                                         </span>
                                     </div>
@@ -193,7 +193,7 @@ const SwarmDashboard: React.FC = () => {
                                     <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 max-w-[80%] dark:bg-slate-800 dark:border-slate-700">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{log.agent_name}</span>
-                                            <span className="text-[10px] text-slate-400 border border-slate-100 px-1 rounded uppercase tracking-wider dark:border-slate-700">{log.role}</span>
+                                            <span className="text-[11px] text-slate-400 border border-slate-100 px-1 rounded uppercase tracking-wider dark:border-slate-700">{log.role}</span>
                                         </div>
                                         <p className="text-sm text-slate-600 leading-relaxed font-mono dark:text-slate-300">{log.message}</p>
                                     </div>

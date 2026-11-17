@@ -210,7 +210,7 @@ const ModelTrainingDashboard = () => {
                                 { label: 'LOSS',  value: (currentJob.loss as number).toFixed(4),              color: 'text-amber-400' },
                             ].map(m => (
                                 <div key={m.label} className="bg-slate-800/60 border border-slate-700/40 p-3 rounded-lg">
-                                    <span className="text-slate-500 text-[10px] font-mono block mb-1">{m.label}</span>
+                                    <span className="text-slate-500 text-[11px] font-mono block mb-1">{m.label}</span>
                                     <span className={`text-xl font-mono font-bold ${m.color}`}>{m.value}</span>
                                 </div>
                             ))}
@@ -228,7 +228,7 @@ const ModelTrainingDashboard = () => {
                             </div>
                             <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                                 <div
-                                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 transition-all duration-1000 ease-out rounded-full shadow-[0_0_12px_rgba(99,102,241,0.6)]"
+                                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 transition-all duration-1000 ease-out rounded-full shadow-[0_0_12px_rgba(8,145,178,0.6)]"
                                     style={{ width: `${currentJob.epochs > 0 ? (currentJob.current_epoch / currentJob.epochs) * 100 : 0}%` }}
                                 />
                             </div>
@@ -237,7 +237,7 @@ const ModelTrainingDashboard = () => {
                         {/* Loss chart */}
                         {history.length > 0 && (
                             <div>
-                                <p className="text-slate-500 text-[10px] font-mono mb-2 uppercase tracking-widest flex items-center gap-1">
+                                <p className="text-slate-500 text-[11px] font-mono mb-2 uppercase tracking-widest flex items-center gap-1">
                                     <BarChart2 className="w-3 h-3" /> Training Loss
                                 </p>
                                 <div className="h-20 flex items-end gap-0.5 border-b border-slate-800">
@@ -299,11 +299,11 @@ const ModelTrainingDashboard = () => {
                     <>
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <div className="bg-slate-800/50 rounded-lg p-3">
-                                <p className="text-slate-500 text-[10px] font-mono mb-1">TOTAL SAMPLES</p>
+                                <p className="text-slate-500 text-[11px] font-mono mb-1">TOTAL SAMPLES</p>
                                 <p className="text-2xl font-bold font-mono text-white">{datasetTotal.toLocaleString()}</p>
                             </div>
                             <div className="bg-slate-800/50 rounded-lg p-3">
-                                <p className="text-slate-500 text-[10px] font-mono mb-1">LAST BUILT</p>
+                                <p className="text-slate-500 text-[11px] font-mono mb-1">LAST BUILT</p>
                                 <p className="text-sm font-medium text-slate-300">
                                     {datasetBuiltAt ? new Date(datasetBuiltAt).toLocaleString() : '—'}
                                 </p>

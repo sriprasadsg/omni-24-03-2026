@@ -161,10 +161,10 @@ export const ServicePricingPage: React.FC = () => {
         <div className="container mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <SettingsIcon size={28} className="text-primary-500" />
                         Service Pricing Configuration
-                    </h2>
+                    </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Manage billable services and their pricing models. These settings apply to all tenants.
                     </p>

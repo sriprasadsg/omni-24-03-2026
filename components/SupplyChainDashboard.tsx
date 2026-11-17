@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface Artifact {
   id: string;
@@ -81,7 +82,7 @@ export default function SupplyChainDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Supply Chain Security</h1>
+          <h1 className="page-title">Supply Chain Security</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">SLSA compliance, dependency vulnerability scanning, and artifact provenance</p>
         </div>
         <button onClick={seedData} disabled={seeding}
@@ -128,7 +129,7 @@ export default function SupplyChainDashboard() {
       {tab === 'artifacts' && (
         artifacts.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">📦</div><p>No artifacts — load demo data</p>
+            <div className="text-4xl mb-3"><Glyph e="📦" /></div><p>No artifacts — load demo data</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -170,7 +171,7 @@ export default function SupplyChainDashboard() {
       {tab === 'vulnerabilities' && (
         vulns.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">✅</div><p>No vulnerabilities found</p>
+            <div className="text-4xl mb-3"><Glyph e="✅" /></div><p>No vulnerabilities found</p>
           </div>
         ) : (
           <div className="space-y-2">

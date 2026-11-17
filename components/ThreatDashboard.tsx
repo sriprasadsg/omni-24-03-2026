@@ -89,7 +89,7 @@ const ThreatDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent flex items-center gap-3">
+          <h1 className="page-title flex items-center gap-3">
             <Shield className="w-8 h-8 text-blue-500" />
             Threat Intelligence & SIEM
           </h1>
@@ -180,7 +180,7 @@ const ThreatDashboard: React.FC = () => {
                         <span className="text-sm font-medium text-gray-800 dark:text-slate-200">
                           {new Date(event.time).toLocaleTimeString()}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono uppercase">
+                        <span className="text-[11px] text-slate-500 font-mono uppercase">
                           {event.metadata?.product ?? ''}
                         </span>
                       </div>
@@ -190,7 +190,7 @@ const ThreatDashboard: React.FC = () => {
                       <p className="text-xs text-slate-500 truncate mt-0.5">{event.message ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getSeverityColor(event.severity)}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${getSeverityColor(event.severity)}`}>
                         {(event.severity ?? '').toUpperCase()}
                       </span>
                     </td>

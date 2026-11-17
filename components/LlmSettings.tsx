@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { LlmSettings as LlmSettingsType, AiTool } from '../types';
 import { BrainCircuitIcon, XIcon, CogIcon, CheckIcon, AlertTriangleIcon, InfoIcon } from './icons';
 import { testLlmConnection } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface LlmSettingsProps {
     isOpen: boolean;
@@ -352,7 +353,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                     )}
                     {formData.provider === 'Omni-LLM-Scratch' && (
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-md text-xs text-blue-700 dark:text-blue-300">
-                            <p className="font-bold mb-1">🧠 Omni-LLM (Custom Transformer)</p>
+                            <p className="font-bold mb-1"><Glyph e="🧠" /> Omni-LLM (Custom Transformer)</p>
                             <p>This model was trained from scratch on the platform. It runs entirely offline with no external API calls. Navigate to <strong>AI &gt; LLMOps &gt; Train Custom Model</strong> to start or monitor training.</p>
                         </div>
                     )}

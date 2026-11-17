@@ -4,6 +4,7 @@ import {
     fetchCustomYaraRules, saveCustomYaraRule, deleteCustomYaraRule, validateYaraRule
 } from '../services/apiService';
 import { PlusCircleIcon, TrashIcon, CheckIcon, AlertTriangleIcon, CogIcon } from './icons';
+import { Glyph } from './ui/Glyph';
 
 const STARTER_TEMPLATE = `rule CustomRule {
     meta:
@@ -138,12 +139,12 @@ export const YaraRuleEditor: React.FC = () => {
                 <p className={`text-xs font-medium truncate ${selected?.id === rule.id ? 'text-primary-700 dark:text-primary-300' : 'text-gray-800 dark:text-gray-200'}`}>
                     {rule.name}
                 </p>
-                <p className={`text-[10px] ${SEVERITY_COLOR[rule.severity ?? ''] ?? 'text-gray-400'}`}>
+                <p className={`text-[11px] ${SEVERITY_COLOR[rule.severity ?? ''] ?? 'text-gray-400'}`}>
                     {rule.severity ?? (rule.enabled ? 'enabled' : 'disabled')}
                 </p>
             </div>
             {rule.source === 'builtin'
-                ? <span className="text-[9px] text-amber-500 border border-amber-500/40 rounded px-1 py-0.5 ml-1 flex-shrink-0">built-in</span>
+                ? <span className="text-[11px] text-amber-500 border border-amber-500/40 rounded px-1 py-0.5 ml-1 flex-shrink-0">built-in</span>
                 : <button onClick={e => { e.stopPropagation(); handleDelete(rule); }}
                     className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 flex-shrink-0">
                     <TrashIcon size={12} />
@@ -175,7 +176,7 @@ export const YaraRuleEditor: React.FC = () => {
                         {/* Built-in rules grouped by category */}
                         {Object.entries(builtinByCategory).map(([cat, catRules]) => (
                             <div key={cat}>
-                                <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/60 border-b border-gray-100 dark:border-gray-700/50">
+                                <p className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/60 border-b border-gray-100 dark:border-gray-700/50">
                                     {cat.replace(/_/g, ' ')}
                                 </p>
                                 {catRules.map(r => <RuleRow key={r.id} rule={r} />)}
@@ -184,7 +185,7 @@ export const YaraRuleEditor: React.FC = () => {
                         {/* Custom rules */}
                         {customRules.length > 0 && (
                             <div>
-                                <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary-500 bg-slate-50 dark:bg-slate-800/60 border-b border-gray-100 dark:border-gray-700/50">
+                                <p className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-primary-500 bg-slate-50 dark:bg-slate-800/60 border-b border-gray-100 dark:border-gray-700/50">
                                     Custom Rules
                                 </p>
                                 {customRules.map(r => <RuleRow key={r.id} rule={r} />)}
@@ -200,7 +201,7 @@ export const YaraRuleEditor: React.FC = () => {
                 <div className="flex-1 flex flex-col">
                     {!(selected || isNew) ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-500 text-sm">
-                            <span className="text-3xl">🛡️</span>
+                            <span className="text-3xl"><Glyph e="🛡" /></span>
                             Select a rule or click <strong>+</strong> to create a custom rule
                         </div>
                     ) : (
@@ -210,7 +211,7 @@ export const YaraRuleEditor: React.FC = () => {
                                 {isBuiltin && (
                                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
                                         style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }}>
-                                        🔒 <strong>Built-in rule</strong> — read-only. Copy content to a new custom rule to modify it.
+                                        <Glyph e="🔒" /> <strong>Built-in rule</strong> — read-only. Copy content to a new custom rule to modify it.
                                         {selected?.mitre && <span className="ml-auto font-mono">{selected.mitre}</span>}
                                     </div>
                                 )}

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { SearchIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, RefreshCwIcon, AlertTriangleIcon, CheckIcon, XIcon } from './icons';
+import { Glyph } from './ui/Glyph';
 
 interface AgentEntry {
     agent_id: string;
@@ -126,7 +127,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                     </div>
                 ) : filtered.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 text-slate-500 gap-2">
-                        <span className="text-2xl">📦</span>
+                        <span className="text-2xl"><Glyph e="📦" /></span>
                         <span className="text-sm">{search ? 'No matching software found' : 'No software inventory collected yet'}</span>
                         <span className="text-xs text-slate-600">Agents send inventory on each heartbeat</span>
                     </div>
@@ -160,7 +161,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                             </td>
                                             <td className="px-4 py-3 font-medium text-gray-800 dark:text-slate-200">{entry.name}</td>
                                             <td className="px-4 py-3">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${PKG_BADGE[entry.pkg_type] ?? PKG_BADGE.unknown}`}>
+                                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${PKG_BADGE[entry.pkg_type] ?? PKG_BADGE.unknown}`}>
                                                     {entry.pkg_type}
                                                 </span>
                                             </td>
@@ -201,7 +202,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                             <tr className="border-b border-gray-200 dark:border-slate-800/60 bg-gray-50 dark:bg-slate-800/20">
                                                 <td colSpan={7} className="px-8 py-3">
                                                     <div className="space-y-1.5">
-                                                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                                                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                                                             Agents with this package — select to uninstall from specific agents
                                                         </p>
                                                         {entry.agents.map(agent => {
@@ -223,7 +224,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                                                         )}
                                                                     </div>
                                                                     {agent.last_scanned && (
-                                                                        <span className="text-[10px] text-slate-600">
+                                                                        <span className="text-[11px] text-slate-600">
                                                                             scanned {new Date(agent.last_scanned).toLocaleDateString()}
                                                                         </span>
                                                                     )}
@@ -254,7 +255,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                     <TrashIcon size={16} className="text-red-600 dark:text-red-400" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-red-600 dark:text-red-400/70">Confirm Uninstall</p>
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-red-600 dark:text-red-400/70">Confirm Uninstall</p>
                                     <p className="text-sm font-bold text-gray-900 dark:text-white">{confirmEntry.name}</p>
                                 </div>
                             </div>

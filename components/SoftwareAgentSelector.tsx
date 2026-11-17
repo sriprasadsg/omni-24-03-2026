@@ -83,7 +83,7 @@ export function SoftwareAgentSelector({
                                         </div>
                                         <span className="font-medium text-slate-200">{agent.hostname}</span>
                                         {isExcluded && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">EXCLUDED</span>
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">EXCLUDED</span>
                                         )}
                                     </td>
                                     <td className="p-4 text-slate-300">{agent.platform}</td>

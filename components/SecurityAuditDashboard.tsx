@@ -99,10 +99,10 @@ export const SecurityAuditDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white flex items-center">
+                    <h1 className="page-title flex items-center">
                         <ShieldCheckIcon size={28} className="mr-3 text-primary-500" />
                         Security Audit Log
-                    </h2>
+                    </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Track integrity verification, signature validation, and security events
                     </p>

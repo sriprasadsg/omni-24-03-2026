@@ -162,15 +162,15 @@ export const CloudAccountsDashboard: React.FC = () => {
                 </div>
                 {a.last_scan && <div className="text-gray-400">Last scan: {new Date(a.last_scan).toLocaleString()}</div>}
                 <div className="flex gap-1 pt-1">
-                  <button onClick={() => scan(a.id)} disabled={scanning[a.id]} className="px-2 py-0.5 bg-blue-600 text-white rounded disabled:opacity-50 text-[10px]">
+                  <button onClick={() => scan(a.id)} disabled={scanning[a.id]} className="px-2 py-0.5 bg-blue-600 text-white rounded disabled:opacity-50 text-[11px]">
                     {scanning[a.id] ? 'Scanning...' : 'Scan Now'}
                   </button>
-                  <button onClick={() => loadResults(a.id)} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px]">Results</button>
+                  <button onClick={() => loadResults(a.id)} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[11px]">Results</button>
                 </div>
                 {(results[a.id] || []).length > 0 && (
                   <div className="mt-1 max-h-20 overflow-y-auto space-y-0.5">
                     {(results[a.id] || []).slice(0, 5).map((r, i) => (
-                      <div key={i} className="flex gap-1 text-[10px]">
+                      <div key={i} className="flex gap-1 text-[11px]">
                         <span className={`w-1.5 h-1.5 rounded-full mt-0.5 shrink-0 ${r.result === 'PASS' ? 'bg-green-500' : 'bg-red-500'}`} />
                         <span className="text-gray-500 truncate">{r.checkName || r.checkId}</span>
                       </div>

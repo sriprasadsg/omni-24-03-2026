@@ -64,11 +64,11 @@ export const AiComplianceReport: React.FC<AiComplianceReportProps> = ({ modelId,
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
-                        <div className="text-[10px] text-indigo-400 uppercase font-bold mb-1 tracking-wider">Expert Score</div>
+                        <div className="text-[11px] text-indigo-400 uppercase font-bold mb-1 tracking-wider">Expert Score</div>
                         <div className="text-2xl font-black text-indigo-600 dark:text-indigo-300">{res.overallScore}%</div>
                     </div>
                     <div className="md:col-span-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                        <div className="text-[10px] text-gray-400 uppercase font-bold mb-1 tracking-wider">Expert Opinion</div>
+                        <div className="text-[11px] text-gray-400 uppercase font-bold mb-1 tracking-wider">Expert Opinion</div>
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300 italic">"{res.expertOpinion}"</p>
                     </div>
                 </div>
@@ -159,12 +159,12 @@ export const AiComplianceReport: React.FC<AiComplianceReportProps> = ({ modelId,
                                 <div>
                                     <div className="flex items-center mb-1">
                                         <span className="font-bold text-red-800 dark:text-red-400 mr-2">{v.ruleName}</span>
-                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 rounded font-bold uppercase">
+                                        <span className="text-[11px] px-1.5 py-0.5 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 rounded font-bold uppercase">
                                             {v.severity}
                                         </span>
                                     </div>
                                     <p className="text-sm text-red-700 dark:text-red-300 mb-2">{v.message}</p>
-                                    <div className="text-[10px] text-red-600/60 dark:text-red-400/60 font-medium">
+                                    <div className="text-[11px] text-red-600/60 dark:text-red-400/60 font-medium">
                                         Policy: {v.policyName} ({v.policyId})
                                     </div>
                                 </div>

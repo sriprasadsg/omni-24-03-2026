@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface Honeytoken {
   id: string;
@@ -112,7 +113,7 @@ export default function DeceptionDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="page-title flex items-center gap-2">
             <span>Deception Technology</span>
             {summary && summary.open_alerts > 0 && (
               <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
@@ -170,7 +171,7 @@ export default function DeceptionDashboard() {
                     }`}>
                       <input type="radio" name="type" value={id} checked={form.type === id}
                         onChange={() => setForm(p => ({ ...p, type: id }))} />
-                      <span>{TYPE_ICONS[id]}</span> {name}
+                      <span><Glyph e={TYPE_ICONS[id]} /></span> {name}
                     </label>
                   ))}
                 </div>
@@ -232,7 +233,7 @@ export default function DeceptionDashboard() {
                 ['🔔', 'Zero False Positives', 'Nothing legitimate ever touches these — every hit is a real threat'],
               ].map(([icon, title, desc]) => (
                 <div key={title as string} className="flex gap-3">
-                  <span className="text-xl">{icon}</span>
+                  <span className="text-xl"><Glyph e={icon as string} /></span>
                   <div><div className="font-medium">{title as string}</div><div className="text-gray-600 dark:text-gray-400">{desc as string}</div></div>
                 </div>
               ))}
@@ -243,7 +244,7 @@ export default function DeceptionDashboard() {
             <h3 className="font-semibold mb-4">Recent Alerts</h3>
             {alerts.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <div className="text-3xl mb-2">✅</div>
+                <div className="text-3xl mb-2"><Glyph e="✅" /></div>
                 <p className="text-sm">No deception alerts — your environment is clean</p>
               </div>
             ) : (
@@ -273,7 +274,7 @@ export default function DeceptionDashboard() {
         <div className="space-y-3">
           {honeytokens.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
-              <div className="text-5xl mb-4">🪤</div>
+              <div className="text-5xl mb-4"><Glyph e="🪤" /></div>
               <p>No honeytokens deployed yet</p>
               <button onClick={() => setShowCreate(true)} className="mt-3 bg-red-700 hover:bg-red-600 px-4 py-2 rounded text-sm text-white">
                 Deploy First Honeytoken
@@ -287,7 +288,7 @@ export default function DeceptionDashboard() {
                 }`}>
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{TYPE_ICONS[token.type]}</span>
+                      <span className="text-lg"><Glyph e={TYPE_ICONS[token.type]} /></span>
                       <div>
                         <div className="font-medium text-sm">{token.label}</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">{TYPE_LABELS[token.type]}</div>
@@ -334,7 +335,7 @@ export default function DeceptionDashboard() {
         <div className="space-y-3">
           {alerts.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
-              <div className="text-5xl mb-4">🛡️</div>
+              <div className="text-5xl mb-4"><Glyph e="🛡" /></div>
               <p>No deception alerts — your honeytokens have not been triggered</p>
             </div>
           ) : (

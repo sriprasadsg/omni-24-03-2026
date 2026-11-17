@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 // CISSP Domain colors matching backend
 const DOMAIN_COLORS: Record<number, string> = {
@@ -214,13 +215,13 @@ export default function CISSPOracle() {
                 <div className="cissp-header-left">
                     <div className="cissp-logo">
                         <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                            <rect width="32" height="32" rx="8" fill="#6366f1" />
+                            <rect width="32" height="32" rx="8" fill="#0891b2" />
                             <path d="M16 6L6 11V21L16 26L26 21V11L16 6Z" stroke="white" strokeWidth="2" fill="none" />
                             <circle cx="16" cy="16" r="4" fill="white" />
                         </svg>
                     </div>
                     <div>
-                        <h1 className="cissp-title">CISSP Oracle</h1>
+                        <h1 className="page-title cissp-title">CISSP Oracle</h1>
                         <p className="cissp-subtitle">AI Security Advisor · 8 Domains · (ISC)² Aligned</p>
                     </div>
                 </div>
@@ -369,7 +370,7 @@ export default function CISSPOracle() {
                     ) : (
                         !assessRunning && (
                             <div className="no-assessments">
-                                <div className="no-assess-icon">🔍</div>
+                                <div className="no-assess-icon"><Glyph e="🔍" /></div>
                                 <div>No assessments yet. Click "Run Assessment" to generate your first CISSP report.</div>
                             </div>
                         )
@@ -385,7 +386,7 @@ export default function CISSPOracle() {
         .cissp-subtitle { font-size:12px; color:#64748b; margin:0; }
         .cissp-tabs { display:flex; gap:4px; background:#0f1117; border-radius:8px; padding:4px; }
         .cissp-tab { padding:8px 16px; border:none; border-radius:6px; background:transparent; color:#64748b; cursor:pointer; font-size:13px; font-weight:500; transition:all 0.15s; }
-        .cissp-tab.active { background:#6366f1; color:white; }
+        .cissp-tab.active { background:#0891b2; color:white; }
         .cissp-tab:hover:not(.active) { background:#1e293b; color:#e2e8f0; }
         .cissp-content { flex:1; overflow-y:auto; padding:24px; }
         .domains-intro { margin-bottom:24px; }
@@ -403,7 +404,7 @@ export default function CISSPOracle() {
         .concept-pill { font-size:11px; background:#0f1117; color:#94a3b8; padding:2px 8px; border-radius:4px; }
         .domain-detail { max-width:700px; }
         .back-btn { background:none; border:1px solid #334155; color:#94a3b8; padding:8px 16px; border-radius:6px; cursor:pointer; margin-bottom:20px; font-size:13px; }
-        .back-btn:hover { border-color:#6366f1; color:#6366f1; }
+        .back-btn:hover { border-color:#0891b2; color:#0891b2; }
         .domain-detail-header { background:#1e293b; border-radius:12px; padding:20px; margin-bottom:20px; }
         .domain-detail-code { font-size:13px; font-weight:700; margin-bottom:4px; }
         .domain-detail-name { font-size:24px; font-weight:700; color:#f8fafc; margin-bottom:8px; }
@@ -422,39 +423,39 @@ export default function CISSPOracle() {
         .chat-messages { flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
         .cissp-bubble { max-width:80%; border-radius:12px; padding:14px 16px; }
         .cissp-bubble.oracle { background:#1e293b; border:1px solid #2d3748; align-self:flex-start; }
-        .cissp-bubble.user { background:#6366f1; align-self:flex-end; margin-left:auto; }
+        .cissp-bubble.user { background:#0891b2; align-self:flex-end; margin-left:auto; }
         .bubble-header { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
-        .oracle-badge { font-size:11px; font-weight:600; color:#6366f1; background:#6366f122; padding:2px 8px; border-radius:4px; border:1px solid #6366f140; }
+        .oracle-badge { font-size:11px; font-weight:600; color:#0891b2; background:#6366f122; padding:2px 8px; border-radius:4px; border:1px solid #6366f140; }
         .domain-badge { font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; }
         .bubble-content { font-size:14px; line-height:1.7; color:#e2e8f0; }
         .cissp-bubble.user .bubble-content { color:white; }
         .recommendations { margin-top:12px; border-top:1px solid #2d3748; padding-top:10px; }
         .rec-title { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
         .rec-item { font-size:12px; color:#94a3b8; margin-bottom:4px; }
-        .rec-bullet { color:#6366f1; font-weight:700; margin-right:4px; }
+        .rec-bullet { color:#0891b2; font-weight:700; margin-right:4px; }
         .bubble-time { font-size:10px; color:#475569; margin-top:8px; }
         .typing-indicator { display:flex; gap:4px; align-items:center; height:20px; }
-        .typing-indicator span { width:8px; height:8px; background:#6366f1; border-radius:50%; animation:bounce 1s infinite; }
+        .typing-indicator span { width:8px; height:8px; background:#0891b2; border-radius:50%; animation:bounce 1s infinite; }
         .typing-indicator span:nth-child(2) { animation-delay:0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay:0.4s; }
         @keyframes bounce { 0%,80%,100%{transform:scale(0.8);opacity:0.5} 40%{transform:scale(1.2);opacity:1} }
         .chat-input-area { background:#161b27; border-top:1px solid #2d3748; padding:12px 24px; flex-shrink:0; }
         .quick-questions { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
         .quick-q { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; white-space:nowrap; transition:all 0.15s; }
-        .quick-q:hover { border-color:#6366f1; color:#6366f1; }
+        .quick-q:hover { border-color:#0891b2; color:#0891b2; }
         .chat-input-row { display:flex; gap:8px; align-items:flex-end; }
         .chat-textarea { flex:1; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:10px 14px; font-size:14px; resize:none; outline:none; font-family:inherit; line-height:1.5; }
-        .chat-textarea:focus { border-color:#6366f1; }
-        .send-btn { background:#6366f1; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .chat-textarea:focus { border-color:#0891b2; }
+        .send-btn { background:#0891b2; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; }
         .send-btn:disabled { opacity:0.4; cursor:not-allowed; }
         /* Assessment */
         .assess-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; }
         .assess-header h2 { font-size:22px; font-weight:700; color:#f8fafc; margin:0 0 8px; }
         .assess-header p { color:#94a3b8; max-width:600px; margin:0; }
-        .run-assess-btn { background:#6366f1; color:white; border:none; border-radius:8px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+        .run-assess-btn { background:#0891b2; color:white; border:none; border-radius:8px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; }
         .run-assess-btn:disabled { opacity:0.6; cursor:not-allowed; }
         .assess-running { display:flex; align-items:center; gap:16px; background:#1e293b; border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:24px; }
-        .assess-spinner { width:36px; height:36px; border:3px solid #334155; border-top-color:#6366f1; border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
+        .assess-spinner { width:36px; height:36px; border:3px solid #334155; border-top-color:#0891b2; border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
         @keyframes spin { to{transform:rotate(360deg)} }
         .assess-running-title { font-weight:600; color:#f8fafc; margin-bottom:4px; }
         .assess-running-sub { font-size:13px; color:#64748b; }
@@ -465,7 +466,7 @@ export default function CISSPOracle() {
         .assess-date { font-size:12px; color:#64748b; }
         .assess-score-section { display:flex; flex-direction:column; align-items:center; gap:4px; }
         .assess-donut { position:relative; width:64px; height:64px; border-radius:50%;
-          background: conic-gradient(var(--color, #6366f1) calc(var(--score, 0) * 3.6deg), #1e293b 0deg);
+          background: conic-gradient(var(--color, #0891b2) calc(var(--score, 0) * 3.6deg), #1e293b 0deg);
           display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .assess-donut::before { content:''; position:absolute; inset:8px; background:#1e293b; border-radius:50%; }
         .assess-score-num { font-size:16px; font-weight:700; color:#f8fafc; position:relative; z-index:1; line-height:1.1; }
@@ -473,7 +474,7 @@ export default function CISSPOracle() {
         .assess-risk { font-size:12px; font-weight:600; }
         .assess-status-badge { font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; }
         .assess-status-badge.completed { background:#10b98122; color:#10b981; }
-        .assess-status-badge.running { background:#6366f122; color:#6366f1; }
+        .assess-status-badge.running { background:#6366f122; color:#0891b2; }
         .no-assessments { text-align:center; padding:60px 20px; color:#475569; }
         .no-assess-icon { font-size:48px; margin-bottom:16px; }
         /* Light theme: the rules above are the dark design; these win only outside .dark. */
@@ -493,8 +494,8 @@ export default function CISSPOracle() {
         html:not(.dark) .assess-running, html:not(.dark) .assess-card { background:#ffffff; border:1px solid #e2e8f0; }
         html:not(.dark) .cissp-domain-card:hover { background:#f8fafc; }
         html:not(.dark) .back-btn, html:not(.dark) .recommendations { border-color:#e2e8f0; }
-        html:not(.dark) .assess-spinner { border-color:#e2e8f0; border-top-color:#6366f1; }
-        html:not(.dark) .assess-donut { background: conic-gradient(var(--color, #6366f1) calc(var(--score, 0) * 3.6deg), #e2e8f0 0deg); }
+        html:not(.dark) .assess-spinner { border-color:#e2e8f0; border-top-color:#0891b2; }
+        html:not(.dark) .assess-donut { background: conic-gradient(var(--color, #0891b2) calc(var(--score, 0) * 3.6deg), #e2e8f0 0deg); }
         html:not(.dark) .assess-donut::before { background:#ffffff; }
       `}</style>
         </div>

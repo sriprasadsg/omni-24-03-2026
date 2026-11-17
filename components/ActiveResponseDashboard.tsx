@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Glyph } from './ui/Glyph';
 
 const API = '/api/active-response';
 
@@ -186,7 +187,7 @@ export default function ActiveResponseDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Active Response</h2>
+        <h1 className="page-title">Active Response</h1>
         <span className="text-sm text-gray-600 dark:text-slate-400">{stats.enabled_rules} of {stats.total_rules} rules active</span>
       </div>
 
@@ -206,7 +207,7 @@ export default function ActiveResponseDashboard() {
 
       {stats.rules_by_mode['automatic'] > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 text-yellow-800 dark:text-yellow-300 text-sm">
-          ⚠ {stats.rules_by_mode['automatic']} rule(s) set to <strong>automatic</strong> mode — actions execute without approval. Test carefully before enabling in production.
+          <Glyph e="⚠" /> {stats.rules_by_mode['automatic']} rule(s) set to <strong>automatic</strong> mode — actions execute without approval. Test carefully before enabling in production.
         </div>
       )}
 

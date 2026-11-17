@@ -41,7 +41,7 @@ export function FleetObservabilityDashboard() {
     return (
       <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Fleet Observability</h1>
+          <h1 className="page-title">Fleet Observability</h1>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-red-200 dark:border-red-900/50">
           <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
@@ -56,7 +56,7 @@ export function FleetObservabilityDashboard() {
   return (
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Fleet Observability</h1>
+        <h1 className="page-title">Fleet Observability</h1>
         <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Fleet-wide offline agents and version drift, relative to the latest agent version
           {data?.latest_version ? ` (${data.latest_version})` : ''}.

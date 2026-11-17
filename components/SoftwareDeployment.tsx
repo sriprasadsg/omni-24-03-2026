@@ -261,7 +261,7 @@ export const SoftwareDeployment: React.FC = () => {
         <div className="h-full flex flex-col space-y-6 p-6">
             <div className="flex justify-between items-center flex-shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                    <h1 className="page-title">
                         Software Deployment Hub
                     </h1>
                     <p className="text-slate-400">Mass install, update, and uninstall software across your fleet</p>
@@ -300,7 +300,7 @@ export const SoftwareDeployment: React.FC = () => {
                 >
                     <span>Deployment History</span>
                     {activePendingCount > 0 && (
-                        <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                        <span className="bg-blue-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
                             {activePendingCount}
                         </span>
                     )}
@@ -311,7 +311,7 @@ export const SoftwareDeployment: React.FC = () => {
                 >
                     <span>Installed Software</span>
                     {inventory.length > 0 && (
-                        <span className="bg-green-500/30 text-green-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
+                        <span className="bg-green-500/30 text-green-300 text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
                             {inventory.length}
                         </span>
                     )}

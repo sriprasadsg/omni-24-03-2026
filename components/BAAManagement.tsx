@@ -120,15 +120,15 @@ export function BAAManagement() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>HIPAA Compliance</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Business Associate Agreements</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>HIPAA Compliance</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Business Associate Agreements</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>HIPAA §164.308(b) — Track BAA lifecycle: draft → sign → active → terminate</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+          <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
             <RefreshCw size={13} /> Refresh
           </button>
-          <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>
+          <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.3)', border: '1px solid rgba(8,145,178,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>
             <Plus size={13} /> New BAA
           </button>
         </div>
@@ -153,7 +153,7 @@ export function BAAManagement() {
 
       {/* Create form */}
       {showCreate && (
-        <div style={{ background: 'rgba(99,102,241,.06)', border: '1px solid rgba(99,102,241,.25)', borderRadius: 14, padding: 24, marginBottom: 20 }}>
+        <div style={{ background: 'rgba(8,145,178,.06)', border: '1px solid rgba(8,145,178,.25)', borderRadius: 14, padding: 24, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: '0.95em', marginBottom: 16 }}>New Business Associate Agreement</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             {[
@@ -172,7 +172,7 @@ export function BAAManagement() {
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => setShowCreate(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,.15)', color: 'var(--ink-muted)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>Cancel</button>
-            <button onClick={createBAA} style={{ background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>Create BAA</button>
+            <button onClick={createBAA} style={{ background: 'rgba(8,145,178,.3)', border: '1px solid rgba(8,145,178,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>Create BAA</button>
           </div>
         </div>
       )}
@@ -181,7 +181,7 @@ export function BAAManagement() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {['all', 'active', 'draft', 'pending_signature', 'expired', 'terminated'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
-            background: filter === f ? 'rgba(99,102,241,.2)' : 'transparent',
+            background: filter === f ? 'rgba(8,145,178,.2)' : 'transparent',
             border: '1px solid var(--ink-line)', color: filter === f ? 'var(--ink-accent)' : 'var(--ink-muted)',
             borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 600,
             textTransform: 'capitalize',
@@ -203,12 +203,12 @@ export function BAAManagement() {
               <div key={baa.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px 140px 120px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Shield size={13} color="#6366f1" /> {baa.business_associate}
+                    <Shield size={13} color="#0891b2" /> {baa.business_associate}
                   </div>
                   <div style={{ fontSize: '0.72em', color: '#64748b', marginTop: 2 }}>{baa.contact_email}</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {baa.services.slice(0, 2).map(s => (
-                      <span key={s} style={{ fontSize: '0.68em', background: 'rgba(99,102,241,.1)', color: 'var(--ink-accent)', borderRadius: 4, padding: '2px 6px' }}>{s}</span>
+                      <span key={s} style={{ fontSize: '0.68em', background: 'rgba(8,145,178,.1)', color: 'var(--ink-accent)', borderRadius: 4, padding: '2px 6px' }}>{s}</span>
                     ))}
                     {baa.services.length > 2 && <span style={{ fontSize: '0.68em', color: '#64748b' }}>+{baa.services.length - 2} more</span>}
                   </div>

@@ -108,7 +108,7 @@ export default function DetectionRulesDashboard() {
     <div className="p-6 text-white">
       <div className="flex items-center gap-3 mb-6">
         <ShieldAlert className="text-orange-400" size={28} />
-        <h1 className="text-2xl font-bold">Detection Rules</h1>
+        <h1 className="page-title">Detection Rules</h1>
         <span className="ml-auto text-sm text-slate-400">{rules.length} rules</span>
       </div>
 

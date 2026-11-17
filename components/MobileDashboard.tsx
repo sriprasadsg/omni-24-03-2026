@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface MdmDevice {
   id: string;
@@ -135,7 +136,7 @@ export default function MobileDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Mobile Device Management</h1>
+          <h1 className="page-title">Mobile Device Management</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Manage iOS and Android devices, compliance policies, and remote actions</p>
         </div>
         <div className="flex gap-2">
@@ -180,7 +181,7 @@ export default function MobileDashboard() {
             {['all', 'ios', 'android', 'windows', 'macos'].map(p => (
               <button key={p} onClick={() => setPlatformFilter(p)}
                 className={`px-3 py-1 text-xs rounded-full capitalize ${platformFilter === p ? 'bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                {PLATFORM_ICONS[p] || ''} {p}
+                <Glyph e={PLATFORM_ICONS[p] || ''} /> {p}
               </button>
             ))}
           </div>
@@ -205,7 +206,7 @@ export default function MobileDashboard() {
                       <div className="text-gray-900 dark:text-white">{d.name || d.model || 'Unknown'}</div>
                       <div className="text-xs text-gray-500 font-mono">{d.udid.slice(0, 16)}…</div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{PLATFORM_ICONS[d.platform]} {d.platform} {d.os_version}</td>
+                    <td className="px-4 py-3 text-sm"><Glyph e={PLATFORM_ICONS[d.platform]} /> {d.platform} {d.os_version}</td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{d.assigned_user || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${STATUS_STYLES[d.enrollment_status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
@@ -263,7 +264,7 @@ export default function MobileDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {['ios', 'android'].map(p => (
             <div key={p} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-              <h3 className="font-medium text-lg mb-2">{PLATFORM_ICONS[p]} {p === 'ios' ? 'iOS' : 'Android'} Enrollment</h3>
+              <h3 className="font-medium text-lg mb-2"><Glyph e={PLATFORM_ICONS[p]} /> {p === 'ios' ? 'iOS' : 'Android'} Enrollment</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">Generate a one-time enrollment link to send to a user or display as QR code.</p>
               <button onClick={() => getEnrollUrl(p)} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg mb-4 text-white">Generate Enrollment URL</button>
               {enrollUrl[p as 'ios' | 'android'] && (

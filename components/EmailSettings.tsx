@@ -137,10 +137,10 @@ export const EmailSettings: React.FC = () => {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                <h1 className="page-title flex items-center">
                     <MailIcon className="mr-2" size={28} />
                     Email Notification Settings
-                </h2>
+                </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">Configure SMTP settings and notification preferences for your tenant</p>
             </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface QueryLog {
   id: string;
@@ -100,7 +101,7 @@ export default function DAMDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Database Activity Monitor</h1>
+          <h1 className="page-title">Database Activity Monitor</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Query logging, behavioral analysis, and anomaly detection across all databases</p>
         </div>
         <button onClick={seedData} disabled={seeding}
@@ -137,7 +138,7 @@ export default function DAMDashboard() {
       {tab === 'alerts' && (
         alerts.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="text-4xl mb-3">✅</div>
+            <div className="text-4xl mb-3"><Glyph e="✅" /></div>
             <p>No alerts — load demo data to see DAM in action</p>
           </div>
         ) : (

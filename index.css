@@ -125,6 +125,43 @@ table, .tabular-nums-all {
     font-variant-numeric: tabular-nums;
 }
 
+/* ── Data tables ───────────────────────────────────────────────────────────── */
+/* One header and row treatment for the ~120 hand-built tables (they carried 158 different
+   header styles). Every selector sits inside :where(), so it has no specificity: a class a
+   screen puts on its own table, header, row or cell still wins. */
+:root {
+    --table-head: rgb(var(--space-500));
+    --table-line: rgb(var(--space-900) / 0.07);
+    --table-row-hover: rgb(var(--primary-500) / 0.05);
+}
+.dark {
+    --table-head: rgb(var(--space-400));
+    --table-line: rgb(148 163 184 / 0.10);
+    --table-row-hover: rgb(var(--primary-400) / 0.06);
+}
+:where(thead) {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--table-head);
+}
+:where(th) {
+    text-align: start;
+    font-weight: inherit;
+}
+/* Row separators only where a table drew none of its own (no divide-*, no border-*). */
+:where(tbody:not([class*="divide"]) > tr:not([class*="border"]) + tr:not([class*="border"])) {
+    border-top: 1px solid var(--table-line);
+}
+:where(tbody > tr) {
+    transition: background-color 0.12s ease;
+}
+:where(tbody > tr:hover) {
+    background-color: var(--table-row-hover);
+}
+
 /* ── Focus ─────────────────────────────────────────────────────────────────── */
 /* One visible ring for every keyboard focus. Elements that opt out with
    focus:outline-none but never add their own ring still get one. */
@@ -150,7 +187,8 @@ table, .tabular-nums-all {
     --ink-line: rgb(15 23 42 / 0.10);
     --ink-line-soft: rgb(15 23 42 / 0.06);
     --ink-line-strong: #e2e8f0;
-    --ink-accent: #4f46e5;
+    /* Accent follows the brand (was indigo, a second brand colour on these screens). */
+    --ink-accent: rgb(var(--primary-600));
     --ink-red: #b91c1c;
     --ink-red-2: #dc2626;
     --ink-green: #047857;
@@ -169,7 +207,7 @@ table, .tabular-nums-all {
     --ink-line: rgba(255, 255, 255, .08);
     --ink-line-soft: rgba(255, 255, 255, .05);
     --ink-line-strong: #334155;
-    --ink-accent: #a5b4fc;
+    --ink-accent: rgb(var(--primary-400));
     --ink-red: #fca5a5;
     --ink-red-2: #f87171;
     --ink-green: #6ee7b7;
@@ -235,6 +273,23 @@ table, .tabular-nums-all {
     box-shadow: var(--glass-shadow);
 }
 
+/* ── Page titles ───────────────────────────────────────────────────────────── */
+/* Every screen's <h1> (they carried 47 different looks: gradients, all-caps, italics, violet).
+   In the components layer, so a screen can still adjust it with a utility class. */
+@layer components {
+    .page-title {
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: 650;
+        letter-spacing: -0.022em;
+        color: rgb(var(--space-900));
+        text-wrap: balance;
+    }
+    .dark .page-title {
+        color: rgb(var(--space-50));
+    }
+}
+
 /* ── Surface card ──────────────────────────────────────────────────────────── */
 .card {
     background: var(--surface-raised);
@@ -269,6 +324,7 @@ table, .tabular-nums-all {
 
 /* Primary actions glow softly in the dark, like lit controls. */
 .dark .bg-primary-600,
+.dark .bg-indigo-600,
 .dark .bg-blue-600 {
     box-shadow: 0 0 0 1px rgb(var(--primary-400) / 0.18), 0 8px 24px -10px rgb(var(--primary-400) / 0.55);
 }

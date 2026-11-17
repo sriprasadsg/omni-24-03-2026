@@ -96,7 +96,7 @@ export default function SecurityTraining() {
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Security Awareness Training
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400">

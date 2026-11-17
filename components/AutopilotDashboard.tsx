@@ -194,7 +194,7 @@ export default function AutopilotDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Windows Autopilot</h1>
+          <h1 className="page-title">Windows Autopilot</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Zero-touch device provisioning, deployment profiles, and enrollment status</p>
         </div>
         <div className="flex gap-2">

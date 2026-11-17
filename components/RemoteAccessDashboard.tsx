@@ -227,7 +227,7 @@ export function RemoteAccessDashboard() {
         <div className="min-h-screen bg-transparent dark:bg-slate-950 p-6 text-gray-900 dark:text-slate-100 font-sans">
             <div className="mb-8">
                 <div className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-2">AGENTS</div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Remote Access</h1>
+                <h1 className="page-title mb-2">Remote Access</h1>
                 <p className="text-gray-600 dark:text-slate-400 text-sm">Connect to agents via Remote Desktop or Terminal</p>
             </div>
 

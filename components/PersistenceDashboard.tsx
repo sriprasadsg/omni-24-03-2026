@@ -68,7 +68,7 @@ export const PersistenceDashboard: React.FC<{ tenantId?: string | null }> = ({ t
         <div className="container mx-auto p-6">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Persistence Detection</h2>
+                    <h1 className="page-title">Persistence Detection</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Scan for unauthorized persistence mechanisms on your assets.</p>
                 </div>
                 <div className="flex space-x-3">

@@ -101,7 +101,7 @@ export default function ConnectorsHubDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Connectors Hub</h2>
+        <h1 className="page-title">Connectors Hub</h1>
         <span className="text-sm text-slate-400">{connectors.filter(c => c.status === 'connected').length} of {connectors.length} connected</span>
       </div>
 

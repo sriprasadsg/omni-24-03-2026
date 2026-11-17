@@ -1,5 +1,6 @@
 import React from 'react';
 import { Secret } from './SecretsTableTab';
+import { Glyph } from './ui/Glyph';
 
 interface SecretFormData {
     name: string;
@@ -102,7 +103,7 @@ export function ViewSecretModal({ secret, secretValue, onClose }: ViewSecretModa
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
                         <p className="text-sm text-amber-700 dark:text-amber-300">
-                            ⚠️ This access has been logged for audit purposes.
+                            <Glyph e="⚠" /> This access has been logged for audit purposes.
                         </p>
                     </div>
                     <button onClick={onClose}

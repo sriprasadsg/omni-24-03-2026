@@ -84,9 +84,9 @@ export function StreamingDashboard() {
         <div className="space-y-6 pt-6 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Real-Time Streaming Analytics
-                    </h2>
+                    </h1>
                     <p className="text-muted-foreground mt-1">
                         Live event processing engine (Simulated Flink/Spark)
                     </p>
@@ -147,7 +147,7 @@ export function StreamingDashboard() {
                                         <div className="flex-1 overflow-hidden">
                                             <div className="flex justify-between">
                                                 <span className="font-semibold text-slate-300">{evt.source || 'System'}</span>
-                                                <span className="text-slate-500 text-[10px]">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                                                <span className="text-slate-500 text-[11px]">{new Date(evt.timestamp).toLocaleTimeString()}</span>
                                             </div>
                                             <div className="text-slate-400 truncate">{evt.message || JSON.stringify(evt)}</div>
                                         </div>

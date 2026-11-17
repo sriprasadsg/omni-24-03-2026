@@ -118,7 +118,7 @@ export const GoalSystemDashboard: React.FC = () => {
             <div className="w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center">
+                        <h1 className="page-title flex items-center">
                             <Target className="w-5 h-5 mr-2 text-indigo-500" />
                             Autonomous Goals
                         </h1>
@@ -147,10 +147,10 @@ export const GoalSystemDashboard: React.FC = () => {
                             className={`p-4 rounded-xl border cursor-pointer transition-all ${activeGoal?.id === goal.id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-500/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 hover:border-slate-200'}`}
                         >
                             <div className="flex justify-between items-start mb-2">
-                                <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold text-white uppercase ${getPriorityColor(goal.priority)}`}>
+                                <span className={`px-2 py-0.5 rounded-[4px] text-[11px] font-bold text-white uppercase ${getPriorityColor(goal.priority)}`}>
                                     P{goal.priority}
                                 </span>
-                                <span className="text-[10px] text-slate-400 uppercase font-bold">{goal.category}</span>
+                                <span className="text-[11px] text-slate-400 uppercase font-bold">{goal.category}</span>
                             </div>
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2 mb-3">{goal.objective}</h3>
                             <div className="flex items-center justify-between">

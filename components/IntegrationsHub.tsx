@@ -146,7 +146,7 @@ export const IntegrationsHub: React.FC = () => {
             <div className="max-w-6xl mx-auto space-y-8">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Integrations Hub</h1>
+                        <h1 className="page-title">Integrations Hub</h1>
                         <p className="text-slate-500 mt-1">Manage and monitor all external telemetry and log sources</p>
                     </div>
                     <button 
@@ -225,7 +225,7 @@ export const IntegrationsHub: React.FC = () => {
                                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700">
                                     {getProviderIcon(integ.id, integ.category)}
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${integ.isEnabled ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'text-slate-400 bg-slate-50 dark:bg-slate-900/20'}`}>
+                                <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${integ.isEnabled ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'text-slate-400 bg-slate-50 dark:bg-slate-900/20'}`}>
                                     {integ.isEnabled ? 'Active' : 'Disabled'}
                                 </span>
                             </div>
@@ -241,13 +241,13 @@ export const IntegrationsHub: React.FC = () => {
 
                                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50 dark:border-slate-700">
                                     <div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Category</p>
+                                        <p className="text-[11px] text-slate-400 font-bold uppercase mb-1">Category</p>
                                         <p className="text-xs font-bold text-slate-900 dark:text-slate-300">
                                             {integ.category}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Status</p>
+                                        <p className="text-[11px] text-slate-400 font-bold uppercase mb-1">Status</p>
                                         <p className="text-xs font-bold text-slate-900 dark:text-slate-300">
                                             {integ.isEnabled ? 'Operational' : 'Idle'}
                                         </p>

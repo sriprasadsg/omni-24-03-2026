@@ -89,7 +89,7 @@ export default function AssetIntelligenceDashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Asset Intelligence</h1>
+          <h1 className="page-title">Asset Intelligence</h1>
           <p className="text-slate-400 text-sm mt-1">End-of-Life detection and unauthorized device alerting</p>
         </div>
         <button onClick={loadData} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">

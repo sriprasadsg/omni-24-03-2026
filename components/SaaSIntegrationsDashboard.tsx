@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -215,7 +216,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="page-title">
             SaaS Integrations
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -260,7 +261,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-3xl" role="img" aria-label={provider.name}>
-                      {provider.logo}
+                      <Glyph e={provider.logo} />
                     </span>
                     <div>
                       <h2 className="font-semibold text-gray-900 dark:text-white text-base">

@@ -103,7 +103,7 @@ export default function SecureFileShare() {
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Secure File Sharing
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400">

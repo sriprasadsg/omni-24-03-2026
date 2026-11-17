@@ -62,7 +62,7 @@ export function AuditLog() {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Time Machine Audit</h1>
+                <h1 className="page-title">Time Machine Audit</h1>
                 <p className="text-gray-500 dark:text-gray-400">
                     Visualize system events and rollback unintended changes.
                 </p>

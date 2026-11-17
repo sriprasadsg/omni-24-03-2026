@@ -49,7 +49,7 @@ export const ApiStatusDashboard: React.FC = () => {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">System Health & API Status</h1>
+                    <h1 className="page-title">System Health & API Status</h1>
                     <p className="text-gray-500 dark:text-gray-400">Real-time monitoring and auto-remediation of API endpoints.</p>
                 </div>
                 <button onClick={loadRoutes} className="flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">

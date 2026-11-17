@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface MFASetupWizardProps {
     onClose: () => void;
@@ -61,7 +62,7 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
             <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 16, padding: 32, width: 480, maxWidth: '90vw', color: '#f1f5f9' }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#7c3aed' }}>🔐 Set Up Two-Factor Authentication</h2>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0e7490' }}><Glyph e="🔐" /> Set Up Two-Factor Authentication</h2>
                     {required ? (
                         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}>Sign out</button>
                     ) : (
@@ -72,14 +73,14 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                 {/* Steps indicator */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
                     {[1, 2, 3].map(s => (
-                        <div key={s} style={{ flex: 1, height: 4, borderRadius: 4, background: step >= s ? '#7c3aed' : '#334155' }} />
+                        <div key={s} style={{ flex: 1, height: 4, borderRadius: 4, background: step >= s ? '#0e7490' : '#334155' }} />
                     ))}
                 </div>
 
                 {/* Step 1 — intro */}
                 {step === 1 && (
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 64, marginBottom: 16 }}>📱</div>
+                        <div style={{ fontSize: 64, marginBottom: 16 }}><Glyph e="📱" /></div>
                         <h3 style={{ margin: '0 0 12px', color: '#e2e8f0' }}>Authenticator App Required</h3>
                         {required && (
                             <p style={{ color: '#fbbf24', marginBottom: 12 }}>
@@ -91,7 +92,7 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                         </p>
                         {error && <p style={{ color: '#ef4444', marginBottom: 16 }}>{error}</p>}
                         <button onClick={startSetup} disabled={loading}
-                            style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, padding: '12px 32px', cursor: 'pointer', fontSize: 16, fontWeight: 600 }}>
+                            style={{ background: '#0e7490', color: 'white', border: 'none', borderRadius: 8, padding: '12px 32px', cursor: 'pointer', fontSize: 16, fontWeight: 600 }}>
                             {loading ? 'Generating...' : 'Get Started'}
                         </button>
                     </div>
@@ -111,7 +112,7 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                             </p>
                         )}
                         <p style={{ color: '#64748b', fontSize: 12, marginBottom: 16 }}>
-                            Manual key: <code style={{ color: '#a78bfa' }}>{secret}</code>
+                            Manual key: <code style={{ color: '#22d3ee' }}>{secret}</code>
                         </p>
                         <input
                             value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -120,7 +121,7 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                         />
                         {error && <p style={{ color: '#ef4444', marginBottom: 8 }}>{error}</p>}
                         <button onClick={verifySetup} disabled={loading || code.length !== 6}
-                            style={{ width: '100%', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontSize: 15, fontWeight: 600, opacity: code.length !== 6 ? 0.5 : 1 }}>
+                            style={{ width: '100%', background: '#0e7490', color: 'white', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontSize: 15, fontWeight: 600, opacity: code.length !== 6 ? 0.5 : 1 }}>
                             {loading ? 'Verifying...' : 'Verify & Enable MFA'}
                         </button>
                     </div>
@@ -130,24 +131,24 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                 {step === 3 && (
                     <div>
                         <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                            <div style={{ fontSize: 48 }}>✅</div>
+                            <div style={{ fontSize: 48 }}><Glyph e="✅" /></div>
                             <h3 style={{ color: '#22c55e', margin: '8px 0' }}>MFA Enabled!</h3>
                         </div>
-                        <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                            <p style={{ color: '#fbbf24', fontWeight: 600, margin: '0 0 12px' }}>⚠️ Save these backup codes — they can only be used once each:</p>
+                        <div style={{ background: '#1e293b', border: '1px solid #0e7490', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                            <p style={{ color: '#fbbf24', fontWeight: 600, margin: '0 0 12px' }}><Glyph e="⚠" /> Save these backup codes — they can only be used once each:</p>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                                 {backupCodes.map((c, i) => (
-                                    <code key={i} style={{ background: '#0f172a', padding: '6px 10px', borderRadius: 6, color: '#a78bfa', textAlign: 'center', letterSpacing: 2 }}>{c}</code>
+                                    <code key={i} style={{ background: '#0f172a', padding: '6px 10px', borderRadius: 6, color: '#22d3ee', textAlign: 'center', letterSpacing: 2 }}>{c}</code>
                                 ))}
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
                             <button onClick={downloadBackupCodes}
                                 style={{ flex: 1, background: '#1e293b', color: '#a78bfa', border: '1px solid #7c3aed', borderRadius: 8, padding: 12, cursor: 'pointer', fontWeight: 600 }}>
-                                💾 Download Codes
+                                <Glyph e="💾" /> Download Codes
                             </button>
                             <button onClick={() => { onEnabled(); if (!required) onClose(); }}
-                                style={{ flex: 1, background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontWeight: 600 }}>
+                                style={{ flex: 1, background: '#0e7490', color: 'white', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontWeight: 600 }}>
                                 Done ✓
                             </button>
                         </div>

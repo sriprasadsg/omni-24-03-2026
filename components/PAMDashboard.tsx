@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Key, Monitor, Lock, RotateCcw, RefreshCw, Play, Square, Terminal, Clock } from 'lucide-react';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 type Tab = 'accounts' | 'sessions' | 'vault' | 'audit';
 
@@ -135,11 +136,11 @@ export function PAMDashboard() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>Identity & Access</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Privileged Access Management</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>Identity & Access</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Privileged Access Management</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>Credential vault · Session recording · Command audit · Auto-rotation</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -167,7 +168,7 @@ export function PAMDashboard() {
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: '0.82em', fontWeight: 600,
-            background: tab === t.key ? 'rgba(99,102,241,.25)' : 'transparent',
+            background: tab === t.key ? 'rgba(8,145,178,.25)' : 'transparent',
             color: tab === t.key ? 'var(--ink-accent)' : 'var(--ink-muted)',
           }}>{t.icon} {t.label}</button>
         ))}
@@ -179,7 +180,7 @@ export function PAMDashboard() {
           {/* Accounts tab */}
           {tab === 'accounts' && accounts.map(acc => (
             <div key={acc.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 140px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
-              <span style={{ fontSize: '1.3em' }}>{TYPE_ICON[acc.type] || '🔑'}</span>
+              <span style={{ fontSize: '1.3em' }}><Glyph e={TYPE_ICON[acc.type] || '🔑'} /></span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.88em' }}>{acc.name}</div>
                 <div style={{ fontSize: '0.72em', color: '#64748b' }}>{acc.target} · rotate every {acc.rotation_days}d</div>
@@ -209,14 +210,14 @@ export function PAMDashboard() {
               </div>
               <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{fmt(s.duration_seconds)}</span>
               <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{s.commands_executed} cmds</span>
-              <a href={s.recording_path} style={{ fontSize: '0.72em', color: '#6366f1', textDecoration: 'none' }}>▶ Replay</a>
+              <a href={s.recording_path} style={{ fontSize: '0.72em', color: '#0891b2', textDecoration: 'none' }}><Glyph e="▶" /> Replay</a>
             </div>
           ))}
 
           {/* Vault tab */}
           {tab === 'vault' && vault.map(e => (
             <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 120px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
-              <span style={{ fontSize: '1.2em' }}>{TYPE_ICON[e.type] || '🔑'}</span>
+              <span style={{ fontSize: '1.2em' }}><Glyph e={TYPE_ICON[e.type] || '🔑'} /></span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.88em' }}>{e.name}</div>
                 <div style={{ fontSize: '0.72em', color: '#64748b' }}>{e.target} · {e.username}</div>
@@ -230,7 +231,7 @@ export function PAMDashboard() {
                 <div style={{ color: 'var(--ink-green)', fontWeight: 600 }}>{e.rotation_count} · {e.rotation_interval_days}d cycle</div>
               </div>
               <button onClick={() => rotateCredential(e.id)} disabled={rotating === e.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
                 <RotateCcw size={11} /> {rotating === e.id ? '…' : 'Rotate'}
               </button>
             </div>
@@ -244,7 +245,7 @@ export function PAMDashboard() {
                 <div style={{ fontSize: '0.78em', fontWeight: 600 }}>{cmd.user}</div>
                 <div style={{ fontSize: '0.7em', color: '#64748b' }}>{cmd.target}</div>
               </div>
-              <code style={{ fontSize: '0.78em', color: 'var(--ink-accent)', background: 'rgba(99,102,241,.08)', padding: '4px 8px', borderRadius: 6, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.command}</code>
+              <code style={{ fontSize: '0.78em', color: 'var(--ink-accent)', background: 'rgba(8,145,178,.08)', padding: '4px 8px', borderRadius: 6, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.command}</code>
               <span style={{ fontSize: '0.72em', color: '#64748b' }}>{timeAgo(cmd.executed_at)}</span>
               <span style={{ fontSize: '0.72em', color: cmd.exit_code === 0 ? 'var(--ink-green)' : 'var(--ink-red)', fontWeight: 700 }}>exit {cmd.exit_code}</span>
             </div>

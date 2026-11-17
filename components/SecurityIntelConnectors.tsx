@@ -7,6 +7,7 @@ import {
     pushSecurityIntelToAgents,
 } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -267,11 +268,11 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                 {/* Stats row */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Records Synced</p>
+                        <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Records Synced</p>
                         <p className="text-lg font-bold text-white">{fmt(connector.record_count)}</p>
                     </div>
                     <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Last Sync</p>
+                        <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Last Sync</p>
                         <p className="text-xs font-medium text-slate-300 mt-1">{fmtDate(connector.last_sync)}</p>
                     </div>
                 </div>
@@ -279,20 +280,20 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                 {/* API key info */}
                 {connector.api_key_hint && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.18)' }}>
-                        <span className="text-emerald-400 text-xs">🔑</span>
+                        <span className="text-emerald-400 text-xs"><Glyph e="🔑" /></span>
                         <span className="text-xs text-slate-300">Key: <code className="font-mono text-emerald-400">{connector.api_key_hint}</code></span>
                         {connector.configured_at && (
-                            <span className="ml-auto text-[10px] text-slate-500">{fmtDate(connector.configured_at)}</span>
+                            <span className="ml-auto text-[11px] text-slate-500">{fmtDate(connector.configured_at)}</span>
                         )}
                     </div>
                 )}
 
                 {!connector.api_key_hint && connector.requires_key && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                        <span className="text-amber-400 text-xs">⚠</span>
+                        <span className="text-amber-400 text-xs"><Glyph e="⚠" /></span>
                         <span className="text-xs text-amber-300">API key required — {connector.free_tier}</span>
                         <a href={connector.docs_url} target="_blank" rel="noopener noreferrer"
-                            className="ml-auto text-[10px] text-primary-400 hover:underline flex-shrink-0">
+                            className="ml-auto text-[11px] text-primary-400 hover:underline flex-shrink-0">
                             Get key →
                         </a>
                     </div>
@@ -318,7 +319,7 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                         className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-200 transition-all disabled:opacity-40 hover:text-white"
                         style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
                     >
-                        {testing ? '⏳ Testing…' : '⚡ Test Connection'}
+                        {testing ? '⏳ Testing…' : <><Glyph e="⚡" /> Test Connection</>}
                     </button>
 
                     {canSync && (
@@ -328,7 +329,7 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                             className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-200 transition-all disabled:opacity-40 hover:text-white"
                             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
                         >
-                            {syncing ? '⏳ Starting…' : '🔄 Sync Now'}
+                            {syncing ? '⏳ Starting…' : <><Glyph e="🔄" /> Sync Now</>}
                         </button>
                     )}
 
@@ -338,7 +339,7 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                             className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:brightness-110"
                             style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.2), rgba(3,105,161,0.2))', border: '1px solid rgba(14,165,233,0.3)', color: '#7dd3fc' }}
                         >
-                            ⚙ Configure
+                            <Glyph e="⚙" /> Configure
                         </button>
                     )}
                 </div>
@@ -358,7 +359,7 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
 const SummaryBar: React.FC<{ data: IntelStatus; loading: boolean; onRefresh: () => void }> = ({ data, loading, onRefresh }) => (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gradient">Security Intelligence Connectors</h1>
+            <h1 className="page-title">Security Intelligence Connectors</h1>
             <p className="text-sm text-slate-500 mt-1">Live connectivity status for threat intel and vulnerability data sources</p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -416,7 +417,7 @@ const AgentDistributionPanel: React.FC<{ vtConnected: boolean }> = ({ vtConnecte
                     {/* Icon */}
                     <div className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xl"
                         style={{ background: 'linear-gradient(135deg, rgba(3,105,161,0.3), rgba(14,165,233,0.2))', border: '1px solid rgba(3,105,161,0.4)' }}>
-                        📡
+                        <Glyph e="📡" />
                     </div>
                     <div>
                         <h3 className="text-base font-bold text-white">Push to Agents</h3>
@@ -451,7 +452,7 @@ const AgentDistributionPanel: React.FC<{ vtConnected: boolean }> = ({ vtConnecte
                         }}
                         title={!vtConnected ? 'VirusTotal must be connected before pushing' : undefined}
                     >
-                        {pushing ? '⏳ Pushing…' : '📡 Push to All Agents'}
+                        {pushing ? '⏳ Pushing…' : <><Glyph e="📡" /> Push to All Agents</>}
                     </button>
                     {!vtConnected && (
                         <p className="text-[11px] text-amber-400 mt-1.5 text-center">VirusTotal must be connected first</p>
@@ -465,7 +466,7 @@ const AgentDistributionPanel: React.FC<{ vtConnected: boolean }> = ({ vtConnecte
                     background: pushResult.success ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
                     border: `1px solid ${pushResult.success ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
                 }}>
-                    <span className="text-lg">{pushResult.success ? '✅' : '❌'}</span>
+                    <span className="text-lg">{pushResult.success ? <Glyph e="✅" /> : <Glyph e="❌" />}</span>
                     <div>
                         <p className="text-sm font-medium" style={{ color: pushResult.success ? '#34d399' : '#f87171' }}>
                             {pushResult.message}
@@ -512,7 +513,7 @@ export const SecurityIntelConnectors: React.FC = () => {
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>⚠</div>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}><Glyph e="⚠" /></div>
                 <p className="text-slate-400 text-sm">{error}</p>
                 <button onClick={load} className="px-4 py-2 rounded-xl text-sm text-white" style={{ background: 'linear-gradient(135deg, #0369a1, #0284c7)' }}>
                     Retry

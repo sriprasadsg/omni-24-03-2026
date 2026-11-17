@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface Control {
   id: string;
@@ -194,7 +195,7 @@ export default function CustomFrameworkBuilder() {
       <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Custom Compliance Frameworks</h1>
+            <h1 className="page-title">Custom Compliance Frameworks</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Build and manage your own compliance frameworks with custom controls</p>
           </div>
           <button onClick={() => setView('create')} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
@@ -204,7 +205,7 @@ export default function CustomFrameworkBuilder() {
 
         {frameworks.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
-            <div className="text-5xl mb-4">📋</div>
+            <div className="text-5xl mb-4"><Glyph e="📋" /></div>
             <p className="text-lg">No custom frameworks yet</p>
             <p className="text-sm mt-2">Create one from a template or start from scratch</p>
             <button onClick={() => setView('create')} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">

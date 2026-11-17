@@ -1788,7 +1788,7 @@ const App: React.FC = () => {
         <ErrorBoundary name="ThreatIntelligence">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Threat Intelligence</h1>
+              <h1 className="page-title">Threat Intelligence</h1>
             </div>
             <ThreatIntelFeedEnhanced tenantId={activeTenantId ?? ''} />
           </div>

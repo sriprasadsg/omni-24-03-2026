@@ -290,8 +290,8 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
 
     const tabs: { id: 'patches' | 'approvals' | 'software-updates' | 'os-patches' | 'rollouts'; label: string; badge?: string }[] = [
         { id: 'patches', label: 'Patches & Deployment' },
-        { id: 'software-updates', label: '🔄 Software Updates', badge: outdatedPackages.length > 0 ? String(outdatedPackages.length) : undefined },
-        { id: 'os-patches', label: '🖥️ OS Patches', badge: osPatchesMeta?.total_pending_os_patches ? String(osPatchesMeta.total_pending_os_patches) : undefined },
+        { id: 'software-updates', label: 'Software Updates', badge: outdatedPackages.length > 0 ? String(outdatedPackages.length) : undefined },
+        { id: 'os-patches', label: 'OS Patches', badge: osPatchesMeta?.total_pending_os_patches ? String(osPatchesMeta.total_pending_os_patches) : undefined },
         { id: 'rollouts', label: 'Rollouts', badge: rolloutAttention > 0 ? String(rolloutAttention) : undefined },
         { id: 'approvals', label: 'Agent Approvals', badge: 'Agentic' },
     ];
@@ -299,7 +299,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     return (
         <div className="container mx-auto space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Patch Management</h2>
+                <h1 className="page-title mb-2">Patch Management</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Monitor, approve, and deploy security patches. Now with real-time software version validation.</p>
             </div>
 

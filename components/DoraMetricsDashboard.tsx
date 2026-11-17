@@ -14,7 +14,7 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
             {icon}
         </div>
         <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
             <p className="text-3xl font-black text-gray-800 dark:text-gray-100 italic tracking-tighter">{value}</p>
         </div>
     </div>
@@ -38,10 +38,10 @@ export const DoraMetricsDashboard: React.FC<DoraMetricsDashboardProps> = ({ metr
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <GaugeIcon size={36} className="text-indigo-500" />
                     DORA Metrics
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Measure and improve your DevOps performance with industry-standard metrics.
                 </p>
@@ -76,8 +76,8 @@ export const DoraMetricsDashboard: React.FC<DoraMetricsDashboardProps> = ({ metr
                                 <Bar yAxisId="right" dataKey="leadTimeForChanges" name="Lead Time (hrs)" fill="url(#bar-grad-2)" radius={[4, 4, 0, 0]} />
                                 <defs>
                                     <linearGradient id="bar-grad-1" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#6366f1" />
-                                        <stop offset="100%" stopColor="#4f46e5" />
+                                        <stop offset="0%" stopColor="#0891b2" />
+                                        <stop offset="100%" stopColor="#0e7490" />
                                     </linearGradient>
                                     <linearGradient id="bar-grad-2" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#a855f7" />

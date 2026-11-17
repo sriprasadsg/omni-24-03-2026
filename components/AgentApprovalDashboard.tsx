@@ -105,7 +105,7 @@ const AgentApprovalDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <ShieldCheckIcon size={32} className="text-blue-500" />
                         Agent Autonomous Approvals
                     </h1>

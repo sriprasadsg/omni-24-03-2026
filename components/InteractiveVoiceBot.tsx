@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MicIcon, XIcon, Volume2Icon, LoaderIcon } from './icons';
 import { AppView, VoiceBotSettings } from '../types';
 import { getChatAssistantResponse } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 interface InteractiveVoiceBotProps {
     currentUser: any;
@@ -496,7 +497,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
 
                     <div className="text-xs text-primary-500 dark:text-primary-400 font-bold uppercase tracking-wider mb-2 flex items-center">
                         {botState === 'listening' ? "🎤 Listening..." :
-                            botState === 'thinking' ? "🧠 Thinking..." :
+                            botState === 'thinking' ? <><Glyph e="🧠" /> Thinking...</> :
                                 botState === 'speaking' ? "🗣️ Chitti:" : "Chitti"}
                     </div>
 
@@ -523,7 +524,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                     <p className="text-sm text-gray-700 dark:text-gray-300">{displayText}</p>
                     {micPermission === 'denied' && (
                         <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                            🔒 Microphone blocked — click 🔒 in address bar to allow
+                            <Glyph e="🔒" /> Microphone blocked — click <Glyph e="🔒" /> in address bar to allow
                         </p>
                     )}
                 </div>
@@ -534,7 +535,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 mb-4 max-w-sm border border-red-300 dark:border-red-700 pointer-events-auto">
                     <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">🎤 Microphone access blocked</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Click the 🔒 lock icon in your browser's address bar, set <strong>Microphone</strong> to <strong>Allow</strong>, then refresh the page.
+                        Click the <Glyph e="🔒" /> lock icon in your browser's address bar, set <strong>Microphone</strong> to <strong>Allow</strong>, then refresh the page.
                     </p>
                     <button onClick={() => window.location.reload()}
                         className="w-full py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs rounded-lg font-medium">
@@ -548,7 +549,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 className={`relative group flex items-center justify-center w-16 h-16 rounded-full shadow-2xl shadow-primary-500/40 pointer-events-auto transition-all duration-500 ease-out
                     ${botState !== 'idle' ? 'bg-gradient-to-br from-indigo-600 via-primary-600 to-cyan-500 scale-110 rotate-3' : 'bg-gray-900 dark:bg-gray-800 hover:bg-primary-600'}
                 `}
-                style={{ boxShadow: botState !== 'idle' ? '0 0 30px rgba(99, 102, 241, 0.6)' : undefined }}
+                style={{ boxShadow: botState !== 'idle' ? '0 0 30px rgba(8,145,178, 0.6)' : undefined }}
                 title={botState === 'idle' ? 'Say "Hey Chitti"...' : "Click to stop"}
             >
                 {botState !== 'idle' && (

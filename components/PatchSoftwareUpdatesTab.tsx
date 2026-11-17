@@ -1,4 +1,5 @@
 import React from 'react';
+import { Glyph } from './ui/Glyph';
 
 export interface OutdatedPackage {
     name: string;
@@ -73,13 +74,13 @@ export function PatchSoftwareUpdatesTab({
                         className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2">
                         {scanLoading ? (
                             <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Scanning...</>
-                        ) : '🔍 Trigger Live Scan'}
+                        ) : <><Glyph e="🔍" /> Trigger Live Scan</>}
                     </button>
                     <button onClick={onBulkUpdate} disabled={bulkUpdating || outdatedPackages.length === 0}
                         className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2">
                         {bulkUpdating ? (
                             <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Queuing...</>
-                        ) : '🚀 Bulk Update All'}
+                        ) : <><Glyph e="🚀" /> Bulk Update All</>}
                     </button>
                     <button onClick={onRefresh} disabled={outdatedLoading}
                         className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300">
@@ -90,7 +91,7 @@ export function PatchSoftwareUpdatesTab({
 
             {scanMessage && (
                 <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-lg p-3 text-sm text-emerald-800 dark:text-emerald-300">
-                    ✅ {scanMessage}
+                    <Glyph e="✅" /> {scanMessage}
                 </div>
             )}
 
@@ -108,7 +109,7 @@ export function PatchSoftwareUpdatesTab({
                     </div>
                 ) : outdatedPackages.length === 0 ? (
                     <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-                        <p className="text-4xl mb-3">✅</p>
+                        <p className="text-4xl mb-3"><Glyph e="✅" /></p>
                         <p className="text-lg font-medium">All packages are up to date!</p>
                         <p className="text-sm mt-1">Click "Trigger Live Scan" to collect fresh data from agents.</p>
                     </div>

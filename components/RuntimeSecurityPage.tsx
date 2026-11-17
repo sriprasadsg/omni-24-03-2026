@@ -15,7 +15,7 @@ export const RuntimeSecurityPage: React.FC<{ agents: Agent[] }> = ({ agents }) =
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Runtime Security</h1>
+                    <h1 className="page-title">Runtime Security</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                         Live processes, network connections and suspicious activity reported by each agent
                     </p>

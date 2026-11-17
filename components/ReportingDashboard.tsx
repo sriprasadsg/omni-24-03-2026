@@ -277,7 +277,7 @@ export const ReportingDashboard: React.FC<ReportingDashboardProps> = ({ historic
     return (
         <div className="container mx-auto space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Reporting & Analytics</h2>
+                <h1 className="page-title mb-1">Reporting & Analytics</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Analyze historical trends and export data for compliance and strategic planning.</p>
             </div>
 

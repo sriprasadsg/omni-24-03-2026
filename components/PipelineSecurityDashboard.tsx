@@ -79,11 +79,11 @@ export function PipelineSecurityDashboard() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>DevSecOps</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Pipeline Security</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>DevSecOps</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Pipeline Security</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>Secret scanning · IaC policy gates · Dependency risk · CI/CD security enforcement</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -121,7 +121,7 @@ export function PipelineSecurityDashboard() {
                 const ss = STATUS_STYLES[scan.status] || STATUS_STYLES.queued;
                 return (
                   <div key={scan.id} onClick={() => setSelected(scan === selected ? null : scan)}
-                    style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === scan.id ? 'rgba(99,102,241,.08)' : 'transparent' }}>
+                    style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === scan.id ? 'rgba(8,145,178,.08)' : 'transparent' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <GitBranch size={14} color="#94a3b8" />
                       <div style={{ flex: 1 }}>

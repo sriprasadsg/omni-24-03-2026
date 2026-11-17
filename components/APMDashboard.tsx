@@ -148,7 +148,7 @@ export const APMDashboard: React.FC<APMDashboardProps> = ({ tenantId }) => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Application Performance Monitoring
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">

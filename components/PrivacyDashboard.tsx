@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch, getAgentLocationTracking, setAgentLocationTracking } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { Glyph } from './ui/Glyph';
 
 interface DSR {
   id: string;
@@ -163,7 +164,7 @@ export default function PrivacyDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Privacy & Data Protection</h1>
+          <h1 className="page-title">Privacy & Data Protection</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">GDPR/CCPA compliance — DSRs, breach notifications, consent management</p>
         </div>
         <div className="flex gap-2">
@@ -242,7 +243,7 @@ export default function PrivacyDashboard() {
         <div className="space-y-3">
           {dsrs.length === 0 ? (
             <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="text-4xl mb-3">📋</div>
+              <div className="text-4xl mb-3"><Glyph e="📋" /></div>
               <p>No data subject requests</p>
               <p className="text-sm mt-1">Click "+ New DSR" to log a request</p>
             </div>
@@ -291,7 +292,7 @@ export default function PrivacyDashboard() {
         <div className="space-y-3">
           {breaches.length === 0 ? (
             <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="text-4xl mb-3">✅</div>
+              <div className="text-4xl mb-3"><Glyph e="✅" /></div>
               <p>No breaches recorded</p>
               <p className="text-sm mt-1">Use "+ Report Breach" to log a data breach incident</p>
             </div>
@@ -336,7 +337,7 @@ export default function PrivacyDashboard() {
         <div className="space-y-3">
           {activities.length === 0 ? (
             <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="text-4xl mb-3">📋</div>
+              <div className="text-4xl mb-3"><Glyph e="📋" /></div>
               <p>Record of Processing Activities (ROPA)</p>
               <p className="text-sm mt-2">Document your data processing activities to maintain GDPR Article 30 compliance</p>
             </div>
@@ -422,7 +423,7 @@ export default function PrivacyDashboard() {
                 <button onClick={() => setShowCreateBreach(false)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl">✕</button>
               </div>
               <p className="text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded p-2 mb-4">
-                ⚠️ GDPR Art. 33 requires supervisory authority notification within 72 hours of discovery.
+                <Glyph e="⚠" /> GDPR Art. 33 requires supervisory authority notification within 72 hours of discovery.
               </p>
               <div className="space-y-4">
                 <div>

@@ -190,7 +190,7 @@ export const EnhancedVectorDashboard: React.FC = () => {
     <div className="p-6 space-y-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+          <h1 className="page-title flex items-center">
             <DatabaseIcon size={32} className="mr-3 text-tertiary-600" />
             Enhanced Customer Vector Database
           </h1>
@@ -325,11 +325,11 @@ export const EnhancedVectorDashboard: React.FC = () => {
           <LineChart data={indexQualityChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="collection" stroke="#9ca3af" />
-            <YAxis yAxisId="left" orientation="left" stroke="#8884d8" label={{ value: 'Avg Query Latency (ms)', angle: -90, position: 'insideLeft' }} />
+            <YAxis yAxisId="left" orientation="left" stroke="#0891b2" label={{ value: 'Avg Query Latency (ms)', angle: -90, position: 'insideLeft' }} />
             <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" label={{ value: 'Approx Recall', angle: 90, position: 'insideRight' }} />
             <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem' }} />
             <Legend />
-            <Line yAxisId="left" type="monotone" dataKey="avg_query_latency" stroke="#8884d8" name="Avg Query Latency" unit="ms" />
+            <Line yAxisId="left" type="monotone" dataKey="avg_query_latency" stroke="#0891b2" name="Avg Query Latency" unit="ms" />
             <Line yAxisId="right" type="monotone" dataKey="approx_recall" stroke="#82ca9d" name="Approx Recall" />
           </LineChart>
         </ResponsiveContainer>

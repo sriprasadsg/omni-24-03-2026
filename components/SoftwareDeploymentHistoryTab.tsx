@@ -133,7 +133,7 @@ export function SoftwareDeploymentHistoryTab({
                                             {truncated && (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); onToggleExpand(taskId); }}
-                                                    className="text-[10px] text-red-400 hover:text-red-300 underline"
+                                                    className="text-[11px] text-red-400 hover:text-red-300 underline"
                                                 >
                                                     {isExpanded ? 'Show less' : 'Show full error'}
                                                 </button>

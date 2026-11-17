@@ -97,7 +97,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, isPlatformVie
             <img src={logoUrl} alt={branding.companyName || 'Logo'} className="h-10 w-10 object-contain rounded bg-white dark:bg-gray-800" />
           )}
           <div>
-            <h1 className="text-2xl font-semibold">
+            <h1 className="page-title">
               {t('header.title')}{branding.companyName ? ` — ${branding.companyName}` : ''}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">{t('header.subtitle')}</p>

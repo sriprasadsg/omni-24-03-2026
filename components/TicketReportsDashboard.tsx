@@ -23,7 +23,7 @@ import { authFetch, API_BASE } from '../services/apiService';
 // ── Colour palette (matches project dark-mode aesthetic) ─────────────────────
 const C = {
     teal:    '#14b8a6',
-    indigo:  '#6366f1',
+    indigo:  '#0891b2',
     red:     '#ef4444',
     amber:   '#f59e0b',
     green:   '#22c55e',
@@ -113,7 +113,7 @@ const SlaRing: React.FC<{ met: number; breached: number; pending: number }> = ({
                     <span className="text-2xl font-black text-gray-900 dark:text-white">
                         {rate !== null ? `${rate}%` : '—'}
                     </span>
-                    <span className="text-[10px] text-gray-600 dark:text-slate-400 font-semibold">SLA MET</span>
+                    <span className="text-[11px] text-gray-600 dark:text-slate-400 font-semibold">SLA MET</span>
                 </div>
             </div>
             <div className="flex gap-4 mt-1">
@@ -329,7 +329,7 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                                             <div className="h-1.5 rounded-full transition-all duration-700"
                                                 style={{ width: `${row.rate ?? 0}%`, backgroundColor: row.rate >= 90 ? C.green : row.rate >= 70 ? C.amber : C.red }} />
                                         </div>
-                                        <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                                        <div className="flex justify-between text-[11px] text-slate-500 mt-0.5">
                                             <span>{row.met} met</span>
                                             <span>{row.breached} breached</span>
                                         </div>
@@ -401,7 +401,7 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                                     {assignees.slice(0,10).map((a: any) => (
                                         a.avg_resolution_hours != null && (
                                             <div key={a.assignee} className="bg-gray-100 dark:bg-slate-700/40 rounded-lg p-2 text-center">
-                                                <p className="text-[10px] text-gray-600 dark:text-slate-400 truncate">{a.assignee}</p>
+                                                <p className="text-[11px] text-gray-600 dark:text-slate-400 truncate">{a.assignee}</p>
                                                 <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{fmtHours(a.avg_resolution_hours)}</p>
                                             </div>
                                         )

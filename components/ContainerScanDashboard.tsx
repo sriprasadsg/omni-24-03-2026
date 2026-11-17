@@ -86,11 +86,11 @@ export function ContainerScanDashboard() {
     <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>DevSecOps</div>
-          <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Container Image Scanning</h1>
+          <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0891b2', marginBottom: 6 }}>DevSecOps</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Container Image Scanning</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>CVE detection across all container registries — ECR · Docker Hub · GCR · ACR</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,145,178,.15)', border: '1px solid rgba(8,145,178,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -125,10 +125,10 @@ export function ContainerScanDashboard() {
           {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>Loading…</div> : (
             filteredImages.map(img => (
               <div key={img.id} onClick={() => setSelected(img === selected ? null : img)}
-                style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === img.id ? 'rgba(99,102,241,.08)' : 'transparent', alignItems: 'center' }}>
+                style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === img.id ? 'rgba(8,145,178,.08)' : 'transparent', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <Box size={13} color="#6366f1" />
+                    <Box size={13} color="#0891b2" />
                     <span style={{ fontWeight: 600, fontSize: '0.88em' }}>{img.image}:{img.tag}</span>
                   </div>
                   <div style={{ fontSize: '0.72em', color: '#64748b' }}>{img.registry} · {img.os} · {timeAgo(img.scanned_at)}</div>

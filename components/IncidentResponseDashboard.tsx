@@ -209,7 +209,7 @@ export const IncidentResponseDashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Incident Response</h1>
+          <h1 className="page-title">Incident Response</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage, triage, and resolve security incidents with guided playbooks</p>
         </div>
         <button

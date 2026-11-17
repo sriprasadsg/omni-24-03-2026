@@ -96,7 +96,7 @@ export default function SecurityCopilotDashboard() {
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">AI</div>
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Security Copilot</h2>
+          <h1 className="page-title">Security Copilot</h1>
           <p className="text-sm text-gray-600 dark:text-slate-400">AI-powered SOC assistant</p>
         </div>
       </div>

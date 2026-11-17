@@ -33,10 +33,10 @@ export const DataSecurityDashboard: React.FC<DataSecurityDashboardProps> = ({ fi
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-indigo-600 to-accent-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <DnaIcon size={36} className="text-primary-500" />
                     Data Security Posture Management (DSPM)
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Discover, classify, and protect sensitive data across your enterprise assets.
                 </p>
@@ -94,18 +94,18 @@ export const DataSecurityDashboard: React.FC<DataSecurityDashboardProps> = ({ fi
                                 <tr key={finding.id} className="hover:bg-primary-500/5 transition-colors group">
                                     <td className="px-6 py-5">
                                         <div className="font-bold text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{finding.finding}</div>
-                                        <div className="font-mono text-[10px] text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-tighter bg-white/5 inline-block px-1 rounded">{finding.resource}</div>
+                                        <div className="font-mono text-[11px] text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-tighter bg-white/5 inline-block px-1 rounded">{finding.resource}</div>
                                     </td>
                                     <td className="px-6 py-5">
                                         <span className="font-mono text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-lg border border-indigo-500/20">{finding.assetName}</span>
                                     </td>
                                     <td className="px-6 py-5">
-                                        <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest ${classificationClasses[finding.classification]}`}>
+                                        <span className={`px-3 py-1 text-[11px] font-black rounded-full uppercase tracking-widest ${classificationClasses[finding.classification]}`}>
                                             {finding.classification}
                                         </span>
                                     </td>
                                     <td className="px-6 py-5">
-                                        <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest ${finding.severity === 'Critical' ? 'bg-red-500 text-white animate-pulse' :
+                                        <span className={`px-3 py-1 text-[11px] font-black rounded-full uppercase tracking-widest ${finding.severity === 'Critical' ? 'bg-red-500 text-white animate-pulse' :
                                                 finding.severity === 'High' ? 'bg-orange-500 text-white' :
                                                     'bg-amber-500 text-white'
                                             }`}>

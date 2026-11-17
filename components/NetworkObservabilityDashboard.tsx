@@ -125,7 +125,7 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
     return (
         <div className="container mx-auto">
             <div className="flex justify-between items-center mb-2">
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">Network Observability</h2>
+                <h1 className="page-title">Network Observability</h1>
                 <div className="flex space-x-2">
                     <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-1 flex mr-2">
                         <button

@@ -156,7 +156,7 @@ export default function ConditionalAccessDashboard() {
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Conditional Access</h1>
+          <h1 className="page-title">Conditional Access</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Evaluate and enforce access policies based on device trust, session risk, and context</p>
         </div>
         <button onClick={openCreate} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ New Policy</button>

@@ -65,7 +65,7 @@ function colorForFramework(id: string): string {
 // status) that were previously re-typed as raw hex/rgba literals across StatusBadge, the header,
 // score-card counts, filter tabs, and error banners.
 const SEMANTIC = {
-  primary: { hex: '#6366f1', rgb: '99,102,241', text: 'var(--ink-accent)' },
+  primary: { hex: '#0891b2', rgb: '8,145,178', text: 'var(--ink-accent)' },
   pass: { hex: '#10b981', rgb: '16,185,129', text: 'var(--ink-green)' },
   partial: { hex: '#f59e0b', rgb: '245,158,11', text: 'var(--ink-amber)' },
   fail: { hex: '#ef4444', rgb: '239,68,68', text: 'var(--ink-red)' },
@@ -240,7 +240,7 @@ export function ComplianceFrameworksDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.page }}>
         <div>
           <div style={{ fontSize: FONT.xs, fontWeight: WEIGHT.bold, letterSpacing: '0.12em', textTransform: 'uppercase', color: SEMANTIC.primary.hex, marginBottom: SPACING.sm }}>GRC</div>
-          <h1 style={{ fontSize: FONT.lg, fontWeight: WEIGHT.bold, letterSpacing: '-0.03em', margin: 0 }}>Compliance Frameworks</h1>
+          <h1 className="page-title" style={{ margin: 0 }}>Compliance Frameworks</h1>
           <p style={{ color: 'var(--ink-muted)', fontSize: FONT.md, marginTop: SPACING.xs }}>Automated control evaluation across {frameworkIds.length || ''} configured compliance framework{frameworkIds.length === 1 ? '' : 's'}</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: SPACING.sm }}>

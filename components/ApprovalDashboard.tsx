@@ -133,10 +133,10 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white flex items-center">
+                <h1 className="page-title flex items-center">
                     <CheckCircleIcon size={28} className="mr-3 text-primary-500" />
                     Deployment Approval Queue
-                </h2>
+                </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Review and approve patch deployments waiting for your authorization
                 </p>

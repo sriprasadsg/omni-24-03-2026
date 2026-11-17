@@ -116,7 +116,7 @@ export default function TrustCenter() {
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+                    <h1 className="page-title">
                         Trust Center
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400">

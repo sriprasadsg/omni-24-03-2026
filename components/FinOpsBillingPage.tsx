@@ -173,7 +173,7 @@ export const FinOpsBillingPage: React.FC<FinOpsBillingPageProps> = ({ tenants, i
     if (loading) {
         return (
             <div className="container mx-auto space-y-6">
-                <h2 className="text-2xl font-semibold">FinOps & Cloud Costs</h2>
+                <h1 className="page-title">FinOps & Cloud Costs</h1>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md h-24 animate-pulse" />
@@ -240,7 +240,7 @@ export const FinOpsBillingPage: React.FC<FinOpsBillingPageProps> = ({ tenants, i
                 <StatCard
                     title="Month-End Forecast"
                     value={fmt(forecast?.forecast_total ?? 0)}
-                    sub={forecast ? `Budget: ${fmt(forecast.budget)} — ${forecast.status === 'ON_TRACK' ? '✓ On Track' : '⚠ Over Budget'}` : ''}
+                    sub={forecast ? `Budget: ${fmt(forecast.budget)} — ${forecast.status === 'ON_TRACK' ? '✓ On Track' : 'Over Budget'}` : ''}
                     icon={<TrendingUpIcon size={22} />}
                     color={forecast?.status === 'ON_TRACK' ? 'green' : 'red'}
                 />

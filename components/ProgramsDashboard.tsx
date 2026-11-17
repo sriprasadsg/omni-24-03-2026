@@ -117,7 +117,7 @@ export const ProgramsDashboard: React.FC = () => {
                   <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${st === 'compliant' ? 'bg-green-500' : st === 'at_risk' ? 'bg-red-500' : 'bg-amber-500'}`} style={{width: `${pct}%`}} />
                   </div>
-                  <div className="flex justify-between text-gray-400 text-[10px]">
+                  <div className="flex justify-between text-gray-400 text-[11px]">
                     <span>{s.passing} pass</span><span>{s.failing} fail</span><span>{s.not_assessed} na</span><span>{pct}%</span>
                   </div>
                 </div>

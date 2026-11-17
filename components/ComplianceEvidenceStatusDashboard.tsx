@@ -128,7 +128,7 @@ export const ComplianceEvidenceStatusDashboard: React.FC<Props> = ({ agents }) =
     return (
         <div className="container mx-auto space-y-5">
             <div>
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Compliance Evidence Collector</h2>
+                <h1 className="page-title mb-1">Compliance Evidence Collector</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                     Automated evidence collection status per agent. Agents with the
                     <span className="font-medium text-primary-600 dark:text-primary-400"> compliance_enforcement</span> capability

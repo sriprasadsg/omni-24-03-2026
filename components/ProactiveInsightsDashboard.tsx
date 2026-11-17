@@ -23,10 +23,10 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <LightbulbIcon size={36} className="text-amber-500" />
                     Proactive Insights
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     AI-driven predictions, anomaly detection, and root cause analysis to prevent issues before they impact users.
                 </p>
@@ -50,12 +50,12 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                                             insight.severity === 'Medium' ? 'text-orange-600 dark:text-orange-400' :
                                                 'text-blue-600 dark:text-blue-400'
                                         }`}>{insight.title}</p>
-                                    <span className="text-[10px] font-black opacity-50 uppercase">{insight.severity}</span>
+                                    <span className="text-[11px] font-black opacity-50 uppercase">{insight.severity}</span>
                                 </div>
                                 <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">{insight.summary}</p>
                                 <div className="mt-3 flex items-center gap-2">
                                     <div className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
-                                    <p className="text-[10px] text-gray-400 font-mono uppercase tracking-tighter">{insight.details.entity as string}</p>
+                                    <p className="text-[11px] text-gray-400 font-mono uppercase tracking-tighter">{insight.details.entity as string}</p>
                                 </div>
                             </div>
                         ))}
@@ -73,11 +73,11 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                             <div key={insight.id} className="p-4 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all cursor-pointer group">
                                 <div className="flex justify-between items-start mb-2">
                                     <p className="font-bold text-sm text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{insight.title}</p>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${insight.severity === 'High' ? 'bg-red-500 text-white' : 'bg-gray-500 text-white'
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase ${insight.severity === 'High' ? 'bg-red-500 text-white' : 'bg-gray-500 text-white'
                                         }`}>{insight.severity}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{insight.summary}</p>
-                                <div className="mt-3 text-[10px] font-mono text-indigo-500 opacity-70">{insight.details.entity as string}</div>
+                                <div className="mt-3 text-[11px] font-mono text-indigo-500 opacity-70">{insight.details.entity as string}</div>
                             </div>
                         ))}
                     </div>
@@ -95,12 +95,12 @@ export const ProactiveInsightsDashboard: React.FC<ProactiveInsightsDashboardProp
                                 <div className="flex justify-between items-start">
                                     <div className="space-y-1">
                                         <h4 className="font-black text-gray-800 dark:text-white uppercase tracking-tighter italic">{rca.title}</h4>
-                                        <div className="flex items-center gap-1 text-[10px] text-gray-500 uppercase font-black">
+                                        <div className="flex items-center gap-1 text-[11px] text-gray-500 uppercase font-black">
                                             <ClockIcon size={10} />
                                             {new Date(rca.timestamp).toLocaleTimeString()}
                                         </div>
                                     </div>
-                                    <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-[10px] font-black uppercase border border-green-500/20">
+                                    <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full text-[11px] font-black uppercase border border-green-500/20">
                                         {rca.details.status as string}
                                     </span>
                                 </div>

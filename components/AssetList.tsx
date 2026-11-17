@@ -91,7 +91,7 @@ export const AssetList: React.FC<AssetListProps> = ({ assets, selectedAsset, onS
                     Agent {asset.agentStatus.toLowerCase()}{asset.agentVersion && <span className="font-normal text-gray-500 dark:text-gray-400"> · v{asset.agentVersion}</span>}
                   </span>
                   {asset.agentCapabilities && asset.agentCapabilities.length > 0 && (
-                    <span className="ml-2 px-1.5 py-px rounded-md text-[10px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06] cursor-help" title={`Capabilities: ${asset.agentCapabilities.join(', ')}`}>
+                    <span className="ml-2 px-1.5 py-px rounded-md text-[11px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06] cursor-help" title={`Capabilities: ${asset.agentCapabilities.join(', ')}`}>
                       {asset.agentCapabilities.length} caps
                     </span>
                   )}

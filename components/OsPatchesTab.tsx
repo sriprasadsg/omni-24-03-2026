@@ -1,4 +1,5 @@
 import React from 'react';
+import { Glyph } from './ui/Glyph';
 
 export interface OsAssetPatch {
     agent_id: string;
@@ -61,7 +62,7 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                 </div>
             ) : osPatches.length === 0 ? (
                 <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-                    <p className="text-4xl mb-3">🖥️</p>
+                    <p className="text-4xl mb-3"><Glyph e="🖥" /></p>
                     <p>No OS patch data available. Deploy agents to collect live data.</p>
                 </div>
             ) : (
@@ -96,7 +97,7 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                                             className="ml-2 px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:bg-gray-400 transition-colors">
                                             {deployingAssetPatches.has(asset.agent_id) ? (
                                                 <><span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1" />Deploying</>
-                                            ) : '🚀 Deploy All'}
+                                            ) : <><Glyph e="🚀" /> Deploy All</>}
                                         </button>
                                     )}
                                 </div>

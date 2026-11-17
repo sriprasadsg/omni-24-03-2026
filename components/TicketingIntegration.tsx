@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { authFetch } from '../services/apiService';
+import { Glyph } from './ui/Glyph';
 
 const API = '/api';
 
@@ -98,17 +99,17 @@ export default function TicketingIntegration() {
     return (
         <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24, paddingBottom: 100 }}>
             <div style={{ marginBottom: 24 }}>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, background: 'linear-gradient(135deg,#0ea5e9,#7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Ticketing Integration</h1>
+                <h1 className="page-title" style={{ margin: 0 }}>Ticketing Integration</h1>
                 <p style={{ color: '#64748b', margin: '4px 0 0' }}>Connect with Jira, ServiceNow, Zoho Desk or any Custom Webhook</p>
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                {[{ id: 'config', label: '⚙ Configuration' }, { id: 'tickets', label: `🎫 Tickets Created (${tickets.length})` }].map(t => (
+                {[{ id: 'config', label: 'Configuration' }, { id: 'tickets', label: `Tickets Created (${tickets.length})` }].map(t => (
                     <button key={t.id} onClick={() => setTab(t.id as any)}
                         style={{
                             padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
+                            background: tab === t.id ? '#0e7490' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
                         }}>
                         {t.label}
                     </button>
@@ -122,12 +123,12 @@ export default function TicketingIntegration() {
                         <h3 style={{ margin: '0 0 20px', fontSize: 16 }}>Provider</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                             {PROVIDERS.map(p => {
-                                const icons: any = { jira: '🔵 Jira', servicenow: '🟢 ServiceNow', zoho: '🟠 Zoho Desk', custom: '🛠 Custom' };
+                                const icons: any = { jira: 'Jira', servicenow: 'ServiceNow', zoho: 'Zoho Desk', custom: 'Custom' };
                                 return (
                                     <button key={p} onClick={() => setConfig((c: any) => ({ ...c, provider: p }))}
                                         style={{
-                                            padding: 14, borderRadius: 10, border: `2px solid ${config.provider === p ? '#7c3aed' : 'var(--ink-line-strong)'}`,
-                                            background: config.provider === p ? 'rgba(124,58,237,0.15)' : '#0f172a', color: config.provider === p ? 'var(--ink-violet)' : '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'left'
+                                            padding: 14, borderRadius: 10, border: `2px solid ${config.provider === p ? '#0e7490' : 'var(--ink-line-strong)'}`,
+                                            background: config.provider === p ? 'rgba(14,116,144,0.15)' : '#0f172a', color: config.provider === p ? 'var(--ink-violet)' : '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'left'
                                         }}>
                                         {icons[p]}
                                     </button>
@@ -211,11 +212,11 @@ export default function TicketingIntegration() {
                     <div style={{ display: 'flex', gap: 12 }}>
                         <button onClick={testConnection} disabled={testing}
                             style={{ flex: 1, padding: 12, background: 'var(--ink-panel)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-muted)', cursor: 'pointer', fontWeight: 600 }}>
-                            {testing ? 'Testing Connection...' : '🔌 Test Connection'}
+                            {testing ? 'Testing Connection...' : <><Glyph e="🔌" /> Test Connection</>}
                         </button>
                         <button onClick={save} disabled={saving}
-                            style={{ flex: 1, padding: 12, background: '#7c3aed', border: 'none', borderRadius: 8, color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                            {saving ? 'Saving...' : '💾 Save Configuration'}
+                            style={{ flex: 1, padding: 12, background: '#0e7490', border: 'none', borderRadius: 8, color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                            {saving ? 'Saving...' : <><Glyph e="💾" /> Save Configuration</>}
                         </button>
                     </div>
                 </div>
@@ -231,7 +232,7 @@ export default function TicketingIntegration() {
                                 <div style={{ color: '#64748b', fontSize: 12 }}>Alert: {t.alert_id} • {new Date(t.created_at).toLocaleString()}</div>
                             </div>
                             <a href={t.url} target="_blank" rel="noopener noreferrer"
-                                style={{ color: '#7c3aed', fontSize: 13, textDecoration: 'none', padding: '6px 14px', border: '1px solid #7c3aed', borderRadius: 6 }}>
+                                style={{ color: '#0e7490', fontSize: 13, textDecoration: 'none', padding: '6px 14px', border: '1px solid #0e7490', borderRadius: 6 }}>
                                 View in {t.provider ? (t.provider.charAt(0).toUpperCase() + t.provider.slice(1)) : 'Provider'} →
                             </a>
                         </div>

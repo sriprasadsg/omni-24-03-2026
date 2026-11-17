@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ChaosExperiment } from '../types';
 import { fetchChaosExperiments, createChaosExperiment, runChaosExperiment } from '../services/apiService';
 import { BombIcon, TestTubeIcon, ZapIcon, CheckIcon, XCircleIcon, CogIcon, ClockIcon, PlusIcon } from './icons';
+import { Glyph } from './ui/Glyph';
 
 const STATUS_CLASSES: Record<ChaosExperiment['status'], string> = {
     Scheduled: 'bg-blue-500/10 text-blue-500 border-blue-500/30',
@@ -95,10 +96,10 @@ export const ChaosEngineeringDashboard: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in p-2">
             <header>
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 bg-clip-text text-transparent flex items-center gap-3">
+                <h1 className="page-title flex items-center gap-3">
                     <BombIcon size={36} className="text-red-500" />
                     Chaos Engineering
-                </h2>
+                </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
                     Proactively test system resilience by injecting controlled failures.
                 </p>
@@ -120,8 +121,8 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                 </div>
             )}
 
-            <div className="glass-premium rounded-3xl shadow-2xl overflow-hidden border border-white/10">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-black/5 dark:bg-white/5">
+            <div className="glass-premium rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10">
+                <div className="p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center bg-gray-100 dark:bg-black/5 dark:bg-white/5">
                     <h3 className="text-xl font-bold flex items-center gap-2 italic uppercase tracking-tighter">
                         <TestTubeIcon size={24} className="text-red-500" />
                         Experiment Registry
@@ -138,7 +139,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                         <div className="py-16 text-center text-gray-500 text-sm">Loading experiments…</div>
                     ) : (
                         <table className="w-full text-sm text-left">
-                            <thead className="text-[10px] font-black uppercase tracking-widest bg-black/20 dark:bg-white/5 text-gray-500">
+                            <thead className="text-[11px] font-black uppercase tracking-widest bg-gray-100 dark:bg-black/20 dark:bg-white/5 text-gray-500">
                                 <tr>
                                     <th className="px-8 py-5">Experiment</th>
                                     <th className="px-6 py-5">Type</th>
@@ -148,25 +149,25 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                     <th className="px-8 py-5 text-right">Ops</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                 {experiments.map(exp => (
                                     <tr key={exp.id} className="hover:bg-white/5 transition-colors group">
                                         <td className="px-8 py-6">
                                             <div className="flex flex-col">
                                                 <span className="font-black text-gray-800 dark:text-gray-100 uppercase tracking-tighter italic">{exp.name}</span>
-                                                <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mt-1">ID: {exp.id.slice(0, 8)}</span>
+                                                <span className="text-[11px] text-gray-400 uppercase font-bold tracking-widest mt-1">ID: {exp.id.slice(0, 8)}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-6 font-mono text-[10px] uppercase font-black text-red-500/80">{exp.type}</td>
+                                        <td className="px-6 py-6 font-mono text-[11px] uppercase font-black text-red-500/80">{exp.type}</td>
                                         <td className="px-6 py-6">
-                                            <code className="bg-white/5 px-2 py-1 rounded text-[10px] font-mono border border-white/5 text-gray-400">{exp.target}</code>
+                                            <code className="bg-gray-50 dark:bg-white/5 px-2 py-1 rounded text-[11px] font-mono border border-gray-200 dark:border-white/5 text-gray-400">{exp.target}</code>
                                         </td>
                                         <td className="px-6 py-6 text-center">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-black rounded-full uppercase border ${STATUS_CLASSES[exp.status]}`}>
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-black rounded-full uppercase border ${STATUS_CLASSES[exp.status]}`}>
                                                 {STATUS_ICONS[exp.status]} {exp.status}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-6 text-right font-mono text-[10px] text-gray-500">
+                                        <td className="px-6 py-6 text-right font-mono text-[11px] text-gray-500">
                                             {new Date(exp.lastRun).toLocaleString()}
                                         </td>
                                         <td className="px-8 py-6 text-right">
@@ -176,16 +177,16 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                                         onClick={() => handleViewResult(exp.id)}
                                                         disabled={loadingResult === exp.id}
                                                         title="View execution results"
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 transition-all border border-white/5 text-[10px] font-black uppercase"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 transition-all border border-gray-200 dark:border-white/5 text-[11px] font-black uppercase"
                                                     >
-                                                        {loadingResult === exp.id ? <CogIcon size={12} className="animate-spin" /> : '📋'} Results
+                                                        {loadingResult === exp.id ? <CogIcon size={12} className="animate-spin" /> : <Glyph e="📋" />} Results
                                                     </button>
                                                 )}
                                                 <button
                                                     onClick={() => handleRun(exp.id)}
                                                     disabled={runningId === exp.id || exp.status === 'Running'}
                                                     title="Run experiment"
-                                                    className="inline-flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-all border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    className="inline-flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-all border border-gray-200 dark:border-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
                                                 >
                                                     {runningId === exp.id
                                                         ? <CogIcon size={16} className="animate-spin" />
@@ -212,10 +213,10 @@ export const ChaosEngineeringDashboard: React.FC = () => {
 
             {/* Execution Result Panel */}
             {viewingResult && (
-                <div className="glass-premium rounded-3xl shadow-2xl overflow-hidden border border-white/10 mt-2">
-                    <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/5">
+                <div className="glass-premium rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10 mt-2">
+                    <div className="p-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between bg-gray-100 dark:bg-black/5">
                         <h3 className="text-sm font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                            📋 Execution Results — {viewingResult.id.slice(0, 8)}
+                            <Glyph e="📋" /> Execution Results — {viewingResult.id.slice(0, 8)}
                         </h3>
                         <button onClick={() => setViewingResult(null)} className="text-gray-400 hover:text-white text-xs font-black uppercase">✕ Close</button>
                     </div>
@@ -227,7 +228,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                         {viewingResult.data.instructions?.length > 0 && (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-xs text-left">
-                                    <thead className="text-[10px] uppercase text-gray-500 border-b border-white/10">
+                                    <thead className="text-[11px] uppercase text-gray-500 border-b border-gray-200 dark:border-white/10">
                                         <tr>
                                             <th className="py-2 pr-4">Agent ID</th>
                                             <th className="py-2 pr-4">Status</th>
@@ -236,10 +237,10 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                     </thead>
                                     <tbody>
                                         {viewingResult.data.instructions.map((inst: any, i: number) => (
-                                            <tr key={i} className="border-b border-white/5">
+                                            <tr key={i} className="border-b border-gray-200 dark:border-white/5">
                                                 <td className="py-2 pr-4 font-mono text-gray-300">{inst.agent_id?.slice(0, 12)}</td>
                                                 <td className="py-2 pr-4">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${inst.status === 'completed' ? 'bg-green-500/20 text-green-400' : inst.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${inst.status === 'completed' ? 'bg-green-500/20 text-green-400' : inst.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
                                                         {inst.status}
                                                     </span>
                                                 </td>
@@ -261,16 +262,16 @@ export const ChaosEngineeringDashboard: React.FC = () => {
 
             {/* Create Experiment Modal */}
             {showCreate && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                    <div className="glass-premium rounded-3xl shadow-2xl border border-white/10 w-full max-w-md p-8">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100 dark:bg-black/70 backdrop-blur-sm">
+                    <div className="glass-premium rounded-3xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-md p-8">
                         <h3 className="text-xl font-black uppercase tracking-tighter italic mb-6 flex items-center gap-2">
                             <BombIcon size={20} className="text-red-500" /> New Chaos Experiment
                         </h3>
                         <form onSubmit={handleCreate} className="space-y-5">
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Experiment Name</label>
+                                <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Experiment Name</label>
                                 <input
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     placeholder="e.g. DB Failover Drill"
                                     value={form.name}
                                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -278,9 +279,9 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Type</label>
+                                <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Type</label>
                                 <select
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     value={form.type}
                                     onChange={e => setForm(f => ({ ...f, type: e.target.value as ChaosExperiment['type'] }))}
                                 >
@@ -288,9 +289,9 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Target / Blast Radius</label>
+                                <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Target / Blast Radius</label>
                                 <input
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
+                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     placeholder="e.g. db-prod-01"
                                     value={form.target}
                                     onChange={e => setForm(f => ({ ...f, target: e.target.value }))}
@@ -308,7 +309,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowCreate(false)}
-                                    className="flex-1 bg-white/5 hover:bg-white/10 text-gray-400 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                    className="flex-1 bg-gray-50 dark:bg-white/5 hover:bg-white/10 text-gray-400 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
                                 >
                                     Cancel
                                 </button>

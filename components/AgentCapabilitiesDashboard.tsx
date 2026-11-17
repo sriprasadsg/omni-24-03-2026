@@ -106,7 +106,7 @@ export const AgentCapabilitiesDashboard: React.FC = () => {
         <div className="space-y-6 animate-fade-in">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Agent Capabilities</h2>
+                    <h1 className="page-title">Agent Capabilities</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Real-time telemetry and management of active agent capabilities.
                     </p>
@@ -208,7 +208,7 @@ export const AgentCapabilitiesDashboard: React.FC = () => {
                                                                     return (
                                                                         <div className="space-y-1">
                                                                             {v.slice(0, 2).map((d: any, i: number) => (
-                                                                                <div key={i} className="text-[10px] flex justify-between">
+                                                                                <div key={i} className="text-[11px] flex justify-between">
                                                                                     <span className="truncate max-w-[40px] opacity-70">{d.mountpoint}:</span>
                                                                                     <span>{d.percent}%</span>
                                                                                 </div>
