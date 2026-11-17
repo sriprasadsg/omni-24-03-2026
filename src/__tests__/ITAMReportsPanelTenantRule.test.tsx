@@ -345,6 +345,18 @@ describe('a Select a tenant rejection on the Reports tab (Phase 78 plan 15)', ()
     expect(showToast).not.toHaveBeenCalled();
   });
 
+  it('an "Unknown tenant" rejection (a deleted or stale tenant) blocks the tab like Select a tenant, without a toast', async () => {
+    runItamPrebuiltReport.mockRejectedValue(new Error('Unknown tenant: the selected organization does not exist.'));
+    await renderPanel({ tenantId: 't-gone' });
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalled());
+    fireEvent.click(runButton());
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(runButton()).toBeDisabled();
+    expect(createButton()).toBeDisabled();
+    expect(screen.queryByText(/Unknown tenant/)).not.toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
   it('a builder save rejection puts the tab into the no-tenant state without a toast', async () => {
     saveItamCustomReport.mockRejectedValue(new Error(REJECTION));
     await renderPanel({ tenantId: 't-1' });

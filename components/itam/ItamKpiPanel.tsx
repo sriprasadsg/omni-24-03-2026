@@ -88,8 +88,10 @@ function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, ta
   );
 }
 
-// R5: the server answers a missing tenant with a 400 whose detail starts "Select a tenant".
-export const SELECT_TENANT_RE = /^Select a tenant/i;
+// R5: the server answers a missing tenant with a 400 whose detail starts "Select a tenant", and a
+// selected tenant that does not exist (deleted or stale) with one that starts "Unknown tenant" (IN-11).
+// Both mean the same here: choose a tenant again.
+export const SELECT_TENANT_RE = /^(Select a tenant|Unknown tenant)/i;
 
 export function ItamKpiPanel({ onDrillDown, tenantId, needsTenant, onGoToTenants }: ItamKpiPanelProps) {
   const [data, setData] = useState<ItamKpis | null>(null);

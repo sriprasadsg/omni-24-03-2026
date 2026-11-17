@@ -372,6 +372,14 @@ describe('ItamKpiPanel', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
+  it('a rejection starting "Unknown tenant" shows the same Select block, not the generic failure tiles', async () => {
+    fetchItamKpis.mockRejectedValue(new Error('Unknown tenant: the selected organization does not exist.'));
+    render(<ItamKpiPanel onDrillDown={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Select a tenant'));
+    expect(screen.queryByText('No data yet')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unknown tenant/)).not.toBeInTheDocument();
+  });
+
   it('a tenant change clears the previous figure, shows Loading, and ignores a late response for the old tenant', async () => {
     let resolveT1: (v: unknown) => void = () => {};
     let resolveT2: (v: unknown) => void = () => {};
