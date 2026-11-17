@@ -168,14 +168,14 @@ describe('ITAMConsole', () => {
   });
 
   it("a Platform Owner's selected tenant reaches the KPI request on the Reports tab", async () => {
-    render(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+    render(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
     fireEvent.click(screen.getByText('Reports'));
     await waitFor(() => expect(fetchItamKpis).toHaveBeenCalledWith('t-1'));
     expect(screen.queryByText('Select a tenant')).not.toBeInTheDocument();
   });
 
   it('a Platform Owner with no tenant selected sees the Select a tenant block and no KPI request is sent', async () => {
-    render(<ITAMConsole isSuperAdminView />);
+    render(<ITAMConsole isSuperAdminView isPlatformView />);
     fireEvent.click(screen.getByText('Reports'));
     await waitFor(() => expect(screen.getByText('Select a tenant')).toBeInTheDocument());
     expect(fetchItamKpis).not.toHaveBeenCalled();
@@ -183,13 +183,13 @@ describe('ITAMConsole', () => {
 
   it('offers Go to Tenants in the Select block only when onGoToTenants is given', async () => {
     const onGoToTenants = vi.fn();
-    const { unmount } = render(<ITAMConsole isSuperAdminView onGoToTenants={onGoToTenants} />);
+    const { unmount } = render(<ITAMConsole isSuperAdminView isPlatformView onGoToTenants={onGoToTenants} />);
     fireEvent.click(screen.getByText('Reports'));
     fireEvent.click(await screen.findByRole('button', { name: 'Go to Tenants' }));
     expect(onGoToTenants).toHaveBeenCalledTimes(1);
     unmount();
 
-    render(<ITAMConsole isSuperAdminView />);
+    render(<ITAMConsole isSuperAdminView isPlatformView />);
     fireEvent.click(screen.getByText('Reports'));
     await waitFor(() => expect(screen.getByText('Select a tenant')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Go to Tenants' })).not.toBeInTheDocument();
@@ -317,7 +317,7 @@ describe('ITAMConsole', () => {
     }
 
     it('runs and exports a pre-built report for the selected tenant', async () => {
-      await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      await openReports(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
       fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
       await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1'));
       fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
@@ -328,7 +328,7 @@ describe('ITAMConsole', () => {
     it('runs and exports a saved custom report for the selected tenant', async () => {
       listItamCustomReports.mockResolvedValue([{ id: 'c-1', name: 'My report', columns: ['name'] }]);
       runItamCustomReport.mockResolvedValue({ ...assetValueResult, key: 'c-1', title: 'My report' });
-      await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      await openReports(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
       fireEvent.click(await screen.findByRole('button', { name: 'Run My report' }));
       await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50, 't-1'));
       fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
@@ -336,7 +336,7 @@ describe('ITAMConsole', () => {
     });
 
     it('disables Run Report with a described status note when a Platform Owner has no tenant', async () => {
-      await openReports(<ITAMConsole isSuperAdminView />);
+      await openReports(<ITAMConsole isSuperAdminView isPlatformView />);
       const run = await screen.findByRole('button', { name: 'Run Report' });
       expect(run).toBeDisabled();
       const note = screen.getByText(NOTE);
@@ -356,25 +356,25 @@ describe('ITAMConsole', () => {
     });
 
     it("clears the previous tenant's result when the tenant changes, and when none is selected", async () => {
-      const { rerender } = await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      const { rerender } = await openReports(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
       fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
       expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Export CSV/ })).toBeInTheDocument();
 
-      rerender(<ITAMConsole isSuperAdminView tenantId="t-2" />);
+      rerender(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-2" />);
       await waitFor(() => expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument());
       expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: 'Asset Value', level: 3 })).not.toBeInTheDocument();
 
       fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
       expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
-      rerender(<ITAMConsole isSuperAdminView />);
+      rerender(<ITAMConsole isSuperAdminView isPlatformView />);
       await waitFor(() => expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument());
       expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
     });
 
     it('does not clear a drill-down run started on first mount', async () => {
-      render(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      render(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
       fireEvent.click(screen.getByText('Reports'));
       await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
       fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
@@ -386,11 +386,11 @@ describe('ITAMConsole', () => {
       let resolveHeld: (v: unknown) => void = () => {};
       runItamPrebuiltReport.mockImplementationOnce(() => new Promise((resolve) => { resolveHeld = resolve; }));
 
-      const { rerender } = await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      const { rerender } = await openReports(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-1" />);
       fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
       await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1'));
 
-      rerender(<ITAMConsole isSuperAdminView tenantId="t-2" />);
+      rerender(<ITAMConsole isSuperAdminView isPlatformView tenantId="t-2" />);
       // Flush whatever the late response writes before asserting absence.
       await act(async () => {
         resolveHeld(assetValueResult);

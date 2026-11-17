@@ -82,7 +82,7 @@ interface ItamConsoleBodyProps {
 function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, isPlatformView, tenantId, onGoToTenants, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
   const t = useItamT();
   // A platform user without a selected tenant has no organization to report on (D-14).
-  const needsTenant = (isSuperAdminView || isPlatformView) && !tenantId;
+  const needsTenant = isPlatformView && !tenantId;
   const { branding } = settings;
   // Re-checked on the client as defence in depth even though the server already enforces
   // this (65-04-PLAN.md T-65-04-02) — a malformed value must never reach a style attribute.
