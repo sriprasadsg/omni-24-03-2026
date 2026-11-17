@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 
 const authFetch = vi.fn();
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', authFetch: (...a: unknown[]) => authFetch(...a) }));
@@ -26,6 +26,7 @@ import { useLiveData } from '../../components/network/NetworkKit';
 import { WebMonitoringDashboard } from '../../components/WebMonitoringDashboard';
 import { DataUtilizationDashboard } from '../../components/DataUtilizationDashboard';
 import { NetworkTopologyMap } from '../../components/NetworkTopologyMap';
+import { topologyRows, zoneShares, rowMatches } from '../../components/network/topologyData';
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
@@ -164,8 +165,8 @@ describe('screens', () => {
         await waitFor(() => expect(screen.queryByText('Utilization data could not be loaded')).toBeNull());
     });
 
-    it('Topology list view opens a device, including a VLAN segment member', async () => {
-        authFetch.mockResolvedValue(ok({ elements: {
+    it('Topology node table opens a device', async () => {
+        authFetch.mockImplementation(async (url: string) => url.includes('/traffic') ? ok(emptyTraffic) : ok({ elements: {
             nodes: [
                 { data: { id: 'internet', zone: 'Internet', type: 'cloud', label: 'Internet (External)\n1.2.3.4', ip: '1.2.3.4', status: 'up' } },
                 { data: { id: 'pc', zone: 'Internal LAN', label: 'pc-01\n(10.0.0.9)', ip: '10.0.0.9', status: 'Up', details: { macAddress: 'aa:bb:cc' } } },
@@ -173,7 +174,6 @@ describe('screens', () => {
             edges: [{ data: { id: 'e', source: 'internet', target: 'pc' } }],
         } }));
         render(<NetworkTopologyMap refreshKey={0} />);
-        fireEvent.click(await screen.findByRole('button', { name: 'List' }));
         fireEvent.click(await screen.findByRole('button', { name: 'pc-01' }));
         const panel = await screen.findByRole('complementary', { name: 'Details for pc-01' });
         expect(panel.textContent).toContain('aa:bb:cc');
@@ -183,19 +183,44 @@ describe('screens', () => {
     });
 
     it('Topology shows an endpoint’s live transfer and latest connections, and takes pushed rates', async () => {
-        authFetch.mockResolvedValue(ok(endpointTopology(new Date(Date.now() - 20_000).toISOString())));
+        authFetch.mockImplementation(async (url: string) => url.includes('/traffic') ? ok(emptyTraffic) : ok(endpointTopology(new Date(Date.now() - 20_000).toISOString())));
         render(<NetworkTopologyMap refreshKey={0} />);
-        fireEvent.click(await screen.findByRole('button', { name: 'List' }));
-        expect(await screen.findByText(`↑ ${formatBytes(41_000)}/s · ↓ ${formatBytes(178_000)}/s`)).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'EILT0197' }));
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        // 41 000 + 178 000 bytes/s, shown in bits as network tools do.
+        expect(within(table).getByText('1.8 Mbps')).toBeTruthy();
+        fireEvent.click(within(table).getByRole('button', { name: 'EILT0197' }));
         const panel = await screen.findByRole('complementary', { name: 'Details for EILT0197' });
         expect(panel.textContent).toContain('Upload');
         expect(panel.textContent).toContain('api.anthropic.com');
         expect(panel.textContent).toContain('port 443 · claude, node · 2 open');
         act(() => socketHandlers.endpoint_traffic({ agentId: 'a-win', sentBps: 2048, recvBps: 4096, at: new Date().toISOString(), windowSeconds: 30 }));
-        expect(await screen.findByText(`↑ ${formatBytes(2048)}/s · ↓ ${formatBytes(4096)}/s`)).toBeTruthy();
+        expect(await within(table).findByText('49.2 Kbps')).toBeTruthy();
+    });
+
+    it('Topology flags what is down, filters by zone and pauses pushed rates', async () => {
+        const topo = endpointTopology(new Date(Date.now() - 20_000).toISOString());
+        topo.elements.nodes.push({ data: { id: 'nb-192.168.0.7', label: 'printer-2\n(192.168.0.7)', ip: '192.168.0.7', zone: 'Internal LAN', role: 'Neighbour', kind: 'neighbour', status: 'Down' } } as any);
+        authFetch.mockImplementation(async (url: string) => url.includes('/traffic') ? ok(emptyTraffic) : ok(topo));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        expect(within(screen.getByRole('banner')).getByText('1 down')).toBeTruthy();
+        expect(within(table).getAllByRole('row')).toHaveLength(6); // header + 5 nodes
+
+        fireEvent.click(screen.getByRole('button', { name: /^Perimeter/ }));
+        await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2));
+        expect(within(table).getByRole('button', { name: 'Gateway' })).toBeTruthy();
+        expect(screen.getByText('Showing 1 of 5 nodes')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear the zone and search filters' }));
+        await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(6));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Pause updates' }));
+        act(() => socketHandlers.endpoint_traffic({ agentId: 'a-win', sentBps: 2048, recvBps: 4096, at: new Date().toISOString(), windowSeconds: 30 }));
+        expect(within(table).queryByText('49.2 Kbps')).toBeNull();
+        expect(within(table).getByText('1.8 Mbps')).toBeTruthy();
     });
 });
+
+const emptyTraffic = { series: [], current: { txBps: 0, rxBps: 0, measured: 0, online: 0, endpoints: 0 }, average: null, previousAverage: null, endpoints: [], connections: [], protocols: [], notCollected: [] };
 
 // What GET /api/network-devices/topology answers for one Windows endpoint behind its gateway.
 function endpointTopology(rateAt: string) {
@@ -238,5 +263,28 @@ describe('withLiveTraffic', () => {
         expect(newer.find(e => e.data.id === 'e2').data.towardTarget).toBe(false);
         const older = withLiveTraffic(fetched, { 'a-win': { sentBps: 1, recvBps: 0, at: at(60_000) } });
         expect(older.find(e => e.data.id === 'agent-a-win').data.metrics.sentBps).toBe(41_000);
+    });
+});
+
+describe('topologyRows', () => {
+    const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+
+    it('ranks the busiest node first and says what each one is, where it hangs off and how it is', () => {
+        const rows = topologyRows(withLiveTraffic(buildTopologyElements(endpointTopology(at(20_000))), {}));
+        expect(rows.map(r => r.name)).toEqual(['EILT0197', 'Gateway', 'api.anthropic.com', 'Internet']);
+        expect(rows[0]).toMatchObject({ group: 'Endpoints', via: 'Gateway', status: 'Live', sentBps: 41_000, recvBps: 178_000, links: 2 });
+        expect(rows[1]).toMatchObject({ group: 'Gateways', via: 'Internet', status: 'Up' });
+        expect(rows[2]).toMatchObject({ group: 'Remote', role: 'Remote', via: 'EILT0197', status: 'Connected', sentBps: null });
+        expect(rows[3]).toMatchObject({ group: null, status: null });
+        expect(rowMatches(rows[0], '192.168.0.105')).toBe(true);
+        expect(rowMatches(rows[0], 'nope')).toBe(false);
+    });
+
+    it('marks an online endpoint without a fresh rate as not measured, and sums zones', () => {
+        const rows = topologyRows(withLiveTraffic(buildTopologyElements(endpointTopology(at(10 * 60_000))), {}));
+        expect(rows.find(r => r.group === 'Endpoints')).toMatchObject({ status: 'Not measured', sentBps: null });
+        const fresh = zoneShares(topologyRows(withLiveTraffic(buildTopologyElements(endpointTopology(at(20_000))), {})));
+        expect(fresh[0]).toMatchObject({ zone: 'Internal LAN', endpoints: 1, sentBps: 41_000, recvBps: 178_000 });
+        expect(fresh.map(z => z.zone)).toEqual(['Internal LAN', 'Internet', 'Perimeter']);
     });
 });

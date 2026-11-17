@@ -64,7 +64,7 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; c
     const down = isDown(node.status);
 
     return (
-        <aside aria-label={`Details for ${title}`} className="absolute top-3 right-3 bottom-3 z-30 w-[min(20rem,calc(100%-1.5rem))] flex flex-col rounded-2xl glass-strong border border-gray-200/80 dark:border-white/10 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
+        <aside aria-label={`Details for ${title}`} className="h-full max-h-[48rem] min-h-[24rem] flex flex-col rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card animate-in fade-in slide-in-from-right-2 duration-200">
             <div className="flex items-start gap-3 p-4 border-b border-gray-200/70 dark:border-white/[0.07]">
                 <span className="grid place-items-center h-10 w-10 rounded-xl bg-primary-500/10 ring-1 ring-inset ring-primary-500/20 text-primary-600 dark:text-primary-400 shrink-0" aria-hidden="true">
                     <Icon className="w-5 h-5" />

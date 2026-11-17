@@ -1,5 +1,6 @@
 // Pure data helpers for the Network Topology, Data Utilization and Web Monitoring screens.
 // Kept free of React so the shapes agents and the API really send can be tested directly.
+import { formatBitRate } from './opsData';
 
 export const formatBytes = (bytes: number, decimals = 1): string => {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -187,7 +188,8 @@ export interface LiveRate { sentBps: number; recvBps: number; at: string; window
 // Same freshness the API applies (network_topology_service.RATE_FRESH_FOR).
 export const RATE_FRESH_MS = 5 * 60 * 1000;
 
-export const formatRate = (bps?: number) => `${formatBytes(bps ?? 0)}/s`;
+/** A rate in bytes per second, shown in bits per second as network tools do ("2.9 Mbps"). */
+export const formatRate = (bps?: number) => formatBitRate(bps ?? 0);
 
 export const isFreshRate = (m: any, now: number = Date.now()) =>
     !!m?.rateAt && typeof m.sentBps === 'number' && typeof m.recvBps === 'number' && now - Date.parse(m.rateAt) <= RATE_FRESH_MS;
