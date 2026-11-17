@@ -98,6 +98,8 @@ describe('FinancePanel — book value reason copy', () => {
     ['no_purchase_record', 'No purchase record yet.'],
     ['no_depreciation_policy_assigned', "No depreciation policy set on this asset's Model."],
     ['salvage_exceeds_cost', "Salvage value on this asset's Model is higher than its purchase cost."],
+    ['unreadable_purchase_cost', 'The purchase cost on this asset cannot be read.'],
+    ['unreadable_purchase_date', 'The purchase date on this asset cannot be read.'],
     ['some_future_code', 'Book value is not available for this asset.'],
   ])('shows plain copy for the %s reason', async (reason, copy) => {
     fetchAssetBookValue.mockResolvedValue({ assetId: 'a-2', purchaseCostCents: 100000, bookValueCents: null, reason });

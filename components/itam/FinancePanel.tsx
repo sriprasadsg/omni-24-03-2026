@@ -15,6 +15,8 @@ const BOOK_VALUE_REASON_COPY: Record<string, string> = {
   no_purchase_record: 'No purchase record yet.',
   no_depreciation_policy_assigned: 'No depreciation policy set on this asset\'s Model.',
   salvage_exceeds_cost: 'Salvage value on this asset\'s Model is higher than its purchase cost.',
+  unreadable_purchase_cost: 'The purchase cost on this asset cannot be read.',
+  unreadable_purchase_date: 'The purchase date on this asset cannot be read.',
 };
 
 interface FinancePanelProps {

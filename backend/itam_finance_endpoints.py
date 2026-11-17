@@ -26,10 +26,9 @@ from auth_types import TokenData
 from database import get_database
 from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
-from itam_cost_service import policy_misfit_reason
+from itam_cost_service import REASON_UNREADABLE_COST, REASON_UNREADABLE_DATE, is_cents, policy_misfit_reason
 from itam_models import AssetPurchaseUpdate
 from itam_finance_service import (
-    REASON_NO_DEPRECIATION_POLICY,
     REASON_NO_PURCHASE_RECORD,
     compute_book_value,
     compute_warranty_status,
@@ -157,13 +156,17 @@ async def get_asset_book_value(
         "computedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
     }
 
-    if asset.get("purchaseCostCents") is None or asset.get("purchaseDate") is None:
+    cost = asset.get("purchaseCostCents")
+    if cost is not None and not is_cents(cost):
+        return {**base, "bookValueCents": None, "reason": REASON_UNREADABLE_COST}
+    if cost is None or asset.get("purchaseDate") is None:
         return {**base, "bookValueCents": None, "reason": REASON_NO_PURCHASE_RECORD}
 
     model_id = asset.get("modelId")
     model_doc = await db.asset_models.find_one({"id": model_id}) if model_id else None
-    # The same policy check the cost list uses, so the two screens cannot disagree about one asset.
-    misfit = policy_misfit_reason(model_doc, asset.get("purchaseCostCents"))
+    # Shared with the cost list: the policy check and the unreadable cost and date reasons. Not shared: the
+    # lifecycle rule, so a disposed or retired asset still shows its figure on its own Finance tab.
+    misfit = policy_misfit_reason(model_doc, cost)
     if misfit is not None:
         return {**base, "bookValueCents": None, "reason": misfit}
 
@@ -175,8 +178,8 @@ async def get_asset_book_value(
             salvage_value_cents=model_doc["salvageValueCents"],
             now=datetime.now(timezone.utc),
         )
-    except ValueError:
-        return {**base, "bookValueCents": None, "reason": REASON_NO_DEPRECIATION_POLICY}
+    except (ValueError, TypeError):
+        return {**base, "bookValueCents": None, "reason": REASON_UNREADABLE_DATE}
 
     return {
         **base,

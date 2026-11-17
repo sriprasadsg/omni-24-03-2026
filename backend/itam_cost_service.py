@@ -68,7 +68,7 @@ def require_tenant(tenant_id: Optional[str]) -> str:
     return tenant_id
 
 
-def _is_cents(value: Any) -> bool:
+def is_cents(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
@@ -96,9 +96,9 @@ def policy_misfit_reason(model_doc: Optional[Dict[str, Any]], purchase_cost: Any
     Salvage lives on the model, cost on the asset. Salvage above the price paid would value the asset
     above its purchase cost, so the policy does not fit this asset: it is not valued, nothing is capped.
     """
-    if not model_doc or not _is_life(model_doc.get("usefulLifeYears")) or not _is_cents(model_doc.get("salvageValueCents")):
+    if not model_doc or not _is_life(model_doc.get("usefulLifeYears")) or not is_cents(model_doc.get("salvageValueCents")):
         return REASON_NO_DEPRECIATION_POLICY
-    if _is_cents(purchase_cost) and model_doc["salvageValueCents"] > purchase_cost:
+    if is_cents(purchase_cost) and model_doc["salvageValueCents"] > purchase_cost:
         return REASON_SALVAGE_EXCEEDS_COST
     return None
 
@@ -123,7 +123,7 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
         "assetTag": asset.get("assetTag"),
         "name": asset.get("name"),
         "lifecycleStatus": status_value,
-        "purchaseCostCents": raw_cost if _is_cents(raw_cost) else None,
+        "purchaseCostCents": raw_cost if is_cents(raw_cost) else None,
         "purchaseDate": raw_date if isinstance(raw_date, str) else None,
         "bookValueCents": None,
         "yearsElapsed": None,
@@ -135,7 +135,7 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
 
     if status_value in INACTIVE_STATUSES:
         row["reason"] = status_value
-    elif raw_cost is not None and not _is_cents(raw_cost):
+    elif raw_cost is not None and not is_cents(raw_cost):
         row["reason"] = REASON_UNREADABLE_COST
     elif raw_cost is None or raw_date is None:
         row["reason"] = REASON_NO_PURCHASE_RECORD
