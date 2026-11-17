@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The book-value route maps an unreadable purchase date to \"no depreciation policy\" and does not guard an unreadable cost"
   - id: IN-14
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The new parity test checks route against row for two assets only, so the remaining disagreements in WR-07 stay invisible"
   - id: WR-05
     severity: warning
@@ -87,17 +87,17 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 2
+open: 0
 total: 21
-recorded: 2026-11-17T10:43:35.203Z
+recorded: 2026-11-17T10:53:35.788Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-07 | warning | open | - |
-| IN-14 | info | open | - |
+| WR-07 | warning | fixed | 78-REVIEW-FIX.md |
+| IN-14 | info | fixed | 78-REVIEW-FIX.md |
 | WR-05 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | WR-06 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-10 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
