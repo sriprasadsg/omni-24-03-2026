@@ -4,12 +4,12 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 78
 current_phase_name: Organization & Endpoint Cost API
-status: executing
-stopped_at: Completed 78-14-PLAN.md
-last_updated: "2026-11-17T07:47:33.089Z"
+status: verifying
+stopped_at: Completed 78-15-PLAN.md
+last_updated: "2026-11-17T08:07:40.950Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 78 execution started
-state_head: fd11ee3175ccca835f0e8a44f680ee1af55c975c
+state_head: 747b2b972f97b60c325e31482aede610a6316124
 progress:
   total_phases: 8
   completed_phases: 6
@@ -711,6 +711,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 78]: 78-13: ReportsPanel holds shown report (kind, key, page, data) as one value written only by the current request; a failed run keeps the previous consistent result, and in-flight runs hide export buttons and page controls
 - [Phase 78]: 78-13: exports are bound to the tenant they start in via a tenant-only tenantEpoch (not runSeq), so a tenant switch cancels a stale export while a new run in the same tenant does not
 - [Phase 78]: 78-14: every custom report call carries the selected tenant as a trailing argument (undefined for tenant users); under needsTenant the builder is hidden by render condition so ReportBuilderForm unmounts and its field entries reset
+- [Phase 78]: 78-15: every platform tier without a tenant gets the no-tenant ITAM state (isPlatformView prop); a Select a tenant 400 puts the Reports tab into that state (tenantRejected) instead of a toast
 
 ## Performance Metrics
 
@@ -1052,6 +1053,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 78 P12 | 5 min | 2 tasks | 3 files |
 | Phase 78 P13 | 9 min | 2 tasks | 3 files |
 | Phase 78 P14 | 9 min | 3 tasks | 7 files |
+| Phase 78 P15 | 18 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -1086,8 +1088,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-17T07:47:28.881Z
-**Stopped at:** Completed 78-14-PLAN.md
+**Last session:** 2026-11-17T08:07:40.582Z
+**Stopped at:** Completed 78-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1117,7 +1119,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 78 (Organization & Endpoint Cost API) — EXECUTING
 Plan: 15 of 15 (78-12..14 complete; 78-15 pending)
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-17 — Phase 78 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 
