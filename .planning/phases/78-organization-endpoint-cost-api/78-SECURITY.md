@@ -32,6 +32,8 @@ created: "2026-11-17"
 | server error text -> UI | Only the existing toast/plain-text paths render server strings | Error detail text |
 | browser state -> rendered figure / report table | A stale response or result for a previous tenant must not render | KPI figures, report rows |
 | test process -> MongoDB / backend/static/reports / working tree | Throwaway omni_test_* databases only; export files and the user's uncommitted work left as they were | Test data |
+| async report response -> ReportsPanel state (78-11) | A response may arrive after the tenant selection or the active request changed; it must not become the rendered result | Report rows, title, export controls |
+| executor -> user's working tree (78-11) | The user's uncommitted hunks sit in two files the gap plan edits and three it must not touch | Uncommitted user edits |
 
 ---
 
@@ -53,7 +55,7 @@ created: "2026-11-17"
 | T-78-12 | Information Disclosure | Licence/warranty/overdue reads after an Owner header override | high | mitigate | Resolver's `set_tenant_id` re-aligns the wrapper; mutation run with it disabled failed `test_owner_header_scopes_every_kpi` (78-04) | closed |
 | T-78-13 | Information Disclosure | Pre-built run/export for a Super Admin (blended across tenants) | high | mitigate | `resolve_itam_tenant` first in `run_prebuilt_report` and `export_prebuilt_report` (`itam_reporting_endpoints.py:70, 112`); 400 tests prove no database read; export spy records the resolved tenant (78-05) | closed |
 | T-78-14 | Information Disclosure | Download of an export file | low | accept | Existing control unchanged (download route untouched by the phase diff `fd4e00f24..HEAD`): tenant ownership check on `itam_report_exports`, Super Admin bypass as before; exports now record the resolved tenant. See AR-78-02 | closed |
-| T-78-15 | Information Disclosure | ReportsPanel after a tenant switch | medium | mitigate | Ref-guarded reset of result/activeKind/activeKey/page on `tenantId` change in `components/itam/ReportsPanel.tsx`; rerender tests for another tenant and for none (78-06). INCOMPLETE (78-VERIFICATION.md gap, 78-REVIEW WR-01): `runPrebuilt` has no stale-response guard and the reset does not clear `running`, so a run issued for tenant A that resolves after the switch renders under tenant B; no test covers it. Owner-only, so data is mislabelled rather than an authorization breach | open — below high threshold (non-blocking) |
+| T-78-15 | Information Disclosure | ReportsPanel after a tenant switch | medium | mitigate | Ref-guarded reset of result/activeKind/activeKey/page on `tenantId` change in `components/itam/ReportsPanel.tsx`; rerender tests for another tenant and for none (78-06). The 78-VERIFICATION.md gap (78-REVIEW WR-01: no stale-response guard, `running` not reset) was closed by gap plan 78-11, see T-78-27: `runSeq` guard on every async writer, `setRunning(false)` in the tenant-change effect, `resultIsCurrent` render gate, console test "a pre-built run for the previous tenant that resolves after the switch renders nothing" (`src/__tests__/ITAMConsole.test.tsx:379`) | closed |
 | T-78-16 | Information Disclosure | Pre-built run without a tenant | low | mitigate | Run buttons disabled with `needsTenant` (`ReportsPanel.tsx`); server resolver 400s regardless (78-05) | closed |
 | T-78-17 | Tampering | Isolation test touching live data or leaving files | medium | mitigate | `mongo_db` throwaway database in `test_itam_cost_isolation.py`; export files deleted in `finally` and an autouse fixture; `backend/static/reports` git status unchanged (78-07) | closed |
 | T-78-18 | Information Disclosure | Tenant context leaking between concurrent requests | high | mitigate | `asyncio.gather` rounds (10 x 8 requests) through the real middleware assert exact per-tenant totals (78-07) | closed |
@@ -65,7 +67,9 @@ created: "2026-11-17"
 | T-78-24 | Information Disclosure | A loader called for the platform context, or a cache decorator, aggregation join or raw database handle added later | high | mitigate | ValueError refusal on all four entry points; real-Mongo test under a platform-admin ambient; static source scan of the three cost modules (`test_itam_cost_service.py`, 78-09) | closed |
 | T-78-25 | Repudiation | A phase regression recorded as a pre-existing failure | medium | mitigate | The one full-suite failure (`test_patch_rollout_boot.py`) re-run on `fd4e00f24` and failed identically under the same collection delay (78-10-SUMMARY.md) | closed |
 | T-78-26 | Tampering | The temporary pre-phase worktree left registered or created inside the repository | low | mitigate | Worktree in the session scratchpad, removed and pruned; `git worktree list` identical before and after (78-10) | closed |
-| T-78-SC | Tampering | npm/pip installs | low | accept | No package installed: `package.json`, lock files and requirements files unchanged over `fd4e00f24..HEAD`. See AR-78-01 | closed |
+| T-78-27 | Information Disclosure | ReportsPanel async writers (`runPrebuilt`, `runSavedCustom`, `handlePreviewCustom`) after a tenant switch or a newer request (78-11) | medium | mitigate | `runSeq` ref (`components/itam/ReportsPanel.tsx:88`) taken by every run and preview (`:107`, `:132`, `:158`) and bumped by the tenant-change effect (`:93`); superseded responses and failures dropped (`if (seq !== runSeq.current) return`); `running` cleared only by the current request; result block gated on `resultIsCurrent` (`:222`, `:321`); 7 tests in `src/__tests__/ITAMReportsPanelStaleResponse.test.tsx` plus the console test, RED recorded before each fix (0cebd4d9d, ebdca3fd7); full frontend suite 2,242 passed | closed |
+| T-78-28 | Tampering | User's uncommitted hunks in ReportsPanel.tsx, ITAMConsole.test.tsx, App.tsx, services/apiService.ts, .planning/ui-reviews/.gitignore (78-11) | medium | mitigate | Patch reverse-apply staging with `git update-index`; after the last commit `git diff --cached --quiet` exits 0, `git diff --numstat` shows `0 1` for each user-removed lint comment, HEAD still holds both comments, and the other three files remain ` M` and unstaged (orchestrator check 2026-11-17) | closed |
+| T-78-SC | Tampering | npm/pip installs | low | accept | No package installed: `package.json`, lock files and requirements files unchanged over `fd4e00f24..HEAD`, including gap plan 78-11 (`edbb1bb46..HEAD` dependency-file diff empty). See AR-78-01 | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -90,6 +94,7 @@ created: "2026-11-17"
 |------------|---------------|--------|------|--------|
 | 2026-11-17 | 27 | 27 | 0 | secure-phase (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule) |
 | 2026-11-17 | 27 | 26 | 0 (1 open below the high threshold: T-78-15) | orchestrator, after gsd-verifier found the ReportsPanel stale-response gap; also noted: 78-REVIEW WR-02 (custom report routes keep today's tenant handling per A-78-17, so a Platform Owner's custom report can blend tenants) has no accepted-risk row yet and awaits the user's call |
+| 2026-11-17 | 29 | 29 | 0 | secure-phase after gap plan 78-11 (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule): T-78-27 and T-78-28 added and closed, T-78-15 closed again; WR-02 still awaits the user's call |
 
 ---
 
@@ -100,4 +105,12 @@ created: "2026-11-17"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-17 (threats_open 0 at the high threshold; T-78-15, medium, reopened the same day after verification and tracked by the gap-closure plan)
+**Approval:** verified 2026-11-17 (threats_open 0 at the high threshold; T-78-15, medium, reopened the same day after verification and closed again after gap plan 78-11 added T-78-27/T-78-28; all 29 threats closed. 78-REVIEW WR-02, custom report routes keeping today's tenant handling, still has no accepted-risk row and awaits the user's call)
+
+## Security Audit 2026-11-17
+
+| Metric | Count |
+|---|---|
+| Threats found | 29 |
+| Closed | 29 |
+| Open | 0 |
