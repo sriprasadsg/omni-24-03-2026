@@ -63,6 +63,10 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     const message = err instanceof Error ? err.message : '';
     if (!SELECT_TENANT_RE.test(message)) return false;
     setTenantRejected(true);
+    // Nothing shown or running belongs to a blocked tab (IN-08).
+    runSeq.current += 1;
+    setPending(null);
+    setShown(null);
     return true;
   }
 
@@ -177,6 +181,10 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE, tenantId);
       if (seq !== runSeq.current) return;
       setShown({ kind: null, key: null, page: targetPage, data: r });
+    } catch (e) {
+      // The same blocked state as a run; any other failure goes to the builder's own toast.
+      if (seq === runSeq.current && takeTenantRejection(e)) return;
+      throw e;
     } finally {
       setBuilderBusy(false);
     }
@@ -193,6 +201,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       if (epoch !== tenantEpoch.current) return;
       showToast('Report saved.', 'success');
       await runSavedCustom(saved.id, 1);
+    } catch (e) {
+      if (epoch === tenantEpoch.current && takeTenantRejection(e)) return;
+      throw e;
     } finally {
       setBuilderBusy(false);
     }
@@ -213,6 +224,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       loadSavedReports();
     } catch (e: any) {
       if (epoch !== tenantEpoch.current) return;
+      if (takeTenantRejection(e)) { setDeleteTarget(null); return; }
       showToast(e?.message || "Couldn't delete report.", 'error');
       setDeleteTarget(null);
     }

@@ -317,6 +317,59 @@ describe('a Select a tenant rejection on the Reports tab (Phase 78 plan 15)', ()
     expect(showToast).not.toHaveBeenCalled();
   });
 
+  it('a delete rejection puts the tab into the no-tenant state, drops the shown report and raises no toast', async () => {
+    listItamCustomReports.mockResolvedValue([savedReport('c-1', 'Mine')]);
+    runItamPrebuiltReport.mockResolvedValue(resultFor('Asset Value', 'TAG-1'));
+    deleteItamCustomReport.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+    expect(await screen.findByText('TAG-1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Mine' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(screen.queryByText('TAG-1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('a builder preview rejection puts the tab into the no-tenant state without a toast', async () => {
+    previewItamCustomReport.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: /Create Custom Report/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset Tag' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('a builder save rejection puts the tab into the no-tenant state without a toast', async () => {
+    saveItamCustomReport.mockRejectedValue(new Error(REJECTION));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: /Create Custom Report/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset Tag' }));
+    fireEvent.change(screen.getByLabelText('Report Name'), { target: { value: 'Mine' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Report/ }));
+
+    expect(await screen.findByText(PREBUILT_NOTE)).toBeInTheDocument();
+    expect(saveItamCustomReport).toHaveBeenCalledTimes(1);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('a builder save failing for another reason still raises its toast', async () => {
+    saveItamCustomReport.mockRejectedValue(new Error('boom'));
+    await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: /Create Custom Report/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset Tag' }));
+    fireEvent.change(screen.getByLabelText('Report Name'), { target: { value: 'Mine' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Report/ }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('boom', 'error'));
+    expect(screen.queryByText(PREBUILT_NOTE)).not.toBeInTheDocument();
+  });
+
   it('any other rejection still raises its toast and leaves Run Report enabled', async () => {
     runItamPrebuiltReport.mockRejectedValue(new Error('boom'));
     await renderPanel({ tenantId: 't-1' });
