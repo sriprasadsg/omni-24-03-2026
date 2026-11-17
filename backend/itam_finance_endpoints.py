@@ -148,15 +148,16 @@ async def get_asset_book_value(
     db = get_database()
     asset = await _load_asset(db, asset_id)
 
+    cost = asset.get("purchaseCostCents")
     base = {
         "assetId": asset_id,
         "modelId": asset.get("modelId"),
-        "purchaseCostCents": asset.get("purchaseCostCents"),
+        # Echo only a readable cost, as the cost row does, so the Finance tab never pre-fills garbage from it.
+        "purchaseCostCents": cost if is_cents(cost) else None,
         "purchaseDate": asset.get("purchaseDate"),
         "computedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
     }
 
-    cost = asset.get("purchaseCostCents")
     if cost is not None and not is_cents(cost):
         return {**base, "bookValueCents": None, "reason": REASON_UNREADABLE_COST}
     if cost is None or asset.get("purchaseDate") is None:

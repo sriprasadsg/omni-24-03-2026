@@ -209,11 +209,12 @@ class TestParity:
             with _as_tenant("tenant-p"):
                 result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
             assert result["bookValueCents"] == by_tag[tag]["bookValueCents"], tag
+            assert result["purchaseCostCents"] == by_tag[tag]["purchaseCostCents"], tag
 
     @pytest.mark.asyncio
     async def test_route_reason_matches_row_for_every_unvalued_asset(self, seeded, monkeypatch):
-        """WR-06, WR-07: for every asset the list does not value, the per-asset route returns no figure
-        and the same reason code as the list row (the unreadable cost and date included)."""
+        """WR-06, WR-07, WR-08: for every asset the list does not value, the per-asset route returns no figure
+        and the same reason code and cost as the list row (the unreadable cost and date included)."""
         monkeypatch.setattr(itam_finance_endpoints, "get_database",
                             lambda: database.TenantIsolatedDatabase(seeded))
         user = make_token_data(tenant_id="tenant-p", role="admin", username="admin@example.com")
@@ -225,6 +226,10 @@ class TestParity:
                 result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
             assert result["bookValueCents"] is None, tag
             assert result["reason"] == by_tag[tag]["reason"] == reason, tag
+            assert result["purchaseCostCents"] == by_tag[tag]["purchaseCostCents"], tag
+        with _as_tenant("tenant-p"):
+            malformed = await itam_finance_endpoints.get_asset_book_value("tenant-p:N-MALCOST", user)
+        assert malformed["purchaseCostCents"] is None  # WR-08: the unreadable stored cost is never echoed
 
     @pytest.mark.asyncio
     async def test_route_and_row_differ_only_for_disposed_and_retired(self, seeded, monkeypatch):
