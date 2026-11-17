@@ -23,7 +23,7 @@ created: "2026-11-16"
 | **Config file** | repo-root `pytest.ini` (asyncio_mode = auto); Vitest via package scripts |
 | **Quick run command** | `backend/venv/bin/python -m pytest backend/tests/test_itam_cost_endpoints.py -q -p no:cacheprovider` in waves 1-2; from wave 3 (after 78-09 creates it) add `backend/tests/test_itam_cost_service.py` |
 | **Full suite command** | `backend/venv/bin/python -m pytest backend/tests/test_itam_cost_service.py backend/tests/test_itam_cost_endpoints.py backend/tests/test_itam_cost_assets.py backend/tests/test_itam_kpi_cost_rules.py backend/tests/test_itam_report_cost_rules.py backend/tests/test_itam_cost_parity.py backend/tests/test_itam_cost_isolation.py backend/tests/test_itam_cost_scale.py backend/tests/test_itam_reporting_kpis.py backend/tests/test_itam_reporting_prebuilt.py backend/tests/test_itam_reporting_builder.py backend/tests/test_itam_reporting_export.py backend/tests/test_itam_finance_bookvalue.py backend/tests/test_catalogue_slice_assets.py -q -p no:cacheprovider -rs` (0 skipped required) |
-| **Frontend command** | `npx vitest run src/__tests__/ITAMKpiPanel.test.tsx src/__tests__/ITAMConsole.test.tsx` and `npm run build` |
+| **Frontend command** | `npx vitest run src/__tests__/ITAMKpiPanel.test.tsx src/__tests__/ITAMConsole.test.tsx src/__tests__/ITAMReportsPanel.test.tsx src/__tests__/ITAMReportsPanelStaleResponse.test.tsx` and `npm run build` |
 | **Estimated runtime** | ~60 seconds (baseline: the 3 edited suites run 55 tests in 2.1 s; the 20k-asset scale test dominates) |
 
 All commands run from the repo root. Real-Mongo tests use `tests/_mongo_test_db.mongo_db` against the local mongod (8.0.34, `127.0.0.1:27017`); a skipped isolation or parity test is **not** an acceptable gate.
@@ -60,6 +60,8 @@ Seeded per requirement from RESEARCH.md; the planner binds task IDs.
 | 78-08-T2 | 78-08 | 4 | Scale (COST-07 perf) | T-78-20, T-78-21 | Bounded reads, no N+1 | real-Mongo | `backend/venv/bin/python -m pytest backend/tests/test_itam_cost_scale.py -q -p no:cacheprovider -rs` | ✅ | ✅ green |
 | 78-10-T1 | 78-10 | 5 | COST-01, COST-02, COST-03, COST-06, COST-07 | T-78-21 (check) | Phase command 0 failed / 0 skipped; no leftover `omni_test_*` database or report file (PROH-78-05) | real-Mongo | the **Full suite command** above, with before/after listings | ✅ | ✅ green (310 passed, 0 skipped, re-run 2026-11-17) |
 | 78-10-T2 | 78-10 | 5 | COST-01, COST-02, COST-03, COST-06, COST-07 | T-78-25, T-78-26 | No phase regression; every failure checked on the commit before 78-01 | full backend suite | `TICKET_ATTACHMENT_DIR=$(mktemp -d) FILE_SHARE_DIR=$(mktemp -d) backend/venv/bin/python -m pytest backend/tests -q -p no:cacheprovider` | ✅ | ✅ green (no phase regression; the 1 failure, test_patch_rollout_boot, is clock-dependent and fails identically on fd4e00f24, see 78-10-SUMMARY.md) |
+| 78-11-T1 | 78-11 (gap) | 3 | COST-07 (D-14 amended, UI-SPEC R3) | T-78-27 (completes T-78-15) | A pre-built run for tenant A that resolves after the switch to tenant B renders no title, rows or export buttons; a later run for B renders | vitest (console level) | `npx vitest run src/__tests__/ITAMConsole.test.tsx src/__tests__/ITAMReportsPanel.test.tsx` | ✅ | ✅ green (RED recorded first: failed on the stale "Laptop 1" row before b26ea046e) |
+| 78-11-T2 | 78-11 (gap) | 3 | COST-07 | T-78-27, T-78-28 | Saved custom run and builder preview drop stale responses; out-of-order runs keep the latest; superseded failure raises no toast; same-tenant rerender keeps the result; user WIP stays unstaged | vitest + build | `npx vitest run src/__tests__/ITAMReportsPanelStaleResponse.test.tsx src/__tests__/ITAMReportsPanel.test.tsx src/__tests__/ITAMConsole.test.tsx`, `npx vitest run src/__tests__`, `npm run build` | ✅ | ✅ green (62 passed; full suite 2,242 passed; build exit 0; RED recorded first for the custom-run and preview tests) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -97,7 +99,7 @@ Seeded per requirement from RESEARCH.md; the planner binds task IDs.
 - [x] Feedback latency < 60s (per-task quick commands; the full phase command takes 82 s)
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** validated 2026-11-17 (validate-phase audit: 0 gaps; phase command 310 passed / 0 skipped; frontend 50 passed)
+**Approval:** validated 2026-11-17 (validate-phase audit: 0 gaps; phase command 310 passed / 0 skipped; frontend 50 passed). Re-audited 2026-11-17 after gap plan 78-11: 0 gaps; 78-11 tasks green (62 passed across the three ReportsPanel/console suites; full frontend suite 2,242 passed; build exit 0)
 
 ## Validation Audit 2026-11-17
 
