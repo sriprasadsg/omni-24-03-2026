@@ -10,6 +10,13 @@ const WARRANTY_COLOR: Record<string, string> = {
   none: 'text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700',
 };
 
+// What to change, per reason code the book-value route returns; an unknown code gets the generic line.
+const BOOK_VALUE_REASON_COPY: Record<string, string> = {
+  no_purchase_record: 'No purchase record yet.',
+  no_depreciation_policy_assigned: 'No depreciation policy set on this asset\'s Model.',
+  salvage_exceeds_cost: 'Salvage value on this asset\'s Model is higher than its purchase cost.',
+};
+
 interface FinancePanelProps {
   tenants?: Tenant[];
   isSuperAdminView?: boolean;
@@ -152,7 +159,7 @@ export function FinancePanel({ tenants = [], isSuperAdminView = false }: Finance
                   <p className="text-gray-900 dark:text-white text-lg font-semibold">${(bookValue.bookValueCents / 100).toLocaleString()}</p>
                 ) : (
                   <p className="text-gray-500 text-xs italic">
-                    {bookValue.reason === 'no_purchase_record' ? 'No purchase record yet.' : 'No depreciation policy set on this asset\'s Model.'}
+                    {(bookValue.reason && BOOK_VALUE_REASON_COPY[bookValue.reason]) || 'Book value is not available for this asset.'}
                   </p>
                 )}
               </div>

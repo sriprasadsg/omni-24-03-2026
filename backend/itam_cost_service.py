@@ -18,6 +18,7 @@ import rbac_defaults
 from itam_finance_service import (
     REASON_NO_DEPRECIATION_POLICY,
     REASON_NO_PURCHASE_RECORD,
+    REASON_SALVAGE_EXCEEDS_COST,
     compute_book_value,
 )
 from itam_models import DEFAULT_LIFECYCLE_STATUS, LifecycleStatus
@@ -38,6 +39,7 @@ REASON_CODES = (
     REASON_UNREADABLE_COST,
     REASON_NO_PURCHASE_RECORD,
     REASON_NO_DEPRECIATION_POLICY,
+    REASON_SALVAGE_EXCEEDS_COST,
     REASON_UNREADABLE_DATE,
 )
 
@@ -87,6 +89,20 @@ def _is_future(purchase_date: Any, now: datetime) -> bool:
     return parsed > now
 
 
+def policy_misfit_reason(model_doc: Optional[Dict[str, Any]], purchase_cost: Any) -> Optional[str]:
+    """The reason a model's depreciation policy cannot value an asset bought for purchase_cost, or None
+    when it fits. The one policy check: the cost rows and the per-asset book-value route both call it.
+
+    Salvage lives on the model, cost on the asset. Salvage above the price paid would value the asset
+    above its purchase cost, so the policy does not fit this asset: it is not valued, nothing is capped.
+    """
+    if not model_doc or not _is_life(model_doc.get("usefulLifeYears")) or not _is_cents(model_doc.get("salvageValueCents")):
+        return REASON_NO_DEPRECIATION_POLICY
+    if _is_cents(purchase_cost) and model_doc["salvageValueCents"] > purchase_cost:
+        return REASON_SALVAGE_EXCEEDS_COST
+    return None
+
+
 def normalize_lifecycle_status(raw_status: Any) -> str:
     """The stored lifecycleStatus as a string: any non-string or empty value (a list or dict would
     not even hash) reads as the default. Every cost, KPI and report population filter uses this."""
@@ -123,15 +139,8 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
         row["reason"] = REASON_UNREADABLE_COST
     elif raw_cost is None or raw_date is None:
         row["reason"] = REASON_NO_PURCHASE_RECORD
-    elif (
-        not model_doc
-        or not _is_life(model_doc.get("usefulLifeYears"))
-        or not _is_cents(model_doc.get("salvageValueCents"))
-        # Salvage lives on the model, cost on the asset. Salvage above the price paid would value the
-        # asset above its purchase cost, so the model's policy does not fit this asset: not valued.
-        or model_doc["salvageValueCents"] > raw_cost
-    ):
-        row["reason"] = REASON_NO_DEPRECIATION_POLICY
+    elif (misfit := policy_misfit_reason(model_doc, raw_cost)) is not None:
+        row["reason"] = misfit
     else:
         try:
             result = compute_book_value(

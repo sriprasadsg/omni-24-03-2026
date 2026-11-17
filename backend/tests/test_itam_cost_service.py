@@ -116,7 +116,8 @@ def test_salvage_above_cost_is_marked_not_valued(date, cost, life, salvage, day,
 
     row = svc.compute_asset_cost(_asset(cost=cost, date=date), _model(life, salvage), now)
     assert row["bookValueCents"] is None and row["yearsElapsed"] is None and row["valued"] is False
-    assert row["reason"] == svc.REASON_NO_DEPRECIATION_POLICY
+    assert row["reason"] == svc.REASON_SALVAGE_EXCEEDS_COST == "salvage_exceeds_cost"
+    assert row["reason"] in svc.REASON_CODES
     assert row["priced"] is True and row["purchaseCostCents"] == cost
 
 

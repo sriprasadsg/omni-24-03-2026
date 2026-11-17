@@ -46,6 +46,7 @@ _webhook_service = WebhookService()
 
 REASON_NO_PURCHASE_RECORD = "no_purchase_record"
 REASON_NO_DEPRECIATION_POLICY = "no_depreciation_policy_assigned"
+REASON_SALVAGE_EXCEEDS_COST = "salvage_exceeds_cost"
 
 WARRANTY_STATUS_NONE = "none"
 WARRANTY_STATUS_ACTIVE = "active"

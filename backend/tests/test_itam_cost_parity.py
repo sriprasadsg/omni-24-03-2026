@@ -37,6 +37,7 @@ INACTIVE = ("disposed", "retired")
 MODELS = {  # the depreciation policy of tenant-p; model "model-b" has no salvage so a $0 price stays 0
     "model-ok": (3, 10000),
     "model-b": (5, 0),
+    "model-hi": (3, 150000),  # salvage above the price paid for N-SALVAGE: that asset is not valued (IN-03)
 }
 UNSET = object()
 
@@ -61,12 +62,14 @@ SPEC = [
     ("N-FUTURE", "deployed", 25000, (FIXED + timedelta(days=400)).isoformat(), "model-ok"),
     ("N-ZERO", "deployed", 0, _when(200), "model-b"),
     ("N-AGENT", "deployed", None, None, None),
+    ("N-SALVAGE", "deployed", 100000, _when(200), "model-hi"),
 ]
 NOT_TRACKED = {
     "N-AGENT": "no_purchase_record",
     "N-NOMODEL": "no_depreciation_policy_assigned",
     "N-MALCOST": "unreadable_purchase_cost",
     "N-BADDATE": "unreadable_purchase_date",
+    "N-SALVAGE": "salvage_exceeds_cost",
 }
 
 
@@ -92,6 +95,8 @@ def _expected_book_values():
             continue
         try:
             life, salvage = MODELS[model]
+            if salvage > cost:
+                continue  # salvage above the price paid: not valued, nothing capped
             expected[tag] = compute_book_value(date, cost, life, salvage, FIXED)["bookValueCents"]
         except ValueError:
             continue  # the unparseable date
@@ -209,6 +214,20 @@ class TestParity:
             assert result["bookValueCents"] == by_tag[tag]["bookValueCents"], tag
             checked += 1
         assert checked == len(_active_tags()) - 1
+
+    @pytest.mark.asyncio
+    async def test_salvage_above_cost_route_and_row_agree(self, seeded, monkeypatch):
+        """WR-06: the per-asset route and the list row give one answer when salvage is above the price
+        paid, and the same reason code for an asset whose model is missing."""
+        monkeypatch.setattr(itam_finance_endpoints, "get_database",
+                            lambda: database.TenantIsolatedDatabase(seeded))
+        user = make_token_data(tenant_id="tenant-p", role="admin", username="admin@example.com")
+        by_tag = _rows_by_tag((await _surfaces(seeded))["costs"])
+        for tag, reason in (("N-SALVAGE", "salvage_exceeds_cost"), ("N-NOMODEL", "no_depreciation_policy_assigned")):
+            with _as_tenant("tenant-p"):
+                result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
+            assert result["bookValueCents"] is None and by_tag[tag]["bookValueCents"] is None, tag
+            assert result["reason"] == by_tag[tag]["reason"] == reason, tag
 
     @pytest.mark.asyncio
     async def test_lifecycle_rule_across_surfaces(self, seeded):

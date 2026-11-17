@@ -82,3 +82,30 @@ describe('FinancePanel — linked purchase order visibility', () => {
     await waitFor(() => expect(screen.getByTestId('linked-purchase-order')).toHaveTextContent('po-missing'));
   });
 });
+
+describe('FinancePanel — book value reason copy', () => {
+  beforeEach(() => {
+    fetchAssets.mockReset();
+    fetchPurchaseOrders.mockReset();
+    fetchAssetBookValue.mockReset();
+    fetchAssetWarranty.mockReset();
+    fetchAssets.mockResolvedValue([assetWithoutLink]);
+    fetchPurchaseOrders.mockResolvedValue([]);
+    fetchAssetWarranty.mockResolvedValue({ purchaseDate: null, warrantyMonths: null, warrantyStatus: 'none', warrantyExpiresAt: null, daysToExpiry: null });
+  });
+
+  it.each([
+    ['no_purchase_record', 'No purchase record yet.'],
+    ['no_depreciation_policy_assigned', "No depreciation policy set on this asset's Model."],
+    ['salvage_exceeds_cost', "Salvage value on this asset's Model is higher than its purchase cost."],
+    ['some_future_code', 'Book value is not available for this asset.'],
+  ])('shows plain copy for the %s reason', async (reason, copy) => {
+    fetchAssetBookValue.mockResolvedValue({ assetId: 'a-2', purchaseCostCents: 100000, bookValueCents: null, reason });
+    render(<FinancePanel />);
+
+    await waitFor(() => expect(screen.getByLabelText('Asset')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Asset'), { target: { value: 'a-2' } });
+
+    await waitFor(() => expect(screen.getByText(copy)).toBeInTheDocument());
+  });
+});
