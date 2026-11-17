@@ -3,6 +3,22 @@ phase: 78
 review: 78-REVIEW.md
 titles: json
 findings:
+  - id: IN-06
+    severity: info
+    disposition: open
+    title: "Custom report definitions saved before this change under the Owner's own tenant become unreachable"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "A run in flight for a report is not cancelled when that report is deleted"
+  - id: IN-08
+    severity: info
+    disposition: open
+    title: "Save, preview and delete do not route a \"Select a tenant\" 400 through `takeTenantRejection`"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "`needsTenant` repeats a condition the role helper already covers"
   - id: WR-04
     severity: warning
     disposition: open
@@ -39,18 +55,22 @@ findings:
     severity: info
     disposition: open
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 8
-total: 9
-recorded: 2026-11-17T05:25:52.322Z
+open: 12
+total: 13
+recorded: 2026-11-17T08:23:27.454Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-04 | warning | open | - |
-| IN-04 | info | open | - |
-| IN-05 | info | open | - |
+| IN-06 | info | open | - |
+| IN-07 | info | open | - |
+| IN-08 | info | open | - |
+| IN-09 | info | open | - |
+| WR-04 | warning | open | - (not in the current review) |
+| IN-04 | info | open | - (not in the current review) |
+| IN-05 | info | open | - (not in the current review) |
 | WR-01 | warning | fixed | gap plan 78-11 (b26ea046e, 5278952bd); confirmed fixed by the incremental re-review c16cdf34c ("Prior findings re-assessed") (not in the current review) |
 | WR-02 | warning | open | - (not in the current review) |
 | WR-03 | warning | open | - (not in the current review) |
