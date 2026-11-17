@@ -15,6 +15,12 @@ POST /custom/{report_id}/export. The literal-segment routes ("/fields",
 "/custom/{report_id}" route so path matching is unambiguous — the same
 literal-before-parameterised hazard itam_lifecycle_endpoints.py documents
 for its own routes.
+
+Phase 78 (D-13, amended 2026-11-17): every route that reads or writes tenant
+report data - the pre-built run and export and all seven custom report routes
+(save, list, preview, get, delete, run, export) - takes its one tenant from
+itam_tenant_scope.resolve_itam_tenant first, so a platform session without a
+chosen tenant gets 400 and no figure or definition of any tenant.
 """
 import os
 import uuid
@@ -218,14 +224,17 @@ async def get_report_fields(current_user: TokenData = Depends(_require_itam_view
 @router.post("/custom", status_code=201)
 async def create_custom_report(
     payload: CustomReportDefinition,
+    request: Request,
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """Saves a report definition. No name-uniqueness check and no
     per-tenant count check — D-04 shares definitions tenant-wide and D-05
     sets no cap, so two saves with an identical name both succeed and both
-    appear in the list with distinct ids."""
+    appear in the list with distinct ids. The definition is stored under the
+    one tenant the request resolves to (D-13, A-78-22), so an Owner's save
+    lands in the tenant the Owner chose and a session without one gets 400."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     doc = {
         "id": f"rpt-{uuid.uuid4().hex[:8]}",
@@ -242,12 +251,16 @@ async def create_custom_report(
 
 
 @router.get("/custom")
-async def list_custom_reports(current_user: TokenData = Depends(_require_itam_viewer)):
+async def list_custom_reports(
+    request: Request,
+    current_user: TokenData = Depends(_require_itam_viewer),
+):
     """Lists the tenant's saved definitions, newest first — visible to and
     re-runnable by any user in the tenant with builder access, not only
-    their creator (D-04)."""
+    their creator (D-04). Only the resolved tenant's definitions (D-13)."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    docs = await db.itam_reports.find({}, {"_id": 0}).to_list(length=None)
+    docs = await db.itam_reports.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
     docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
     return docs
 
@@ -255,15 +268,17 @@ async def list_custom_reports(current_user: TokenData = Depends(_require_itam_vi
 @router.post("/custom/preview")
 async def preview_custom_report(
     payload: CustomReportDefinition,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """Runs an unsaved definition and returns a page of rows — the payload
     is already validated against the closed field/operator vocabulary by
-    CustomReportDefinition/FilterCondition before this handler runs."""
+    CustomReportDefinition/FilterCondition before this handler runs. The
+    rows cover exactly one tenant (D-13)."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
     report = await build_report_rows(
         db, "custom", "preview", tenant_id, definition=payload.model_dump(), limit=None,
     )
@@ -273,10 +288,12 @@ async def preview_custom_report(
 @router.get("/custom/{report_id}")
 async def get_custom_report(
     report_id: str,
+    request: Request,
     current_user: TokenData = Depends(_require_itam_viewer),
 ):
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    doc = await db.itam_reports.find_one({"id": report_id}, {"_id": 0})
+    doc = await db.itam_reports.find_one({"tenantId": tenant_id, "id": report_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Report not found")
     return doc
@@ -285,10 +302,12 @@ async def get_custom_report(
 @router.delete("/custom/{report_id}", status_code=204)
 async def delete_custom_report(
     report_id: str,
+    request: Request,
     current_user: TokenData = Depends(_require_itam_admin),
 ):
+    tenant_id = resolve_itam_tenant(request, current_user)
     db = get_database()
-    result = await db.itam_reports.delete_one({"id": report_id})
+    result = await db.itam_reports.delete_one({"tenantId": tenant_id, "id": report_id})
     if getattr(result, "deleted_count", 0) == 0:
         raise HTTPException(status_code=404, detail="Report not found")
 
@@ -324,20 +343,23 @@ async def run_saved_custom_report(
 @router.post("/custom/{report_id}/export")
 async def export_custom_report(
     report_id: str,
+    request: Request,
     format: str = Query("csv"),
     current_user: TokenData = Depends(_require_itam_admin),
 ):
     """Exports the full matching row set (no limit), never just the preview
     page — calls the same RENDERERS registry pre-built reports use, so a
-    format registered once is available to both (D-14/D-20)."""
+    format registered once is available to both (D-14/D-20). The tenant is
+    resolved first (D-13), so the file and its record belong to the one
+    tenant the report covers."""
+    tenant_id = resolve_itam_tenant(request, current_user)
     if format not in RENDERERS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported export format '{format}'. Available formats: {sorted(RENDERERS.keys())}",
         )
     db = get_database()
-    tenant_id = getattr(current_user, "tenant_id", None)
-    doc = await db.itam_reports.find_one({"id": report_id}, {"_id": 0})
+    doc = await db.itam_reports.find_one({"tenantId": tenant_id, "id": report_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Report not found")
     _ensure_reports_dir()

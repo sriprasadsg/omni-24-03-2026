@@ -1,4 +1,4 @@
-"""Shared tenant resolver for the ITAM cost, KPI and Asset value report routes (Phase 78, D-13).
+"""Shared tenant resolver for the ITAM cost, KPI and report routes, pre-built and custom (Phase 78, D-13; custom report routes added 2026-11-17).
 
 Why the header is read here: TenantMiddleware applies a Platform Owner's X-Tenant-ID, but the
 authentication dependencies (verify_token and verify_token_async) reset the ambient tenant to
