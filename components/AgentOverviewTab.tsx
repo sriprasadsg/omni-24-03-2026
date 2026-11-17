@@ -51,7 +51,7 @@ export const AgentOverviewTab: React.FC<Props> = ({
     const [liveAsset, setLiveAsset] = useState<Asset | null>(null);
     useEffect(() => {
         if (agent?.id) {
-            fetchAssets().then((assets: Asset[]) => {
+            fetchAssets(agent.tenantId).then((assets: Asset[]) => {
                 setLiveAsset(assets.find((a: Asset) => a.id === agent.assetId) || null);
             }).catch(() => setLiveAsset(null));
         }
@@ -66,7 +66,7 @@ export const AgentOverviewTab: React.FC<Props> = ({
     const handleOpenLinkModal = async () => {
         setIsLinkingAsset(true);
         try {
-            setAvailableAssets(await fetchAssets());
+            setAvailableAssets(await fetchAssets(agent.tenantId));
         } catch {
             showToast('Failed to load assets list. Please try again.', 'error');
         }

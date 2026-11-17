@@ -17,7 +17,7 @@ export const simulationCoverage = (history: { technique?: string }[]) => ({
     exercised: SIM_TECHNIQUES.filter(t => history.some(h => h.technique === t)).length,
 });
 
-export const SecuritySimulation: React.FC = () => {
+export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ tenantId }) => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [selectedAsset, setSelectedAsset] = useState<string>('');
     const [technique, setTechnique] = useState<string>('memory_write');
@@ -30,13 +30,13 @@ export const SecuritySimulation: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [tenantId]);
 
     const loadData = async () => {
         setLoading(true);
         try {
             const [assetsData, historyData] = await Promise.all([
-                api.fetchAssets(),
+                api.fetchAssets(tenantId || undefined),
                 api.fetchSimulationHistory()
             ]);
             setAssets(assetsData);

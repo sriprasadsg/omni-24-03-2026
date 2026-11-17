@@ -4,7 +4,7 @@ import { ShieldCheckIcon, ShieldAlertIcon, SearchIcon, ZapIcon, ClockIcon, Alert
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
 
-export const PersistenceDashboard: React.FC = () => {
+export const PersistenceDashboard: React.FC<{ tenantId?: string | null }> = ({ tenantId }) => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [selectedAsset, setSelectedAsset] = useState<string>('');
     const [results, setResults] = useState<any>(null);
@@ -13,11 +13,11 @@ export const PersistenceDashboard: React.FC = () => {
 
     useEffect(() => {
         loadAssets();
-    }, []);
+    }, [tenantId]);
 
     const loadAssets = async () => {
         try {
-            const data = await api.fetchAssets();
+            const data = await api.fetchAssets(tenantId || undefined);
             setAssets(data);
         } catch (e) {
             console.error("Failed to load assets", e);

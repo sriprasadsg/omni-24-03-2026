@@ -17,9 +17,11 @@ const STATUS_COLORS: Record<string, string> = {
 interface LifecyclePanelProps {
   tenants?: Tenant[];
   isSuperAdminView?: boolean;
+  // The Platform Owner's selected tenant; none lists every tenant's assets, labelled by tenant.
+  tenantId?: string | null;
 }
 
-export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: LifecyclePanelProps) {
+export function LifecyclePanel({ tenants = [], isSuperAdminView = false, tenantId }: LifecyclePanelProps) {
   const tenantName = (tenantId?: string) => tenants.find((t) => t.id === tenantId)?.name || tenantId || '—';
   const [assets, setAssets] = useState<Asset[]>([]);
   const [manufacturers, setManufacturers] = useState<ItamCatalogEntity[]>([]);
@@ -53,7 +55,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
     setError(null);
     try {
       const [a, m, c, l] = await Promise.all([
-        fetchAssets(),
+        fetchAssets(tenantId || undefined),
         fetchCatalogEntities('manufacturers'),
         fetchCatalogEntities('categories'),
         fetchCatalogEntities('locations'),
@@ -79,7 +81,7 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
       setHasJira(false);
       setHasServiceNow(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -133,8 +133,8 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, isPlatformVie
 
       <main>
         {tab === 'catalog' && <CatalogPanel />}
-        {tab === 'lifecycle' && <LifecyclePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
-        {tab === 'finance' && <FinancePanel tenants={tenants} isSuperAdminView={isSuperAdminView} />}
+        {tab === 'lifecycle' && <LifecyclePanel tenants={tenants} isSuperAdminView={isSuperAdminView} tenantId={tenantId} />}
+        {tab === 'finance' && <FinancePanel tenants={tenants} isSuperAdminView={isSuperAdminView} tenantId={tenantId} />}
         {tab === 'purchaseOrders' && <PurchaseOrdersPanel />}
         {tab === 'requests' && <RequestsPanel />}
         {tab === 'licenses' && <LicensesPanel />}
@@ -170,10 +170,12 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false, is
   const [reportFocus, setReportFocus] = useState<string | null>(null);
 
   // Shared with the Compliance tab so it doesn't independently refetch the
-  // same fleet-wide asset list.
+  // same fleet-wide asset list. The Owner's selected tenant scopes it.
   useEffect(() => {
-    fetchAssets().then((a) => setAssets(a || [])).catch(() => setAssets([]));
-  }, []);
+    let current = true;
+    fetchAssets(tenantId || undefined).then((a) => { if (current) setAssets(a || []); }).catch(() => { if (current) setAssets([]); });
+    return () => { current = false; };
+  }, [tenantId]);
 
   // A settings-load failure must never blank the console — keep the built-in defaults
   // and continue rendering exactly as an unconfigured tenant would.

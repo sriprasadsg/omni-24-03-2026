@@ -489,14 +489,16 @@ export const fetchPredictiveModelAccuracy = async (): Promise<any | null> => {
     }
 };
 
-// Helper for offline caching
-const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, updateLocalVar: (data: T) => void): Promise<T> => {
+// Helper for offline caching. A tenantId is sent as X-Tenant-ID and keeps its own cache slot,
+// so one tenant's list is never served for another.
+const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, updateLocalVar: (data: T) => void, tenantId?: string): Promise<T> => {
+    const cacheKey = `omni_cache_${key}${tenantId ? `_${tenantId}` : ''}`;
     try {
-        const res = await authFetch(`${API_BASE}${endpoint}`); // Use authFetch
+        const res = await authFetch(`${API_BASE}${endpoint}`, tenantId ? { tenantId } : {}); // Use authFetch
         if (res.status === 403) {
             // D-26: the server refused this user, so a cached copy from a previous
             // user of this tab must not be served in its place.
-            sessionStorage.removeItem(`omni_cache_${key}`);
+            sessionStorage.removeItem(cacheKey);
             const empty = (Array.isArray(initialData) ? [] : initialData) as T;
             updateLocalVar(empty);
             return empty;
@@ -507,14 +509,14 @@ const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, 
         // Defensive: handle paginated responses or wrapped objects
         const items = (data && typeof data === 'object' && 'items' in data) ? data.items : data;
 
-        sessionStorage.setItem(`omni_cache_${key}`, JSON.stringify(items));
+        sessionStorage.setItem(cacheKey, JSON.stringify(items));
         updateLocalVar(items);
         return items;
     } catch (e) {
         // If 401, it's already handled by authFetch redirect. 
         // For other errors (offline), fallback to cache or return empty.
         console.warn(`Backend offline or error for ${key}`, e);
-        const cached = sessionStorage.getItem(`omni_cache_${key}`);
+        const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
             try {
                 const data = JSON.parse(cached);
@@ -1171,7 +1173,7 @@ export const fetchAiSystems = async () => {
     } catch { return []; }
 };
 export const fetchAssets = async (tenantId?: string) => {
-    return fetchWithCache('assets', `/assets${tenantId ? `?tenantId=${tenantId}` : ''}`, ASSETS, (data) => { ASSETS = data; });
+    return fetchWithCache('assets', '/assets', ASSETS, (data) => { ASSETS = data; }, tenantId);
 };
 
 export const fetchAssetById = async (assetId: string): Promise<Asset | null> => {

@@ -22,9 +22,11 @@ const BOOK_VALUE_REASON_COPY: Record<string, string> = {
 interface FinancePanelProps {
   tenants?: Tenant[];
   isSuperAdminView?: boolean;
+  // The Platform Owner's selected tenant; none lists every tenant's assets, labelled by tenant.
+  tenantId?: string | null;
 }
 
-export function FinancePanel({ tenants = [], isSuperAdminView = false }: FinancePanelProps) {
+export function FinancePanel({ tenants = [], isSuperAdminView = false, tenantId }: FinancePanelProps) {
   const tenantName = (tenantId?: string) => tenants.find((t) => t.id === tenantId)?.name || tenantId || '—';
   const [assets, setAssets] = useState<Asset[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<ItamPurchaseOrder[]>([]);
@@ -39,14 +41,14 @@ export function FinancePanel({ tenants = [], isSuperAdminView = false }: Finance
     (async () => {
       setLoading(true);
       try {
-        const [assetList, poList] = await Promise.all([fetchAssets(), fetchPurchaseOrders()]);
+        const [assetList, poList] = await Promise.all([fetchAssets(tenantId || undefined), fetchPurchaseOrders()]);
         setAssets(assetList || []);
         setPurchaseOrders(poList || []);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [tenantId]);
 
   const selectedAsset = assets.find((a) => a.id === selectedId);
   const linkedPurchaseOrder = selectedAsset?.purchase_order_id

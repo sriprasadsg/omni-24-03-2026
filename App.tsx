@@ -344,6 +344,10 @@ const App: React.FC = () => {
   // left ~120px for page content at 375px wide.
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
+  // The tenant a Platform Owner selected, for the asset list; the server scopes every other user's list.
+  const viewingTenantIdRef = useRef<string | null>(null);
+  viewingTenantIdRef.current = viewingTenantId;
+  const ownerSelectedTenant = () => (isSuperAdminRoleName(currentUserRef.current?.role) ? viewingTenantIdRef.current || undefined : undefined);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
@@ -518,7 +522,7 @@ const App: React.FC = () => {
       const results = await Promise.allSettled([
         canListUsers(user, holds) ? api.fetchUsers() : Promise.resolve(SKIPPED), ifOn('roleManagement', api.fetchRoles), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
         ifOn('alertManagement', api.fetchAlerts), ifOn('compliance', api.fetchComplianceFrameworks), ifOn('aiGovernance', api.fetchAiSystems),
-        ifOn('assetManagement', api.fetchAssets), ifOn('patchManagement', api.fetchPatches), ifOn('incidentResponse', api.fetchSecurityCases),
+        ifOn('assetManagement', () => api.fetchAssets(ownerSelectedTenant())), ifOn('patchManagement', api.fetchPatches), ifOn('incidentResponse', api.fetchSecurityCases),
         ifOn('playbooks', api.fetchPlaybooks), ifOn('incidentResponse', api.fetchSecurityEvents), ifOn('cloudAccounts', api.fetchCloudAccounts),
         ifOn('cloudSecurity', api.fetchCspmFindings), ifOn('auditLog', api.fetchAuditLogs),
         ifOn('integrations', api.fetchIntegrations), ifOn('alertManagement', api.fetchAlertRules),
@@ -907,6 +911,15 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [currentView, isBackendConnected]);
+
+  // A Platform Owner's tenant choice reaches the server: the all-tenants list is paginated, so
+  // filtering it in tenantData could miss the tenant's assets.
+  useEffect(() => {
+    if (!isSuperAdminRoleName(currentUserRef.current?.role) || !sessionStorage.getItem('token')) return;
+    let current = true;
+    api.fetchAssets(ownerSelectedTenant()).then(list => { if (current) setAssets(list); });
+    return () => { current = false; };
+  }, [viewingTenantId]);
 
   // Calculate activeTenantId BEFORE using it in WebSocket useEffect
   const activeTenantId = viewingTenantId || currentUser?.tenantId;
@@ -1377,7 +1390,7 @@ const App: React.FC = () => {
   const handleRunVulnerabilityScan = async (assetId: string) => {
     await api.runVulnerabilityScan(assetId);
     // Refetch assets to get updated scan date and ensure UI waits for new data
-    await api.fetchAssets().then(setAssets);
+    await api.fetchAssets(ownerSelectedTenant()).then(setAssets);
   };
 
   const handleScheduleUpgrade = (agentIds: string[], targetVersion: string) => {
@@ -1410,7 +1423,7 @@ const App: React.FC = () => {
     // The job simulation will eventually update asset scan dates.
     // We can refetch assets after a reasonable delay.
     setTimeout(() => {
-      api.fetchAssets().then(setAssets);
+      api.fetchAssets(ownerSelectedTenant()).then(setAssets);
     }, (assetIds.length * 2000) + 5000); // Rough estimate
   };
 
@@ -1842,11 +1855,11 @@ const App: React.FC = () => {
       case 'jobs': return <ErrorBoundary name="JobsDashboard"><Suspense fallback={<SkeletonDashboard />}><JobsDashboard /></Suspense></ErrorBoundary>;
       case 'llmops': return <ErrorBoundary name="LLMOpsDashboard"><Suspense fallback={<SkeletonDashboard />}><LLMOpsDashboard /></Suspense></ErrorBoundary>;
       case 'softwareDeployment': return <ErrorBoundary name="SoftwareDeployment"><Suspense fallback={<SkeletonDashboard />}><SoftwareDeployment /></Suspense></ErrorBoundary>;
-      case 'securitySimulation': return <ErrorBoundary name="SecuritySimulation"><Suspense fallback={<SkeletonDashboard />}><SecuritySimulation /></Suspense></ErrorBoundary>;
+      case 'securitySimulation': return <ErrorBoundary name="SecuritySimulation"><Suspense fallback={<SkeletonDashboard />}><SecuritySimulation tenantId={viewingTenantId} /></Suspense></ErrorBoundary>;
       case 'dast': return <ErrorBoundary name="DASTDashboard"><DASTDashboard /></ErrorBoundary>;
       case 'serviceMesh': return <ErrorBoundary name="ServiceMeshDashboard"><ServiceMeshDashboard /></ErrorBoundary>;
       case 'persistence':
-      case 'persistenceDetection': return <ErrorBoundary name="PersistenceDashboard"><Suspense fallback={<SkeletonDashboard />}><PersistenceDashboard /></Suspense></ErrorBoundary>;
+      case 'persistenceDetection': return <ErrorBoundary name="PersistenceDashboard"><Suspense fallback={<SkeletonDashboard />}><PersistenceDashboard tenantId={viewingTenantId} /></Suspense></ErrorBoundary>;
       case 'approvalWorkflows': return <ErrorBoundary name="MultiStepApprovalDashboard"><Suspense fallback={<SkeletonDashboard />}><MultiStepApprovalDashboard /></Suspense></ErrorBoundary>;
       case 'advancedBi':
       case 'biDashboard': return <ErrorBoundary name="AdvancedBiDashboard"><AdvancedBiDashboard tenantId={activeTenantId || undefined} /></ErrorBoundary>;
