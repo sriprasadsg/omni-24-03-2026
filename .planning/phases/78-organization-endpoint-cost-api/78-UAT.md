@@ -3,21 +3,21 @@ status: testing
 phase: 78-organization-endpoint-cost-api
 source: [78-VERIFICATION.md]
 started: 2026-11-17T05:32:00Z
-updated: 2026-11-17T05:32:00Z
+updated: 2026-11-17T08:40:00Z
 ---
 
 ## Current Test
 
 number: 1
-name: After the user deploys (backend restart + UI publish), a Platform Owner opens ITAM with a tenant selected, then with none selected.
+name: After the user deploys gap round 2 (backend restart for 78-12, UI publish for 78-13..15, push), a Platform Owner opens ITAM with a tenant selected, then with none; a Platform Support user opens ITAM with none.
 expected: |
-  KPI tile shows 'Not tracked' for a tenant with no cost data and a dollar value otherwise, 'Valued X of Y', the Select-a-tenant state when no tenant is chosen, and the Reports tab Run buttons are disabled with the note until a tenant is selected; switching tenants mid-run leaves no previous-tenant table.
+  Owner with a tenant: KPI tile shows 'Not tracked' or a dollar value and 'Valued X of Y'; Reports tab runs, previews, saves, exports and deletes act on that tenant only, and the saved list shows only that tenant's definitions. Owner with no tenant: Select-a-tenant block, every pre-built Run disabled with the pre-built note, custom section disabled with the custom note, no request and no error toast. Support with no tenant: same no-tenant state. Switching tenant mid-run or mid-export leaves no previous-tenant table, list, download or toast. After a failed run the earlier report keeps its title, rows, export target and pages.
 awaiting: user response
 
 ## Tests
 
-### 1. After the user deploys (backend restart + UI publish), a Platform Owner opens ITAM with a tenant selected, then with none selected.
-expected: KPI tile shows 'Not tracked' for a tenant with no cost data and a dollar value otherwise, 'Valued X of Y', the Select-a-tenant state when no tenant is chosen, and the Reports tab Run buttons are disabled with the note until a tenant is selected; switching tenants mid-run leaves no previous-tenant table.
+### 1. After the user deploys gap round 2 (backend restart for 78-12, UI publish for 78-13..15, push), a Platform Owner opens ITAM with a tenant selected, then with none; a Platform Support user opens ITAM with none.
+expected: Owner with a tenant: KPI tile shows 'Not tracked' or a dollar value and 'Valued X of Y'; Reports tab runs, previews, saves, exports and deletes act on that tenant only, and the saved list shows only that tenant's definitions. Owner with no tenant: Select-a-tenant block, every pre-built Run disabled with the pre-built note, custom section disabled with the custom note, no request and no error toast. Support with no tenant: same no-tenant state. Switching tenant mid-run or mid-export leaves no previous-tenant table, list, download or toast. After a failed run the earlier report keeps its title, rows, export target and pages.
 result: [pending]
 
 ## Summary
