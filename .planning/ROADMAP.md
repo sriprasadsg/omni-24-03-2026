@@ -280,7 +280,7 @@ Plans:
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
 
-**Plans**: 11/11 plans executed (gap-closure plan 78-11 planned, not executed)
+**Plans**: 15 plans (78-01..78-11 executed; gap round 2 plans 78-12..78-15 planned 2026-11-17, not executed)
 **UI hint**: yes
 
 Plans:
@@ -306,6 +306,17 @@ Plans:
 
 **Gap closure** *(from 78-VERIFICATION.md gaps_found 5/6, 78-REVIEW WR-01)*
 - [x] 78-11-PLAN.md — ReportsPanel stale-response guard: runSeq on pre-built, saved custom and preview runs, running reset on tenant switch, result gate with the preview exception; console + ReportsPanel tests (COST-07, UI-SPEC R3, T-78-15)
+
+**Gap closure round 2** *(from 78-UAT.md gaps G-78-WR04, G-78-IN05, G-78-WR02, G-78-IN04; user decision 2026-11-17, D-13/D-14 amended)*
+**Wave 1**
+- [ ] 78-12-PLAN.md — Custom report routes (save, list, preview, get, delete, run, export) on the shared tenant resolver; real-middleware two-tenant matrix, Support 400/403, Billing 403 (G-78-WR02 server, A-78-22)
+- [ ] 78-13-PLAN.md — Reports tab keeps the shown report, its title, export target and pages together; an export is bound to the tenant it started in (G-78-WR04, G-78-IN05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 78-14-PLAN.md — Custom report calls carry the selected tenant; the saved list follows tenant switches; the custom section follows the no-tenant rule (G-78-WR02 client)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 78-15-PLAN.md — Every platform tier without a tenant gets the Select-a-tenant state; a "Select a tenant" rejection shows it instead of a toast; Billing pinned to the no-access panel (G-78-IN04)
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
 
