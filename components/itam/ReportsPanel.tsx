@@ -36,6 +36,7 @@ interface ReportsPanelProps {
 }
 
 const SELECT_TENANT_NOTE_ID = 'itam-reports-select-tenant-note';
+const CUSTOM_SELECT_TENANT_NOTE_ID = 'itam-custom-reports-select-tenant-note';
 
 export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTenant }: ReportsPanelProps) {
   const [reports, setReports] = useState<ItamPrebuiltReportMeta[]>([]);
@@ -61,6 +62,12 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   const listSeq = useRef(0);
   const loadSavedReports = useCallback(async () => {
     const seq = ++listSeq.current;
+    if (needsTenant) {
+      // No tenant selected: no request, and a load already in flight is dropped (seq moved on).
+      setSavedReports([]);
+      setSavedLoading(false);
+      return;
+    }
     setSavedLoading(true);
     try {
       const list = await listItamCustomReports(tenantId);
@@ -70,7 +77,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     } finally {
       if (seq === listSeq.current) setSavedLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, needsTenant]);
 
   useEffect(() => { loadSavedReports(); }, [loadSavedReports]);
 
@@ -253,27 +260,34 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Custom Reports</h3>
           <button
             onClick={() => setBuilderOpen((v) => !v)}
-            className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            disabled={needsTenant}
+            aria-describedby={needsTenant ? CUSTOM_SELECT_TENANT_NOTE_ID : undefined}
+            className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             <PlusIcon size={14} /> Create Custom Report
           </button>
         </div>
 
-        {builderOpen && (
+        {builderOpen && !needsTenant && (
           <div className="mb-4">
             <ReportBuilderForm onPreview={handlePreviewCustom} onSave={handleSaveCustom} busy={builderBusy} />
           </div>
         )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          {savedLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
-          {!savedLoading && savedReports.length === 0 && (
+          {needsTenant && (
+            <p role="status" id={CUSTOM_SELECT_TENANT_NOTE_ID} className="text-xs text-gray-500 dark:text-gray-400">
+              {ITAM_KPI_COPY.customReportsSelectTenantNote}
+            </p>
+          )}
+          {!needsTenant && savedLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
+          {!needsTenant && !savedLoading && savedReports.length === 0 && (
             <div className="text-center py-4">
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No custom reports yet</h4>
               <p className="text-gray-500 text-xs">Build a report by picking fields and filters, then save it to reuse anytime.</p>
             </div>
           )}
-          {!savedLoading && savedReports.length > 0 && (
+          {!needsTenant && !savedLoading && savedReports.length > 0 && (
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>

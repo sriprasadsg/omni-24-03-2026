@@ -23,6 +23,7 @@ export const ITAM_KPI_COPY = {
   selectTenantBody: 'Asset values and reports cover one organization at a time. Open a tenant from Tenants, then come back to Reports.',
   goToTenants: 'Go to Tenants',
   reportsSelectTenantNote: 'Select a tenant to run these reports. They cover one organization at a time.',
+  customReportsSelectTenantNote: 'Select a tenant to see, build and run its custom reports. They cover one organization at a time.',
 };
 
 interface ItamKpiPanelProps {
