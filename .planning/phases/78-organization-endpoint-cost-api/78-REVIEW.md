@@ -1,68 +1,51 @@
 ---
 phase: 78-organization-endpoint-cost-api
-reviewed: 2026-11-17T12:00:00Z
+reviewed: 2026-11-17T00:00:00Z
 depth: standard
-files_reviewed: 5
+files_reviewed: 2
 files_reviewed_list:
-  - backend/itam_cost_service.py
   - backend/itam_finance_endpoints.py
   - backend/tests/test_itam_cost_parity.py
-  - components/itam/FinancePanel.tsx
-  - src/__tests__/FinancePanel.test.tsx
 findings:
   critical: 0
-  warning: 1
-  info: 0
+  warning: 0
+  info: 1
   total: 1
 status: issues_found
 ---
 
-# Phase 78: Code Review Report
+# Phase 78: Code Review Report (incremental, commit 6b9351f63, WR-08 fix)
 
 **Reviewed:** 2026-11-17
 **Depth:** standard
-**Files Reviewed:** 5
+**Files Reviewed:** 2
 **Status:** issues_found
 
 ## Summary
 
-Incremental review of the third review-fix round: 5700878cb (WR-07) and 78aff2770 (IN-14), read from `git diff 27b9a67ca HEAD` plus the surrounding code. No tests were run (read-only, as instructed).
-
-Both prior findings are really fixed. The route now has the same reason precedence as `compute_asset_cost`, the rename left no stale caller, every reason code the route can return has copy in the panel, and the widened parity test is meaningful and deterministic. The one new defect is a data-echo gap that the WR-07 change makes reachable: for an unreadable cost the route echoes the raw stored value, and `FinancePanel` pre-fills the cost input from it.
+Scope is `git diff c8aa70cbf HEAD` for the two files (10 insertions, 4 deletions). The WR-08 fix is correct and complete for the field it targets. The only new finding is an Info item: the same route still echoes a raw `purchaseDate` where the cost row sanitizes it. Nothing currently consumes that field, so it is not a blocker or warning. Parity tests re-run once in the foreground: 9 passed.
 
 ## Prior findings re-assessed
 
 | ID | Verdict | Evidence |
 |----|---------|----------|
-| WR-07 | Fixed | `backend/itam_finance_endpoints.py:159-163` returns `unreadable_purchase_cost` for a non-None, non-`is_cents` cost, before the no-purchase-record check, matching `backend/itam_cost_service.py:138-141`. `:181-182` catches `(ValueError, TypeError)` and returns `unreadable_purchase_date`, matching `itam_cost_service.py:153-154`. The no-record condition `cost is None or purchaseDate is None` (`:162`) equals the row's `raw_cost is None or raw_date is None` (`itam_cost_service.py:140`). The policy check (`:169`) is the shared `policy_misfit_reason`. The route no longer 500s on a string cost. Fixer's account in 78-REVIEW-FIX.md matches the diff. |
-| IN-14 | Fixed | `backend/tests/test_itam_cost_parity.py:213-228` derives the unvalued set from the list rows, asserts it equals `NOT_TRACKED` (line 222), then checks each of the five assets for no figure and for route reason == row reason == the literal in `NOT_TRACKED`. Not tautological: the literals are independent of the code under test, and the set-equality assert forces a new unvalued seed asset to name its reason. `:230-246` pins the disposed/retired divergence correctly: the route figure is compared with `compute_book_value` computed independently at `FIXED` and asserted non-None, and the row (read with `include_inactive=True`) has no figure and the status as its reason. The seed values (cost 90000 and 70000, model-ok salvage 10000) mean salvage does not exceed cost, so the figure is truly non-None. |
+| WR-08 (route echoes raw unreadable cost; FinancePanel pre-fills Purchase Cost from it) | Fixed | `backend/itam_finance_endpoints.py:151` reads `cost` before `base` is built. `:156` sets `"purchaseCostCents": cost if is_cents(cost) else None`, the same predicate as the cost row (`backend/itam_cost_service.py:126`). `:161` still returns `REASON_UNREADABLE_COST`, so the operator is told the cost is unreadable. The `/ 100` pre-fill at `components/itam/FinancePanel.tsx:61` is guarded by `!= null` and now only ever receives `number \| null`, matching `ItamBookValue` in `types.ts:1143`. A zero cost (`N-ZERO`) is still echoed as `0`, as in the row. The valued path at `:177` reads `asset["purchaseCostCents"]` directly, but that value is the same `cost`, already proven `is_cents` by the checks at `:161` and `:163`. No regression. |
+| Test coverage of the fix | Not weakened or tautological | `test_itam_cost_parity.py:212` and `:229` compare the route value to the list row's value for every active and every unvalued asset. The explicit `:232` assertion (`N-MALCOST` gives `None`) is independent of the row, so it would catch a shared regression. The fixer's fails-then-passes claim is plausible: the seeded `N-MALCOST` cost is the string `"1000"` (`:60`), which the old route echoed. |
+| WR-01..WR-07, IN-01..IN-14 | Not regressed | The reason-code logic at `:161-172` is unchanged. The 9 parity tests pass. |
 
-Other checks requested:
+## Info
 
-- **Check order, route vs row:** identical except the deliberate lifecycle rule (inactive status). unreadable cost, then no record, then policy misfit, then depreciation with unreadable date.
-- **Callers of the renamed `_is_cents`:** grep over the whole repo outside venv and node_modules (py, ts, tsx, including tests) finds no `_is_cents` left. All five uses are `is_cents` in `itam_cost_service.py` and `itam_finance_endpoints.py`. No regression.
-- **Reason codes the route can now return:** `no_purchase_record`, `no_depreciation_policy_assigned`, `salvage_exceeds_cost`, `unreadable_purchase_cost`, `unreadable_purchase_date`. `BOOK_VALUE_REASON_COPY` in `FinancePanel.tsx:14-20` maps all five, with an unknown-code fallback, and `FinancePanel.test.tsx:98-103` covers the two new ones. The only other consumer of the route is FinancePanel (grep of `fetchAssetBookValue` and `book-value`), so nothing else is unmapped.
-- **Determinism of the widened tests:** `compute_book_value` is whole-year granular. The route reads `datetime.now()` while the row is computed at the captured `FIXED`; no seeded purchase date sits near an anniversary of `FIXED`, so the comparison is stable. No finding.
-- **Regression of WR-01..WR-06, IN-01..IN-13:** none seen.
+### IN-15: Book-value route still echoes a raw non-string purchaseDate that the cost row sanitizes
 
-## Warnings
-
-### WR-08: Book-value route echoes the raw unreadable cost, and FinancePanel pre-fills the Purchase Cost field from it
-
-**File:** `backend/itam_finance_endpoints.py:151-157` (consumed at `components/itam/FinancePanel.tsx:61`)
-**Issue:** `base["purchaseCostCents"]` is `asset.get("purchaseCostCents")`, unsanitised. The cost row sanitises the same value (`itam_cost_service.py:126`: `raw_cost if is_cents(raw_cost) else None`), but the route does not. Before WR-07 an unreadable cost made this route 500, so `loadFinance` never got a response. Now the route returns 200 with `reason: unreadable_purchase_cost` and the garbage value, and `FinancePanel.tsx:61` does `String(bv.purchaseCostCents / 100)` into the form. For a non-numeric string, dict or list the field becomes `"NaN"`. A number input renders that as blank, but the form state is the truthy string `"NaN"`. If the operator then fixes only the date and presses Save, `handleSave` (`:78`) sends `Math.round(Number("NaN") * 100)`, which is `NaN`, serialised as `null`, in the very record the new copy ("The purchase cost on this asset cannot be read.") tells them to correct. A negative int or float is pre-filled as a plausible-looking value (for example 12345.5 becomes 123.455), so the operator may save a figure they never saw as invalid. The type contract (`types.ts:1143`, `number | null`) is also broken for the string and object cases.
-**Fix:** Echo only a well-typed cost, as the row does:
-
+**File:** `backend/itam_finance_endpoints.py:157`
+**Issue:** The cost row emits `"purchaseDate": raw_date if isinstance(raw_date, str) else None` (`itam_cost_service.py:127`). `get_asset_book_value` still emits `asset.get("purchaseDate")` unfiltered. A stored non-string date, such as a number, list or dict, is passed through, which breaks the `purchaseDate?: string | null` contract in `types.ts`. This is the same class of defect as WR-08. It is Info rather than a warning because no consumer reads it. `FinancePanel.tsx:62` pre-fills the date from the warranty response (`w.purchaseDate`), not `bv`, and no other `bookValue.purchaseDate` reader exists. The parity tests also never cover a non-string date (`N-BADDATE` is the string `"31/12/2020"`, which is echoed identically by both and so passes).
+**Fix:**
 ```python
-cost = asset.get("purchaseCostCents")
-base = {
-    ...
-    "purchaseCostCents": cost if is_cents(cost) else None,
-    ...
-}
+raw_date = asset.get("purchaseDate")
+...
+"purchaseDate": raw_date if isinstance(raw_date, str) else None,
 ```
-
-(move the `cost = ...` line above `base`). The reason code still tells the operator the stored cost is unreadable, and the form field stays empty so they enter a fresh value. Add a case to `test_route_reason_matches_row_for_every_unvalued_asset` asserting `result["purchaseCostCents"] is None` for `N-MALCOST`. The `/ 100` pre-fill is then safe for every shape the route can return.
+Optionally add a `purchaseDate` parity assertion to the two route-versus-row tests. The existing `N-BADDATE` string case would still pass, so a non-string seed would be needed for it to bite.
 
 ---
 
