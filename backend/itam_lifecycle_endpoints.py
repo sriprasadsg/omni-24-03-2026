@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pymongo import ReturnDocument
 
 from auth_types import TokenData
@@ -22,6 +22,7 @@ from catalogue_mounts_assets import ASSETS_API_KEY_GUARD, ITAM_API_KEY_GUARD
 from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, LifecycleStatus
+from itam_tenant_scope import resolve_itam_tenant
 from itam_lifecycle_service import (
     list_history, write_history, _apply_known_delta, _revert_on_history_failure,
 )
@@ -566,6 +567,7 @@ def _overdue_row(doc: Dict[str, Any], cutoff: str, now: datetime) -> Dict[str, A
 
 @router.get("/reports/overdue-audit", response_model=Dict[str, Any], dependencies=[Depends(ITAM_API_KEY_GUARD)])
 async def overdue_audit_report(
+    request: Request,
     limit: int = Query(200, ge=1, le=1000),
     current_user: TokenData = Depends(_require_itam_viewer),
 ):
@@ -575,13 +577,11 @@ async def overdue_audit_report(
     `/reports/overdue-audit` path is not cosmetic: `asset_endpoints.py` declares
     `GET /{asset_id}` on a router sharing this prefix, so a single-segment path
     would resolve only by registration luck (PD-02).
+
+    One organization per report, like the other ITAM reports: a tenant user's own, or the
+    one the Platform Owner selected (`resolve_itam_tenant`; 400 when the Owner selected none).
     """
-    tenant_id = current_user.tenant_id
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tenant ID not found for the current user.",
-        )
+    await resolve_itam_tenant(request, current_user, get_database)
 
     db = get_database()
 

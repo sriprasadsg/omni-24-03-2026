@@ -133,10 +133,11 @@ async def get_assets(
 async def search_assets(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(50, ge=1, le=200),
+    scope: str = Depends(asset_list_scope),
     db=Depends(get_database),
     current_user=Depends(get_current_user),
 ):
-    """Full-text search across asset name, hostname, IP, and type fields."""
+    """Full-text search across asset name, hostname, IP, and type fields, in the same tenant scope as the list."""
     q = q[:200]
     import re as _re
     regex = {"$regex": _re.escape(q), "$options": "i"}
@@ -149,12 +150,10 @@ async def search_assets(
             {"os": regex},
         ]
     }
-    user_role = getattr(current_user, "role", "user")
-    if not is_super_admin(user_role):
-        caller_tenant = getattr(current_user, "tenant_id", None) or None
-        if not caller_tenant:
-            raise HTTPException(status_code=403, detail="Tenant context required")
-        query["tenantId"] = caller_tenant
+    if not scope and not is_super_admin(getattr(current_user, "role", "user")):
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    if scope:
+        query["tenantId"] = scope
     assets = await db.assets.find(query, {"_id": 0}).to_list(length=limit)
     return assets
 

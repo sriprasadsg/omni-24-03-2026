@@ -1,4 +1,4 @@
-"""GET /api/assets scopes the Platform Owner's list to the tenant the Owner selected.
+"""GET /api/assets (and /api/assets/search) scopes the Platform Owner's list to the tenant the Owner selected.
 
 Value: protects=an Owner who picks an organization (X-Tenant-ID, or the tenantId/tenant_id query
 parameter) sees only that organization's assets, an Owner who picks none keeps the all-tenants
@@ -159,3 +159,29 @@ class TestTenantUserScope:
         assert await listing(client, user_a, params={"tenantId": "tenant-b"}) == _ids("tenant-a")
         assert await listing(client, token("admin", "tenant-b")) == _ids("tenant-b")
         assert await listing(client, token(*OWNER), header="tenant-b") == _ids("tenant-b")
+
+
+async def searching(client, bearer, *, header=None):
+    headers = {"Authorization": f"Bearer {bearer}", **({"X-Tenant-ID": header} if header is not None else {})}
+    response = await client.get(f"{LIST}/search", headers=headers, params={"q": "asset"})
+    assert response.status_code == 200, response.text
+    return {item["id"] for item in response.json()}
+
+
+class TestSearchScope:
+    """GET /api/assets/search covers the same tenant as the list."""
+
+    @pytest.mark.asyncio
+    async def test_owner_without_a_tenant_searches_every_tenant(self, client):
+        assert await searching(client, token(*OWNER)) == _ids("tenant-a") | _ids("tenant-b")
+
+    @pytest.mark.asyncio
+    async def test_owner_header_searches_only_that_tenant_even_inside_the_cache_window(self, client):
+        owner = token(*OWNER)
+        assert await searching(client, owner, header="tenant-a") == _ids("tenant-a")
+        assert await searching(client, owner, header="tenant-b") == _ids("tenant-b")
+        assert await searching(client, owner, header="tenant-a") == _ids("tenant-a")
+
+    @pytest.mark.asyncio
+    async def test_tenant_user_header_for_another_tenant_changes_nothing(self, client):
+        assert await searching(client, token("admin", "tenant-a"), header="tenant-b") == _ids("tenant-a")
