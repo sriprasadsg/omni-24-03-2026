@@ -63,9 +63,11 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 - [ ] AI first-line ticket answers with escalation (v4.3)
 - [ ] Autonomous Ops activity view with undo (v4.3)
-- [ ] v4.2 costing (Phases 78–80) — resumes after v4.3
+- [ ] v4.2 costing (Phases 79–80: license cost and per-endpoint allocation, Costs tab) — resumes after v4.3
 
 ### Validated
+
+- ✓ **Organization & endpoint cost API** — tenant-scoped cost summary, per-asset cost and detail from the one `compute_asset_cost` shared with the KPI tile and reports; null-not-zero, disposed/retired excluded, explicit tenant required (unknown or partner tenant 400), two-tenant isolation tests (Phase 78, COST-01/02/03/06/07)
 
 - ✓ **Compliance status override** — PATCH endpoint persists status with immutable history, tenant isolation, manual_override flag (Phase 6)
 - ✓ **Frontend status buttons wired** — Mark Compliant/Non-Compliant call backend; toast on error; data refresh on success (Phase 6)
@@ -195,4 +197,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-07 after Phase 87 transition*
+*Last updated: 2026-11-17 after Phase 78 transition*

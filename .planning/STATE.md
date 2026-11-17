@@ -2,30 +2,30 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
-current_phase: 78
-current_phase_name: Organization & Endpoint Cost API
+current_phase: 85
+current_phase_name: First-Line Service Desk
 status: verifying
-stopped_at: Completed 78-15-PLAN.md
-last_updated: "2026-11-17T08:07:40.950Z"
+stopped_at: Phase 78 complete; Phase 85 executed, awaiting re-verification and UAT
+last_updated: "2026-11-17T13:08:19.832Z"
 last_activity: 2026-11-17
-last_activity_desc: Phase 78 execution started
-state_head: 747b2b972f97b60c325e31482aede610a6316124
+last_activity_desc: Phase 78 complete, transitioned to Phase 85
+state_head: 0a860bd7c8a65ce028e21c266d3417ce7ef432e7
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 173
   completed_plans: 172
-  percent: 75
+  percent: 54
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-07)
+See: .planning/PROJECT.md (updated 2026-11-17)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 78 — Organization & Endpoint Cost API
+**Current focus:** Phase 85 — First-Line Service Desk (re-verification and UAT)
 
 ## Current Phase
 
@@ -1089,7 +1089,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Session
 
 **Last session:** 2026-11-17T08:07:40.582Z
-**Stopped at:** Completed 78-15-PLAN.md
+**Stopped at:** Phase 78 complete; Phase 85 executed, awaiting re-verification (/gsd-execute-phase 85) and UAT (/gsd-verify-work 85)
 **Resume file:** None
 
 ## Accumulated Context
@@ -1117,11 +1117,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 78 (Organization & Endpoint Cost API) — EXECUTING
-Plan: 15 of 15 (78-12..14 complete; 78-15 pending)
-Status: Phase complete — ready for verification
-Last activity: 2026-11-17 — Phase 78 execution started
-Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
+Phase: 85 — First-Line Service Desk
+Plan: 42 of 42 executed
+Status: Verification stale; UAT 4 passed, test 3 blocked (needs a Windows PC)
+Last activity: 2026-11-17 — Phase 78 (v4.2) complete: UAT passed, re-verified 13/13, COST-01/02/03/06/07 Complete; transitioned to Phase 85
+Progress: 5/7 v4.3 phases complete (81, 82, 83, 84, 87); plans [███████████████████░] 172/173 (99%)
 
 ## Deferred Items
 
