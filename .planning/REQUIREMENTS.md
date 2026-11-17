@@ -149,13 +149,13 @@
 
 ### 2. Asset Costing (Organization & Endpoint)
 
-- [x] **COST-01**: Organization and endpoint cost reuse the *same* per-asset book-value computation as the existing ITAM KPI tile (Phase 72), enforced by a parity test so the tile, report, and cost view cannot disagree.
-- [x] **COST-02**: A read-only org-level cost summary (`/api/itam/costs/summary`, gated by `view:itam`) returns the tenant's total purchase cost and current depreciated book value, with coverage reported and assets lacking cost shown as null (never 0).
-- [x] **COST-03**: Endpoint/asset-level cost (`/api/itam/costs/assets` paginated and `/assets/{id}`) returns per-asset purchase cost and book value; endpoints are assets (joined only via `agents.assetId`).
+- [ ] **COST-01**: Organization and endpoint cost reuse the *same* per-asset book-value computation as the existing ITAM KPI tile (Phase 72), enforced by a parity test so the tile, report, and cost view cannot disagree.
+- [ ] **COST-02**: A read-only org-level cost summary (`/api/itam/costs/summary`, gated by `view:itam`) returns the tenant's total purchase cost and current depreciated book value, with coverage reported and assets lacking cost shown as null (never 0).
+- [ ] **COST-03**: Endpoint/asset-level cost (`/api/itam/costs/assets` paginated and `/assets/{id}`) returns per-asset purchase cost and book value; endpoints are assets (joined only via `agents.assetId`).
 - [ ] **COST-04**: One optional integer-cents cost field (with a billing basis) is added to the License model, with a minimal UI input, so license spend can be recorded. Consumables and components are deferred.
 - [ ] **COST-05**: Org license spend and per-endpoint allocation of *asset-assigned* license seats are reported; user-assigned seats surface as an "unattributed" bucket, with the invariant `sum(endpoint allocations) + unallocated == org license spend`.
-- [x] **COST-06**: Disposed/retired assets are excluded from current book-value totals by default and included in historical purchase totals only behind an explicit filter — the same rule applied in the KPI and the cost view.
-- [x] **COST-07**: Every cost route requires an explicit tenant (a `platform-admin` context with no tenant returns 400), uses no `$lookup` or request-cache, and is covered by a mandatory two-tenant isolation test.
+- [ ] **COST-06**: Disposed/retired assets are excluded from current book-value totals by default and included in historical purchase totals only behind an explicit filter — the same rule applied in the KPI and the cost view.
+- [ ] **COST-07**: Every cost route requires an explicit tenant (a `platform-admin` context with no tenant returns 400), uses no `$lookup` or request-cache, and is covered by a mandatory two-tenant isolation test.
 - [ ] **COST-08**: A "Costs" tab in the existing ITAM console (no new sidebar module or permission) shows the org summary and per-asset breakdown with a coverage banner, shared currency formatting, and export through the existing report registry.
 
 ## v2 Requirements (v4.2 deferred)
@@ -194,13 +194,13 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | ACC-07 | Phase 77 | Complete |
 | ACC-08 | Phase 77 | Complete |
 | ACC-09 | Phase 77 | Complete |
-| COST-01 | Phase 78 | Complete |
-| COST-02 | Phase 78 | Complete |
-| COST-03 | Phase 78 | Complete |
+| COST-01 | Phase 78 | Gaps Found |
+| COST-02 | Phase 78 | Gaps Found |
+| COST-03 | Phase 78 | Gaps Found |
 | COST-04 | Phase 79 | Pending |
 | COST-05 | Phase 79 | Pending |
-| COST-06 | Phase 78 | Complete |
-| COST-07 | Phase 78 | Complete |
+| COST-06 | Phase 78 | Gaps Found |
+| COST-07 | Phase 78 | Gaps Found |
 | COST-08 | Phase 80 | Pending |
 | GATE-01 | Phase 81 | Complete |
 | GATE-02 | Phase 81 | Complete |
