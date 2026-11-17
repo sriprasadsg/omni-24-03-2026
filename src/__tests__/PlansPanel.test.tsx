@@ -168,9 +168,9 @@ describe('PlansPanel UI-SPEC S1 conformance', () => {
     expect(savePlan.mock.calls[0][1].screens).toEqual(expect.arrayContaining(['screen:dashboard', 'view:agents', 'view:patching', 'manage:patches']));
 
     fireEvent.click(free.getByRole('button', { name: 'Select all screens' }));
-    expect(free.getByText(/^207 of 207 selected$/)).toBeTruthy();
+    expect(free.getByText(/^208 of 208 selected$/)).toBeTruthy();
     fireEvent.click(free.getByRole('button', { name: 'Clear all screens' }));
-    expect(free.getByText(/^0 of 207 selected$/)).toBeTruthy();
+    expect(free.getByText(/^0 of 208 selected$/)).toBeTruthy();
     expect(box('Free', 'Overview').checked).toBe(true);
   });
 

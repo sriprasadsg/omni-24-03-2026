@@ -74,6 +74,7 @@ const DASTDashboard = lazy(() => import('./components/DASTDashboard').then(m => 
 const DataGovernanceDashboard = lazy(() => import('./components/DataGovernanceDashboard').then(m => ({ default: m.DataGovernanceDashboard })));
 const DataSecurityDashboard = lazy(() => import('./components/DataSecurityDashboard').then(m => ({ default: m.DataSecurityDashboard })));
 const DataUtilizationDashboard = lazy(() => import('./components/DataUtilizationDashboard').then(m => ({ default: m.DataUtilizationDashboard })));
+const NetworkOperationsConsole = lazy(() => import('./components/NetworkOperationsConsole').then(m => ({ default: m.NetworkOperationsConsole })));
 const DataWarehouseDashboard = lazy(() => import('./components/DataWarehouseDashboard').then(m => ({ default: m.DataWarehouseDashboard })));
 const DeceptionDashboard = lazy(() => import('./components/DeceptionDashboard').then(m => ({ default: m.default })));
 const DeveloperHubDashboard = lazy(() => import('./components/DeveloperHubDashboard').then(m => ({ default: m.DeveloperHubDashboard })));
@@ -1818,6 +1819,7 @@ const App: React.FC = () => {
       case 'chaosEngineering': return <ErrorBoundary name="ChaosEngineeringDashboard"><ChaosEngineeringDashboard /></ErrorBoundary>;
       case 'networkObservability': console.log("[App] Rendering NetworkObservability with:", tenantData.networkDevices); return <ErrorBoundary name="NetworkObservabilityDashboard"><NetworkObservabilityDashboard networkDevices={tenantData.networkDevices} onAddDevice={handleAddNewDevice} onRefresh={loadAllData} /></ErrorBoundary>;
       case 'dataUtilization': return <ErrorBoundary name="DataUtilizationDashboard"><DataUtilizationDashboard /></ErrorBoundary>;
+      case 'networkOperations': return <ErrorBoundary name="NetworkOperationsConsole"><NetworkOperationsConsole /></ErrorBoundary>;
       case 'tasks': return (
         <ErrorBoundary name="Tasks">
           <div className="max-w-4xl mx-auto">

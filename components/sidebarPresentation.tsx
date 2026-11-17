@@ -34,6 +34,7 @@ export const SIDEBAR_PRESENTATION: Partial<Record<AppView, SidebarPresentation>>
     logExplorer: { icon: <FileTextIcon size={20} /> },
     networkObservability: { icon: <NetworkIcon size={20} /> },
     networkTopology: { icon: <NetworkIcon size={20} /> },
+    networkOperations: { icon: <RadioTower size={20} /> },
     dataUtilization: { icon: <ActivityIcon size={20} /> },
     webMonitoring: { icon: <Globe size={20} /> },
     serviceMesh: { icon: <NetworkIcon size={20} /> },

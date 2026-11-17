@@ -102,6 +102,11 @@
           "parent": "view:network"
         },
         {
+          "permission": "screen:networkOperations",
+          "label": "Network Operations",
+          "parent": "view:network"
+        },
+        {
           "permission": "screen:dataUtilization",
           "label": "Data Utilization",
           "parent": "view:network"

@@ -28,10 +28,10 @@ def _generator():
 # --- D-29 / D-46: the seed ------------------------------------------------------------------------
 
 def test_seed_has_the_reviewed_counts_and_is_nested():
-    """protects=D-29 counts 19/88/208 and Free within Pro within Enterprise = every switch;
+    """protects=D-29 counts 19/89/209 and Free within Pro within Enterprise = every switch;
     fails_when=a rule drifts and a screen lands in the wrong plan."""
     seed = _generator().build_seed()
-    assert [len(seed[k]) for k in ("Free", "Pro", "Enterprise")] == [19, 88, 208]
+    assert [len(seed[k]) for k in ("Free", "Pro", "Enterprise")] == [19, 89, 209]
     assert all(seed[k] == sorted(seed[k]) for k in seed)
     assert set(seed["Free"]) <= set(seed["Pro"]) <= set(seed["Enterprise"])
     assert seed["Enterprise"] == sorted(tf.SWITCHABLE)

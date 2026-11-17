@@ -13,6 +13,29 @@ from typing import Any, Dict, Optional
 # Two samples further apart than this say little about the current rate.
 MAX_WINDOW_SECONDS = 15 * 60
 
+# Every measured rate is also kept as a sample for the Network Operations history: one document per
+# agent per counter change (about one a minute), dropped by a TTL index after two days (a 24 h range
+# plus the 24 h before it, for the "vs previous period" delta).
+SAMPLES_COLLECTION = "network_rate_samples"
+SAMPLE_TTL_SECONDS = 2 * 24 * 3600
+_sample_indexes_created = False
+
+
+async def record_sample(db, tenant_id: str, agent_id: str, hostname: Optional[str], rate: Dict[str, Any]) -> None:
+    """Store one measured rate (the networkRate fields) as a history sample."""
+    global _sample_indexes_created
+    at = _parse(rate.get("at"))
+    if at is None or not tenant_id:
+        return
+    if not _sample_indexes_created:
+        await db._db[SAMPLES_COLLECTION].create_index("at", expireAfterSeconds=SAMPLE_TTL_SECONDS)
+        await db._db[SAMPLES_COLLECTION].create_index([("tenantId", 1), ("at", 1)])
+        _sample_indexes_created = True
+    await db[SAMPLES_COLLECTION].insert_one({
+        "tenantId": tenant_id, "agentId": agent_id, "hostname": hostname, "at": at,
+        "sentBps": rate.get("sentBps"), "recvBps": rate.get("recvBps"), "windowSeconds": rate.get("windowSeconds"),
+    })
+
 
 def _counter(net: Dict[str, Any], key: str) -> Optional[int]:
     value = net.get(key)

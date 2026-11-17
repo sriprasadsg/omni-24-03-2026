@@ -304,3 +304,24 @@ async def get_network_topology(
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+
+@router.get("/traffic")
+async def get_network_traffic(
+    range_key: str = Query("1h", alias="range", pattern="^(15m|1h|6h|24h)$"),
+    agent_id: Optional[str] = Query(None, alias="agentId", max_length=128),
+    current_user: Any = Depends(require_permission("view:network")),
+):
+    """Network Operations console data: endpoint transfer rates now and over the range, their latest
+    outbound connections and path, for the caller's tenant (same scope as /topology). Needs the
+    screen's permission, view:network."""
+    tenant_id = _topology_tenant(current_user)
+    try:
+        try:
+            from .network_ops_service import traffic_summary
+        except ImportError:
+            from network_ops_service import traffic_summary
+        return await traffic_summary(tenant_id, range_key, agent_id)
+    except Exception:
+        logger.exception("Unhandled exception")
+        raise HTTPException(status_code=500, detail="Internal server error")
+

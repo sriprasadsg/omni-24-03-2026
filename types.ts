@@ -107,6 +107,7 @@ export type AppView =
   | 'ueba'
   | 'vulnerabilities'
   | 'dataUtilization'
+  | 'networkOperations'
   | 'siemRules'
   | 'pentest'
   | 'incidentResponse'

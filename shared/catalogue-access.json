@@ -30,6 +30,7 @@
     {"view": "logExplorer", "label": "Log Explorer", "group": "observability", "nav": true, "permission": "view:logs", "routes": ["/api/logs"]},
     {"view": "networkObservability", "label": "Network Observability", "group": "observability", "nav": true, "permission": "view:network", "routes": ["/api/network"]},
     {"view": "networkTopology", "label": "Network Topology Map", "group": "observability", "nav": true, "permission": "view:network", "routes": ["/api/network-devices"]},
+    {"view": "networkOperations", "label": "Network Operations", "group": "observability", "nav": true, "permission": "view:network", "routes": [], "noBackendReason": "shares routes with networkTopology"},
     {"view": "dataUtilization", "label": "Data Utilization", "group": "observability", "nav": true, "permission": "view:network", "routes": [], "noBackendReason": "reads /api/agents/network-utilization, which the agents catalogue owns"},
     {"view": "webMonitoring", "label": "Web Monitoring", "group": "observability", "nav": true, "permission": "view:web_monitoring", "routes": [], "noBackendReason": "no /api route is mounted for web monitoring; the page has no backend"},
     {"view": "serviceMesh", "label": "Service Mesh", "group": "observability", "nav": true, "permission": "view:network", "routes": ["/api/mesh"]},

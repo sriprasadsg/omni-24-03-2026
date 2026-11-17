@@ -206,8 +206,15 @@ async def report_heartbeat(
         upsert=True
     )
 
-    # Open Network Topology maps of the tenant pick the new rate up at once.
+    # The rate joins the Network Operations history, and open topology and operations screens of
+    # the tenant pick it up at once.
     if "networkRate" in rate_update and _hb_tenant_id:
+        try:
+            await network_rate.record_sample(
+                db, _hb_tenant_id, (existing_agent or {}).get("id") or agent_id,
+                update_data.get("hostname") or (existing_agent or {}).get("hostname"), rate_update["networkRate"])
+        except Exception as e:
+            logger.debug("Network rate sample not stored (non-fatal): %s", e)
         try:
             from websocket_manager import broadcast_endpoint_traffic
             await broadcast_endpoint_traffic(_hb_tenant_id, {
