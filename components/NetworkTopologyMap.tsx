@@ -1,11 +1,15 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import { useUser } from '../contexts/UserContext';
-import * as api from '../services/apiService';
 import cytoscape from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
-import { io, Socket } from 'socket.io-client';
-import { Shield, Server, Router, Layout, Cloud, HardDrive, Cpu, Activity, AlertCircle } from 'lucide-react';
+import { Activity, AlertCircle, LayoutGrid, List, Maximize, Network, Shuffle, ZoomIn, ZoomOut } from 'lucide-react';
+import * as api from '../services/apiService';
+import { socketService } from '../services/socketService';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { PageHeader, LiveStatus, ghostButton, useLiveData } from './network/NetworkKit';
+import { buildTopologyElements, isDeviceNode, isDown, topologyStats } from './network/networkData';
+import { FLOW_COLORS, ROLE_LEGEND, TOPOLOGY_LAYOUT, topologyStylesheet } from './network/topologyStyle';
+import { TopologyInspector, type Neighbour } from './network/TopologyInspector';
 
 cytoscape.use(coseBilkent);
 
@@ -13,495 +17,292 @@ interface NetworkTopologyMapProps {
     refreshKey: number;
 }
 
-interface Packet {
-    id: string;
-    sourceNodeId: string;
-    targetNodeId: string;
-    progress: number; // 0 to 1
-    protocol: string;
-    status: 'allowed' | 'blocked';
-}
+interface Packet { sourceId: string; targetId: string; progress: number; blocked: boolean }
 
-// Helper to generate SVG Data URIs for Cytoscape from Lucide icon names/colors
-const getIconDataUri = (type: string, color: string = '%233b82f6') => {
-    // Basic SVG templates for common network icons
-    let svgPath = '';
-    // SVG Paths for: cloud, shield, server, router, layers (switch), monitor (endpoint)
-    if (type === 'cloud') svgPath = 'M17.5 19c.5 0 1-.1 1.5-.3 2-1 3.5-3 3.5-5.2 0-3.3-2.7-6-6-6-.3 0-.7 0-1 .1C14.4 5.3 12.4 4 10 4 6.1 4 3 7.1 3 11c0 .4 0 .7.1 1.1C1.9 12.8 1 14.3 1 16c0 2.2 1.8 4 4 4h12.5';
-    else if (type === 'shield') svgPath = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
-    else if (type === 'server') svgPath = 'M2 10V6a2 2 0 012-2h16a2 2 0 012 2v4M2 14v4a2 2 0 002 2h16a2 2 0 002-2v-4M6 6h.01M6 18h.01';
-    else if (type === 'router') svgPath = 'M2 13v6a2 2 0 002 2h16a2 2 0 002-2v-6M12 3v10M12 3l-4 4M12 3l4 4';
-    else if (type === 'switch' || type === 'layers' || type === 'subnet') svgPath = 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5';
-    else svgPath = 'M4 6a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 20h-4M12 15v3';
-
-    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${type === 'server' ? '<rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line>' : `<path d="${svgPath}"></path>`}</svg>`;
+const fetchTopology = async () => {
+    const res = await api.authFetch('/api/network-devices/topology');
+    if (!res.ok) throw new Error(`Could not load the topology (HTTP ${res.status})`);
+    return buildTopologyElements(await res.json());
 };
 
+// Fit the graph, but never blow a small one (two nodes before any scan) up past 125%.
+const fitView = (cy: cytoscape.Core) => {
+    cy.fit(undefined, 56);
+    if (cy.zoom() > 1.25) { cy.zoom(1.25); cy.center(); }
+};
+
+const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const hudChipBase = 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium bg-white/85 dark:bg-gray-900/70 border border-gray-200/80 dark:border-white/[0.08] backdrop-blur-sm';
+const hudChip = `${hudChipBase} text-gray-700 dark:text-gray-300`;
+const hudButton = 'grid place-items-center h-8 w-8 rounded-lg text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08]';
+
 export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshKey }) => {
-    const { currentUser } = useUser();
-    const [elements, setElements] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [packets, setPackets] = useState<Packet[]>([]);
-    const [selectedNode, setSelectedNode] = useState<any>(null);
+    const dark = useContext(ThemeContext).theme === 'dark';
+    const live = useLiveData(fetchTopology, 300_000);
+    const { refresh } = live;
+    const elements = useMemo(() => live.data ?? [], [live.data]);
+    const [view, setView] = useState<'graph' | 'list'>('graph');
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [flowRate, setFlowRate] = useState(0);
+    const [streamUp, setStreamUp] = useState(socketService.connected);
     const cyRef = useRef<cytoscape.Core | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const socketRef = useRef<Socket | null>(null);
-    const requestRef = useRef<number | undefined>(undefined);
+    const packetsRef = useRef<Packet[]>([]);
+    const flowTimesRef = useRef<number[]>([]);
+    const frameRef = useRef<number | undefined>(undefined);
 
-    // Fetch Topology Data
+    useEffect(() => { if (refreshKey) refresh(); }, [refreshKey, refresh]);
+
+    const stylesheet = useMemo(() => topologyStylesheet(dark), [dark]);
+    const stats = useMemo(() => topologyStats(elements), [elements]);
+    // Remount (and lay out again) only when the set of nodes and links changes.
+    const graphKey = useMemo(() => elements.map(e => e.data?.id).sort().join('|'), [elements]);
+    const byId = useMemo(() => new Map(elements.map(e => [e.data?.id, e.data])), [elements]);
+    const selected = selectedId ? byId.get(selectedId) : null;
+
+    const neighboursOf = useCallback((id: string): Neighbour[] => elements
+        .filter(e => e.data?.source === id || e.data?.target === id)
+        .map(e => byId.get(e.data.source === id ? e.data.target : e.data.source))
+        .filter(Boolean)
+        .map((d: any) => ({ id: d.id, label: d.label, ip: d.ip, status: d.status })), [elements, byId]);
+
+    const devices = useMemo(() => elements.map(e => e.data).filter(d => d && !d.isZone && !d.isVlan && !d.source), [elements]);
+
+    // Selection drives the neighbourhood highlight on the graph.
     useEffect(() => {
-        const fetchTopology = async () => {
-            setLoading(true);
-            try {
-                console.log("[NetworkTopologyMap] Initiating fetch...");
-                const response = await api.authFetch('/api/network-devices/topology');
-                if (!response.ok) {
-                    console.error("Topology fetch failed:", response.status);
-                    throw new Error("Failed to fetch topology");
-                }
-
-                const data = await response.json();
-                console.log("Fetched Topology Data:", data);
-
-                if (!data.elements || !data.elements.nodes) {
-                    console.warn("No nodes found in topology data");
-                    setElements([]);
-                    return;
-                }
-
-                // Add Parent Nodes for Zones
-                const zones = ['Internet', 'Perimeter', 'Internal LAN'];
-                const parentNodes = zones.map(zone => ({
-                    data: { id: `zone-${zone.replace(' ', '-')}`, label: zone, isZone: true }
-                }));
-
-                // Map nodes to parents
-                const nodesWithParents = data.elements.nodes.map((node: any) => {
-                    const zone = node.data.zone || 'Internal LAN';
-                    const parentId = `zone-${zone.replace(' ', '-')}`;
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            parent: parentId
-                        }
-                    };
-                });
-
-                const allElements = [...parentNodes, ...nodesWithParents, ...data.elements.edges];
-                setElements(allElements);
-            } catch (error) {
-                console.error("Error loading topology:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchTopology();
-    }, [refreshKey]);
-
-    // Layout configuration
-    const layout = {
-        name: 'cose-bilkent',
-        animate: true,
-        randomize: false,
-        nodeDimensionsIncludeLabels: true,
-        refresh: 30,
-        fit: true,
-        padding: 50,
-        componentSpacing: 120,
-        nodeRepulsion: 10000,
-        idealEdgeLength: 100,
-        edgeElasticity: 0.45,
-        nestingFactor: 0.1,
-        gravity: 0.25,
-        numIter: 2500,
-        tile: true
-    };
-
-    // WebSocket Connection
-    useEffect(() => {
-        const socket = io(import.meta.env.VITE_API_BASE_URL || '', {
-            transports: ['websocket'],
-            auth: { tenant_id: currentUser?.tenantId || 'default' }
+        const cy = cyRef.current;
+        if (!cy || cy.destroyed()) return;
+        cy.batch(() => {
+            cy.elements().removeClass('faded hl');
+            cy.elements().unselect();
+            if (!selectedId) return;
+            const node = cy.getElementById(selectedId);
+            if (node.empty()) return;
+            node.select();
+            const near = node.closedNeighborhood();
+            cy.elements().not(near.union(near.nodes().ancestors())).addClass('faded');
+            node.connectedEdges().addClass('hl');
         });
-        socketRef.current = socket;
+    }, [selectedId, graphKey, view]);
 
-        socket.on('network_traffic', (event: any) => {
-            // event: { source_ip: "...", target_ip: "...", protocol: "HTTPS", status: "allowed" }
-            if (!cyRef.current) return;
-            const cy = cyRef.current;
-
-            // Selector: node[ip = "x.x.x.x"]
-            const sourceNodes = cy.nodes(`[ip = "${event.source}"]`);
-            const targetNodes = cy.nodes(`[ip = "${event.target}"]`);
-
-            if (sourceNodes.nonempty() && targetNodes.nonempty()) {
-                const newPacket: Packet = {
-                    id: crypto.randomUUID().replace(/-/g, '').substring(0, 9),
-                    sourceNodeId: sourceNodes[0].id(),
-                    targetNodeId: targetNodes[0].id(),
-                    progress: 0,
-                    protocol: event.protocol || 'Other',
-                    status: event.status || 'allowed'
-                };
-                setPackets(prev => [...prev, newPacket].slice(-50)); // Cap at 50 packets for performance
-            }
-        });
-
-        return () => { socket.disconnect(); };
-    }, []);
-
-    // Packet Animation Loop
-    const animate = (time: number) => {
-        setPackets(prev => {
-            const next = prev.map(p => ({ ...p, progress: p.progress + 0.015 })) // Slightly slower for readability
-                .filter(p => p.progress < 1);
-            return next;
-        });
-        requestRef.current = requestAnimationFrame(animate);
-    };
+    useEffect(() => { if (selectedId && !byId.has(selectedId)) setSelectedId(null); }, [byId, selectedId]);
 
     useEffect(() => {
-        requestRef.current = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(requestRef.current!);
-    }, []);
+        if (!selectedId) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedId(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedId]);
 
-    // Canvas Rendering
-    useEffect(() => {
-        if (!canvasRef.current || !cyRef.current) return;
+    // Live flows: drawn on a canvas over the graph, and the loop runs only while packets move.
+    const draw = useCallback(() => {
         const cy = cyRef.current;
         const canvas = canvasRef.current;
-
-        // Sync canvas resolution with rendered size
+        const ctx = canvas?.getContext('2d');
+        if (!cy || cy.destroyed() || !canvas || !ctx) { frameRef.current = undefined; return; }
+        const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-        if (canvas.width !== rect.width || canvas.height !== rect.height) {
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        packets.forEach(packet => {
-            const sourceNode = cy.getElementById(packet.sourceNodeId);
-            const targetNode = cy.getElementById(packet.targetNodeId);
-            if (!sourceNode.nonempty() || !targetNode.nonempty()) return;
-
-            const startPos = sourceNode.renderedPosition();
-            const endPos = targetNode.renderedPosition();
-
-            const x = startPos.x + (endPos.x - startPos.x) * packet.progress;
-            const y = startPos.y + (endPos.y - startPos.y) * packet.progress;
-
-            let color = '#3b82f6';
-            if (packet.protocol === 'SSH') color = '#10b981';
-            if (packet.protocol === 'DB') color = '#06b6d4';
-            if (packet.status === 'blocked') color = '#ef4444';
-
-            // Glow effect
-            ctx.shadowBlur = packet.status === 'blocked' ? 15 : 8;
-            ctx.shadowColor = color;
-
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.closePath();
-
-            // Motion Trail
-            ctx.beginPath();
-            ctx.lineWidth = 2;
+        if (canvas.width !== Math.round(rect.width * dpr)) { canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr); }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        packetsRef.current = packetsRef.current.map(p => ({ ...p, progress: p.progress + 0.012 })).filter(p => p.progress < 1);
+        for (const p of packetsRef.current) {
+            const s = cy.getElementById(p.sourceId), t = cy.getElementById(p.targetId);
+            if (s.empty() || t.empty()) continue;
+            const a = s.renderedPosition(), b = t.renderedPosition();
+            const x = a.x + (b.x - a.x) * p.progress, y = a.y + (b.y - a.y) * p.progress;
+            const color = p.blocked ? FLOW_COLORS.blocked : FLOW_COLORS.allowed[dark ? 'dark' : 'light'];
+            const tail = Math.max(0, p.progress - 0.08);
+            ctx.globalAlpha = 0.35;
             ctx.strokeStyle = color;
-            ctx.globalAlpha = 0.4;
-            ctx.moveTo(startPos.x + (endPos.x - startPos.x) * Math.max(0, packet.progress - 0.08),
-                startPos.y + (endPos.y - startPos.y) * Math.max(0, packet.progress - 0.08));
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(a.x + (b.x - a.x) * tail, a.y + (b.y - a.y) * tail);
             ctx.lineTo(x, y);
             ctx.stroke();
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = p.blocked ? 12 : 8;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, p.blocked ? 4 : 3, 0, 2 * Math.PI);
+            ctx.fill();
             ctx.shadowBlur = 0;
-        });
-    }, [packets]);
-
-
-    const stylesheet = [
-        {
-            selector: 'node',
-            style: {
-                'label': 'data(label)',
-                'text-valign': 'bottom',
-                'text-halign': 'center',
-                'font-size': '10px',
-                'color': '#8e949e',
-                'font-family': 'JetBrains Mono, monospace',
-                'text-margin-y': 6,
-                'background-color': '#1a1f26',
-                'width': 44,
-                'height': 44,
-                'border-width': 2,
-                'border-color': '#3b82f6',
-                'background-image': (ele: any) => getIconDataUri(ele.data('icon') || 'monitor'),
-                'background-fit': 'contain',
-                'background-clip': 'none',
-                'background-width': '65%',
-                'background-height': '65%',
-                'background-position-x': '50%',
-                'background-position-y': '50%'
-            }
-        },
-        {
-            selector: ':parent',
-            style: {
-                'background-opacity': 0.08,
-                'background-color': '#1e293b',
-                'border-color': '#334155',
-                'border-width': 1,
-                'border-style': 'solid',
-                'text-valign': 'top',
-                'text-halign': 'center',
-                'text-margin-y': -10,
-                'font-weight': 'bold',
-                'font-size': '11px',
-                'color': '#475569',
-                'text-transform': 'uppercase',
-                'letter-spacing': '0.1em'
-            }
-        },
-        {
-            selector: 'node[type = "cloud"]',
-            style: { 'border-color': '#06b6d4', 'background-image': (ele: any) => getIconDataUri('cloud', '%238b5cf6') }
-        },
-        {
-            selector: 'node[type = "firewall"]',
-            style: { 'border-color': '#f43f5e', 'background-image': (ele: any) => getIconDataUri('shield', '%23f43f5e') }
-        },
-        {
-            selector: 'node[icon = "server"]',
-            style: { 'border-color': '#0ea5e9', 'background-image': (ele: any) => getIconDataUri('server', '%230ea5e9') }
-        },
-        {
-            selector: 'node[status = "down"]',
-            style: { 'border-color': '#ef4444', 'border-opacity': 0.5, 'opacity': 0.6 }
-        },
-        {
-            selector: 'node[isVlan = true]',
-            style: {
-                'background-opacity': 0.1,
-                'background-color': '#0891b2',
-                'border-color': '#22d3ee',
-                'border-width': 1.5,
-                'border-style': 'solid',
-                'text-valign': 'top',
-                'text-halign': 'center',
-                'text-margin-y': 5,
-                'font-size': '10px',
-                'font-weight': 'bold',
-                'color': '#c7d2fe',
-                'padding': '30px'
-            }
-        },
-        {
-            selector: 'edge',
-            style: {
-                'width': 1.5,
-                'line-color': '#1e293b',
-                'target-arrow-color': '#1e293b',
-                'target-arrow-shape': 'triangle',
-                'curve-style': 'bezier',
-                'opacity': 0.6
-            }
         }
-    ];
+        frameRef.current = packetsRef.current.length ? requestAnimationFrame(draw) : undefined;
+    }, [dark]);
 
-    // Counts come from the loaded topology, not fixed marketing figures
-    const topoStats = {
-        devices: elements.filter(e => !e.data?.source && !e.data?.isZone).length,
-        links: elements.filter(e => e.data?.source).length,
-        zones: elements.filter(e => e.data?.isZone).length,
+    useEffect(() => {
+        const onTraffic = (event: any) => {
+            flowTimesRef.current.push(Date.now());
+            const cy = cyRef.current;
+            if (!cy || cy.destroyed() || reducedMotion()) return;
+            // Match on data, not a selector string: an address must never be parsed as selector syntax.
+            const src = cy.nodes().filter(n => n.data('ip') === event?.source);
+            const dst = cy.nodes().filter(n => n.data('ip') === event?.target);
+            if (src.empty() || dst.empty()) return;
+            packetsRef.current = [...packetsRef.current, { sourceId: src[0].id(), targetId: dst[0].id(), progress: 0, blocked: event?.status === 'blocked' }].slice(-50);
+            if (frameRef.current === undefined) frameRef.current = requestAnimationFrame(draw);
+        };
+        socketService.on('network_traffic', onTraffic);
+        const tick = setInterval(() => {
+            const cutoff = Date.now() - 60_000;
+            flowTimesRef.current = flowTimesRef.current.filter(t => t >= cutoff);
+            setFlowRate(flowTimesRef.current.length);
+            setStreamUp(socketService.connected);
+        }, 5000);
+        return () => {
+            socketService.off('network_traffic', onTraffic);
+            clearInterval(tick);
+            if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current);
+            frameRef.current = undefined;
+        };
+    }, [draw]);
+
+    const zoomBy = (factor: number) => {
+        const cy = cyRef.current;
+        if (!cy) return;
+        cy.zoom({ level: cy.zoom() * factor, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
     };
 
+    const flowText = !streamUp ? 'Flow stream offline' : flowRate ? `${flowRate} flow${flowRate === 1 ? '' : 's'} in the last minute` : 'Flow stream connected · no flows yet';
+
     return (
-        <div className="w-full h-[700px] bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a] rounded-xl overflow-hidden relative shadow-2xl">
-            {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-[#0b0e14]/90 z-20">
-                    <Activity className="animate-pulse text-blue-500 w-12 h-12" />
-                </div>
-            )}
-
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-3">
-                <div className="flex items-center gap-2 bg-white/90 dark:bg-[#1a1f26]/90 px-3 py-1.5 rounded-lg border border-[#3b82f6]/30 text-[11px] font-mono text-blue-600 dark:text-blue-400">
-                    <Activity className="w-3 h-3" /> {topoStats.devices > 0 ? 'DISCOVERED TOPOLOGY' : 'NO DEVICES DISCOVERED YET'}
-                </div>
-                <div className="flex flex-col gap-2 p-4 bg-white/95 dark:bg-[#151921]/95 rounded-xl border border-gray-200 dark:border-[#2a2f3a] shadow-2xl backdrop-blur-sm">
-                    <h4 className="text-[11px] uppercase tracking-[0.2em] text-[#565f6e] font-bold">Topology</h4>
-                    <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 text-white" />
-                        <span>Devices: <span className="text-green-600 dark:text-green-400 font-mono">{topoStats.devices}</span></span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 text-white" />
-                        <span>Links: <span className="text-blue-600 dark:text-blue-400 font-mono">{topoStats.links}</span></span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 text-white" />
-                        <span>Zones: <span className="text-purple-600 dark:text-purple-400 font-mono">{topoStats.zones}</span></span>
-                    </div>
-                </div>
-            </div>
-
-            <CytoscapeComponent
-                key={elements.length > 0 ? 'populated' : 'empty'}
-                elements={elements}
-                style={{ width: '100%', height: '100%' }}
-                stylesheet={stylesheet}
-                // animate: 'end' computes the layout synchronously and animates via the
-                // core loop, which cy.destroy() stops. animate: true keeps scheduling
-                // frames that touch the destroyed renderer when this instance is
-                // remounted (key change) or unmounted mid-layout.
-                layout={{ name: 'cose', animate: 'end', fit: true, padding: 50 }}
-                cy={(cy: any) => {
-                    cyRef.current = cy;
-
-                    cy.on('tap', 'node', (evt: any) => {
-                        const node = evt.target;
-                        if (!node.data('isZone')) {
-                            setSelectedNode(node.data());
-                        }
-                    });
-
-                    cy.on('tap', (evt: any) => {
-                        if (evt.target === cy) {
-                            setSelectedNode(null);
-                        }
-                    });
-
-                    console.log("Cytoscape Instance Created, Elements:", cy.elements().length);
-                }}
-            />
-
-            <canvas
-                ref={canvasRef}
-                className="absolute inset-0 pointer-events-none z-10 w-full h-full"
-            />
-
-
-            <div className="absolute bottom-4 left-4 flex gap-4 bg-white/90 dark:bg-[#151921]/90 p-3 rounded-xl border border-gray-200 dark:border-[#2a2f3a] backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-[11px] text-[#8e949e]">
-                    <div className="w-2 h-2 rounded-full border border-blue-500" /> LAN Node
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-[#8e949e]">
-                    <div className="w-2 h-2 rounded-full border border-red-500" /> Perimeter
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-[#8e949e]">
-                    <div className="w-2 h-2 rounded-full border border-purple-500" /> Internet
-                </div>
-            </div>
-
-            <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-[#151921]/90 p-3 px-5 rounded-xl border border-gray-200 dark:border-[#2a2f3a] text-[11px] grid grid-cols-2 gap-x-8 gap-y-2 text-[#8e949e] backdrop-blur-sm">
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_#3b82f6] text-white" /> HTTPS</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_#10b981] text-white" /> SSH</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-purple-500 rounded-full shadow-[0_0_5px_#06b6d4] text-white" /> DATABASE</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_5px_#ef4444] text-white" /> BLOCKED</div>
-            </div>
-
-            {/* Node Details Overlay */}
-            {selectedNode && (
-                <div className="absolute top-4 right-4 w-72 bg-white/95 dark:bg-[#151921]/95 border border-gray-200 dark:border-[#2a2f3a] rounded-xl shadow-2xl backdrop-blur-md z-30 p-5 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                                {selectedNode.icon === 'server' ? <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" /> :
-                                    selectedNode.icon === 'shield' ? <Shield className="w-5 h-5 text-red-600 dark:text-red-400" /> :
-                                        <Router className="w-5 h-5 text-green-600 dark:text-green-400" />}
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{selectedNode.label.split('\n')[0]}</h4>
-                                <p className="text-[11px] text-gray-500 font-mono">{selectedNode.ip}</p>
-                            </div>
-                        </div>
-                        <button aria-label="Close details"
-                            onClick={() => setSelectedNode(null)}
-                            className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                            <AlertCircle className="w-4 h-4 rotate-45" />
+        <div className="space-y-4 pb-6">
+            <PageHeader
+                title="Network Topology"
+                subtitle="Discovered devices, security zones and the links between them"
+                status={<LiveStatus updatedAt={live.updatedAt} error={live.error} />}
+                onRefresh={refresh}
+                refreshing={live.loading}
+            >
+                <div role="group" aria-label="View" className="inline-flex h-9 p-0.5 rounded-xl border border-gray-200/80 dark:border-white/[0.08] bg-white dark:bg-gray-800">
+                    {([['graph', 'Map', LayoutGrid], ['list', 'List', List]] as const).map(([key, label, Icon]) => (
+                        <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}
+                            className={`inline-flex items-center gap-1.5 px-3 rounded-[10px] text-sm font-medium transition-colors ${view === key
+                                ? 'bg-primary-500/10 text-primary-700 dark:text-primary-300'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>
+                            <Icon className="w-4 h-4" aria-hidden="true" />{label}
                         </button>
-                    </div>
+                    ))}
+                </div>
+            </PageHeader>
 
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-2 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
-                                <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Status</p>
-                                <div className="flex items-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${selectedNode.status.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_5px_#10b981] text-white' : 'bg-red-500 text-white'}`} />
-                                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{selectedNode.status}</span>
-                                </div>
-                            </div>
-                            <div className="p-2 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
-                                <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-1">VLAN ID</p>
-                                <span className={`text-xs font-mono font-bold ${selectedNode.vlanId ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600'}`}>
-                                    {selectedNode.vlanId || 'UNTAGGED'}
+            {live.error && !live.data ? (
+                <div role="alert" className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-5 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" aria-hidden="true" />
+                    <div className="flex-1">
+                        <p className="font-medium text-red-800 dark:text-red-200">The topology could not be loaded</p>
+                        <p className="mt-1 text-sm text-red-700 dark:text-red-300">{live.error}</p>
+                    </div>
+                    <button type="button" onClick={refresh} className={ghostButton}>Try again</button>
+                </div>
+            ) : (
+                <div className="relative h-[calc(100vh-15rem)] min-h-[520px] rounded-2xl overflow-hidden border border-gray-200/80 dark:border-white/[0.07] bg-white dark:bg-gray-800 shadow-card">
+                    {!live.data && (
+                        <div className="absolute inset-0 z-20 grid place-items-center" aria-busy="true">
+                            <Activity className="w-10 h-10 text-primary-500 animate-pulse" aria-label="Loading the topology" />
+                        </div>
+                    )}
+
+                    {view === 'graph' ? (
+                        <>
+                            <div className="absolute inset-0 opacity-60 dark:opacity-40 pointer-events-none [background-image:radial-gradient(rgb(var(--space-400)/0.35)_1px,transparent_1px)] [background-size:22px_22px]" aria-hidden="true" />
+                            {live.data && (
+                                <CytoscapeComponent
+                                    key={graphKey}
+                                    elements={elements}
+                                    style={{ width: '100%', height: '100%', position: 'relative' }}
+                                    stylesheet={stylesheet}
+                                    layout={TOPOLOGY_LAYOUT}
+                                    minZoom={0.2}
+                                    maxZoom={3}
+                                    cy={(cy: any) => {
+                                        if (cyRef.current === cy) return;
+                                        cyRef.current = cy;
+                                        cy.on('tap', 'node', (evt: any) => { if (!evt.target.data('isZone')) setSelectedId(evt.target.id()); });
+                                        cy.on('tap', (evt: any) => { if (evt.target === cy) setSelectedId(null); });
+                                        cy.on('layoutstop', () => fitView(cy));
+                                    }}
+                                />
+                            )}
+                            <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-10 w-full h-full" aria-hidden="true" />
+
+                            <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-2 max-w-[calc(100%-5rem)]">
+                                <span className={hudChip}><Network className="w-3.5 h-3.5 text-primary-500" aria-hidden="true" />{stats.devices} device{stats.devices === 1 ? '' : 's'}</span>
+                                <span className={hudChip}>{stats.links} link{stats.links === 1 ? '' : 's'}</span>
+                                <span className={hudChip}>{stats.zones} zone{stats.zones === 1 ? '' : 's'}</span>
+                                {stats.segments > 0 && <span className={hudChip}>{stats.segments} VLAN{stats.segments === 1 ? '' : 's'}</span>}
+                                {stats.down > 0 && <span className={`${hudChipBase} text-red-700 dark:text-red-300`}>{stats.down} down</span>}
+                                <span className={hudChip}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${streamUp ? 'bg-primary-500 dark:bg-primary-400' : 'bg-gray-400'}`} aria-hidden="true" />{flowText}
                                 </span>
                             </div>
-                        </div>
 
-                        <div className="p-3 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
-                            <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">Live Throughput</p>
-                            <div className="flex justify-between items-end gap-1 h-8">
-                                {[...Array(12)].map((_, i) => {
-                                    const throughputIn = selectedNode.metrics?.throughput_in ?? 0;
-                                    const throughputOut = selectedNode.metrics?.throughput_out ?? 0;
-                                    const base = ((throughputIn + throughputOut) / 2) || 1;
-                                    const nodeHash = selectedNode.id?.charCodeAt(i % (selectedNode.id?.length || 1)) ?? i;
-                                    const pct = 20 + ((nodeHash * 37 + i * 13) % 80);
-                                    const opacity = i % 2 === 0 ? throughputIn > 0 ? 0.8 : 0.25 : throughputOut > 0 ? 0.6 : 0.2;
-                                    void base;
-                                    return (
-                                        <div
-                                            key={i}
-                                            className="w-full bg-blue-500 rounded-t-sm text-white"
-                                            style={{ height: `${pct}%`, opacity }}
-                                        />
-                                    );
-                                })}
+                            <div role="toolbar" aria-label="Map controls" className={`absolute top-3 ${selected ? 'right-[21.75rem]' : 'right-3'} z-20 flex flex-col p-1 rounded-xl bg-white/85 dark:bg-gray-900/70 border border-gray-200/80 dark:border-white/[0.08] backdrop-blur-sm`}>
+                                <button type="button" className={hudButton} onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in"><ZoomIn className="w-4 h-4" aria-hidden="true" /></button>
+                                <button type="button" className={hudButton} onClick={() => zoomBy(0.8)} aria-label="Zoom out" title="Zoom out"><ZoomOut className="w-4 h-4" aria-hidden="true" /></button>
+                                <button type="button" className={hudButton} onClick={() => cyRef.current && fitView(cyRef.current)} aria-label="Fit to screen" title="Fit to screen"><Maximize className="w-4 h-4" aria-hidden="true" /></button>
+                                <button type="button" className={hudButton} onClick={() => cyRef.current?.layout(TOPOLOGY_LAYOUT as any).run()} aria-label="Arrange again" title="Arrange again"><Shuffle className="w-4 h-4" aria-hidden="true" /></button>
                             </div>
-                            <div className="flex justify-between mt-2 text-[11px] font-mono text-gray-600 dark:text-gray-400">
-                                <span>IN: {selectedNode.metrics?.throughput_in}MB/s</span>
-                                <span>OUT: {selectedNode.metrics?.throughput_out}MB/s</span>
-                            </div>
-                        </div>
 
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500">Security Zone</span>
-                                <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedNode.zone}</span>
-                            </div>
-                            <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500">Active Sessions</span>
-                                <span className="text-gray-800 dark:text-gray-200">{selectedNode.metrics?.activeSessions}</span>
-                            </div>
-                        </div>
-
-                        {selectedNode.isVlan && selectedNode.hosts && (
-                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2a2f3a]">
-                                <h5 className="text-[11px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3 font-bold">Connected Hosts ({selectedNode.hosts.length})</h5>
-                                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                    {selectedNode.hosts.map((host: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center p-2 rounded bg-indigo-500/5 border border-indigo-500/10">
-                                            <div className="flex flex-col">
-                                                <span className="text-[11px] text-gray-800 dark:text-gray-200 font-medium">{host.hostname}</span>
-                                                <span className="text-[11px] text-gray-500 font-mono">{host.ip}</span>
-                                            </div>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${host.status?.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_3px_#10b981] text-white' : 'bg-red-500 text-white'}`} />
-                                        </div>
-                                    ))}
-                                    {selectedNode.hosts.length === 0 && (
-                                        <p className="text-[11px] text-gray-500 italic text-center py-2">No hosts detected in this segment.</p>
-                                    )}
+                            {live.data && stats.devices === 0 && (
+                                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 w-[min(30rem,calc(100%-2rem))] rounded-xl bg-white/90 dark:bg-gray-900/80 border border-gray-200/80 dark:border-white/[0.08] backdrop-blur-sm px-4 py-3 text-center pointer-events-none">
+                                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">No devices discovered yet</p>
+                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Until a network discovery scan reports devices, the map shows only the internet edge and a placeholder gateway.</p>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+
+                            <ul aria-label="Legend" className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-center gap-x-4 gap-y-1.5 w-fit max-w-[calc(100%-1.5rem)] px-3 py-2 rounded-xl bg-white/85 dark:bg-gray-900/70 border border-gray-200/80 dark:border-white/[0.08] backdrop-blur-sm text-xs text-gray-600 dark:text-gray-300">
+                                {ROLE_LEGEND.map(r => (
+                                    <li key={r.group} className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded-[4px] border-2 ${r.swatch}`} aria-hidden="true" />{r.label}</li>
+                                ))}
+                                <li className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[4px] border-2 border-dashed border-[#d03b3b]" aria-hidden="true" />Down</li>
+                                <li className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary-500 dark:bg-primary-400" aria-hidden="true" />Allowed flow</li>
+                                <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#d03b3b]" aria-hidden="true" />Blocked flow</li>
+                            </ul>
+                        </>
+                    ) : (
+                        <div className="absolute inset-0 overflow-auto">
+                            <table className="w-full text-left text-sm">
+                                <caption className="sr-only">Devices on the network map</caption>
+                                <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800 text-[11px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                    <tr className="border-b border-gray-100 dark:border-white/[0.06]">
+                                        {['Device', 'IP address', 'Zone', 'Role', 'VLAN', 'Status', 'Links'].map(h => <th key={h} scope="col" className="px-4 py-3">{h}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                                    {devices.map(d => (
+                                        <tr key={d.id} onClick={() => setSelectedId(d.id)}
+                                            className={`cursor-pointer transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.03] ${selectedId === d.id ? 'bg-primary-500/[0.06]' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                {/* The row click is a mouse shortcut; this button is the keyboard and screen-reader path. */}
+                                                <button type="button" onClick={e => { e.stopPropagation(); setSelectedId(d.id); }}
+                                                    className="font-medium text-left text-gray-900 dark:text-white hover:text-primary-700 dark:hover:text-primary-300">
+                                                    {String(d.label).split('\n')[0]}
+                                                </button>
+                                                {!isDeviceNode(d) && <span className="ml-2 text-[11px] text-gray-500 dark:text-gray-400">added by the map</span>}
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-[13px] text-gray-700 dark:text-gray-300">{d.ip || '—'}</td>
+                                            <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{d.zone || '—'}</td>
+                                            <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{d.role || '—'}</td>
+                                            <td className="px-4 py-3 font-mono text-[13px] text-gray-700 dark:text-gray-300">{d.vlanId || '—'}</td>
+                                            <td className={`px-4 py-3 font-medium ${isDown(d.status) ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-400'}`}>{isDown(d.status) ? 'Down' : 'Up'}</td>
+                                            <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-gray-300">{neighboursOf(d.id).length}</td>
+                                        </tr>
+                                    ))}
+                                    {devices.length === 0 && (
+                                        <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">{live.data ? 'No devices on the map yet.' : 'Loading…'}</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {selected && (
+                        <TopologyInspector node={selected} neighbours={neighboursOf(selected.id)} onSelect={setSelectedId} onClose={() => setSelectedId(null)} />
+                    )}
                 </div>
             )}
         </div>

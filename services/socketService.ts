@@ -112,6 +112,11 @@ class SocketService {
             this.emit('siem_rule_match', data);
         });
 
+        // Flow events for the Network Topology map: { source, target, protocol, status }
+        this.socket.on('network_traffic', (data) => {
+            this.emit('network_traffic', data);
+        });
+
         this.socket.on('support_message', (data) => {
             this.emit('support_message', data);
         });
