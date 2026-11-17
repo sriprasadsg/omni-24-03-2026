@@ -7,6 +7,8 @@
  *  - a superseded failure raises no toast;
  *  - the unsaved builder preview still renders (Phase 72 D-02) and offers no export;
  *  - a rerender with the same tenant keeps the shown result.
+ * Phase 78 plan 13 (WR-04, IN-05): the shown result and its export target stay one report after a
+ * failed or superseded run, and an export is bound to the tenant it started in.
  */
 import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -224,5 +226,147 @@ describe('ReportsPanel stale responses (Phase 78 plan 11)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
     await waitFor(() => expect(downloadItamReport).toHaveBeenCalledWith('a.csv'));
     expect(generateItamReport).toHaveBeenLastCalledWith('prebuilt', 'asset_value', 'csv', 't-1');
+  });
+
+  it('a builder preview that supersedes an in-flight run and fails keeps the earlier report and its export target', async () => {
+    const heldWarranty = deferred();
+    runItamPrebuiltReport.mockImplementation((key: string) => (
+      key === 'asset_value' ? Promise.resolve(resultFor('Asset Value', 'IT-A')) : heldWarranty.promise
+    ));
+    previewItamCustomReport.mockRejectedValue(new Error('preview failed'));
+    generateItamReport.mockResolvedValue({ filename: 'a.csv' });
+    downloadItamReport.mockResolvedValue(undefined);
+    await renderPanel({ tenantId: 't-1' });
+
+    const runButtons = screen.getAllByRole('button', { name: 'Run Report' });
+    fireEvent.click(runButtons[0]);
+    expect(await screen.findByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(runButtons[1]);
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    await runPreview();
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('preview failed', 'error'));
+
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Asset Value', level: 3 })).toBeInTheDocument();
+    expect(screen.getByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    await waitFor(() => expect(generateItamReport).toHaveBeenCalledTimes(1));
+    expect(generateItamReport).toHaveBeenLastCalledWith('prebuilt', 'asset_value', 'csv', 't-1');
+
+    await settle(() => heldWarranty.resolve(resultFor('Warranty Expiring', 'IT-W')));
+    expect(screen.queryByText('IT-W')).not.toBeInTheDocument();
+    expect(screen.getByText('IT-A')).toBeInTheDocument();
+  });
+
+  it('pagination follows the shown report after a failed run', async () => {
+    runItamPrebuiltReport.mockImplementation((key: string, page: number) => {
+      if (key !== 'asset_value') return Promise.reject(new Error('boom'));
+      return Promise.resolve({
+        ...resultFor('Asset Value', page === 1 ? 'IT-A1' : 'IT-A2'),
+        page,
+        totalPages: 2,
+      });
+    });
+    await renderPanel({ tenantId: 't-1' });
+
+    const runButtons = screen.getAllByRole('button', { name: 'Run Report' });
+    fireEvent.click(runButtons[0]);
+    expect(await screen.findByText('IT-A1')).toBeInTheDocument();
+    fireEvent.click(runButtons[1]);
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('boom', 'error'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByText('IT-A2')).toBeInTheDocument();
+    expect(runItamPrebuiltReport).toHaveBeenLastCalledWith('asset_value', 2, 50, 't-1');
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+  });
+
+  it('an in-flight run shows its own title and no export buttons', async () => {
+    const heldWarranty = deferred();
+    runItamPrebuiltReport.mockImplementation((key: string) => (
+      key === 'asset_value' ? Promise.resolve(resultFor('Asset Value', 'IT-A')) : heldWarranty.promise
+    ));
+    generateItamReport.mockResolvedValue({ filename: 'w.csv' });
+    downloadItamReport.mockResolvedValue(undefined);
+    await renderPanel({ tenantId: 't-1' });
+
+    const runButtons = screen.getAllByRole('button', { name: 'Run Report' });
+    fireEvent.click(runButtons[0]);
+    expect(await screen.findByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(runButtons[1]);
+
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Warranty Expiring', level: 3 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('IT-A')).not.toBeInTheDocument();
+
+    await settle(() => heldWarranty.resolve(resultFor('Warranty Expiring', 'IT-W')));
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    await waitFor(() => expect(generateItamReport).toHaveBeenCalledTimes(1));
+    expect(generateItamReport).toHaveBeenLastCalledWith('prebuilt', 'warranty_expiring', 'csv', 't-1');
+  });
+
+  // IN-05: shows 'IT-A' for t-1 and holds an Export CSV started there; the caller then switches tenant.
+  async function startExportThenSwitchTenant() {
+    const heldExport = deferred<{ filename: string }>();
+    runItamPrebuiltReport.mockImplementation((_key: string, _page: number, _size: number, tenant: string) => (
+      Promise.resolve(resultFor('Asset Value', tenant === 't-1' ? 'IT-A' : 'IT-B'))
+    ));
+    generateItamReport.mockReturnValueOnce(heldExport.promise);
+    downloadItamReport.mockResolvedValue(undefined);
+    const { rerender } = await renderPanel({ tenantId: 't-1' });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Run Report' })[0]);
+    expect(await screen.findByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    expect(await screen.findByText('Exporting…')).toBeInTheDocument();
+
+    rerender(<ReportsPanel tenantId="t-2" />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Run Report' })[0]);
+    expect(await screen.findByText('IT-B')).toBeInTheDocument();
+    return heldExport;
+  }
+
+  it('an export started before a tenant switch neither downloads nor keeps the buttons disabled', async () => {
+    const heldExport = await startExportThenSwitchTenant();
+
+    expect(screen.getByRole('button', { name: /Export CSV/ })).toBeEnabled();
+    expect(screen.queryByText('Exporting…')).not.toBeInTheDocument();
+    await settle(() => heldExport.resolve({ filename: 'a.csv' }));
+
+    expect(downloadItamReport).not.toHaveBeenCalled();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('an export that fails after a tenant switch raises no toast', async () => {
+    const heldExport = await startExportThenSwitchTenant();
+
+    await settle(() => heldExport.reject(new Error('boom')));
+
+    expect(showToast).not.toHaveBeenCalled();
+    expect(downloadItamReport).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Export CSV/ })).toBeEnabled();
+  });
+
+  it('an export in the same tenant still downloads when a new run starts', async () => {
+    const heldExport = deferred<{ filename: string }>();
+    runItamPrebuiltReport.mockImplementation((key: string) => Promise.resolve(
+      key === 'asset_value' ? resultFor('Asset Value', 'IT-A') : resultFor('Warranty Expiring', 'IT-W'),
+    ));
+    generateItamReport.mockReturnValueOnce(heldExport.promise);
+    downloadItamReport.mockResolvedValue(undefined);
+    await renderPanel({ tenantId: 't-1' });
+
+    const runButtons = screen.getAllByRole('button', { name: 'Run Report' });
+    fireEvent.click(runButtons[0]);
+    expect(await screen.findByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    expect(await screen.findByText('Exporting…')).toBeInTheDocument();
+    fireEvent.click(runButtons[1]);
+    expect(await screen.findByText('IT-W')).toBeInTheDocument();
+
+    await settle(() => heldExport.resolve({ filename: 'a.csv' }));
+
+    expect(downloadItamReport).toHaveBeenCalledWith('a.csv');
   });
 });
