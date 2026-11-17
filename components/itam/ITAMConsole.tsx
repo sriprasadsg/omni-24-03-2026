@@ -52,6 +52,8 @@ const TABS: { id: Tab; labelKey: string }[] = [
 interface ITAMConsoleProps {
   tenants?: Tenant[];
   isSuperAdminView?: boolean;
+  // No platform tier (Owner, Support, Billing) has an organization of its own, and only the Owner can choose one.
+  isPlatformView?: boolean;
   // The Platform Owner's selected tenant (App.tsx viewingTenantId). Cost KPIs and
   // pre-built reports cover one organization, so the Owner must pick one (D-14).
   tenantId?: string | null;
@@ -64,6 +66,7 @@ interface ItamConsoleBodyProps {
   setTab: (tab: Tab) => void;
   tenants: Tenant[];
   isSuperAdminView: boolean;
+  isPlatformView: boolean;
   tenantId?: string | null;
   onGoToTenants?: () => void;
   assets: Asset[];
@@ -76,10 +79,10 @@ interface ItamConsoleBodyProps {
 // Rendered as a child of ItamI18nProvider (below) so useItamT() resolves the locale the
 // provider was mounted with — a component cannot consume a context provider it renders
 // itself, hence this split.
-function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, tenantId, onGoToTenants, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
+function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, isPlatformView, tenantId, onGoToTenants, assets, settings, onSettingsSaved, reportFocus, setReportFocus }: ItamConsoleBodyProps) {
   const t = useItamT();
-  // A Super Admin without a selected tenant has no organization to report on (D-14).
-  const needsTenant = isSuperAdminView && !tenantId;
+  // A platform user without a selected tenant has no organization to report on (D-14).
+  const needsTenant = (isSuperAdminView || isPlatformView) && !tenantId;
   const { branding } = settings;
   // Re-checked on the client as defence in depth even though the server already enforces
   // this (65-04-PLAN.md T-65-04-02) — a malformed value must never reach a style attribute.
@@ -157,7 +160,7 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, tenantId, onG
 // ITAM operator console (Phase 61, ITAM-UI-01): admin-gated single entry
 // point over Phases 56-60's five backend surfaces, cloning
 // NativeSecurityConsole.tsx's tabbed-AppView shape per 61-RESEARCH.md.
-export default function ITAMConsole({ tenants = [], isSuperAdminView = false, tenantId, onGoToTenants }: ITAMConsoleProps) {
+export default function ITAMConsole({ tenants = [], isSuperAdminView = false, isPlatformView = false, tenantId, onGoToTenants }: ITAMConsoleProps) {
   const [tab, setTab] = useState<Tab>('catalog');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [settings, setSettings] = useState<ItamSettings>(DEFAULT_ITAM_SETTINGS);
@@ -188,6 +191,7 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false, te
         setTab={setTab}
         tenants={tenants}
         isSuperAdminView={isSuperAdminView}
+        isPlatformView={isPlatformView}
         tenantId={tenantId}
         onGoToTenants={onGoToTenants}
         assets={assets}

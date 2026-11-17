@@ -244,7 +244,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isPartnerRoleName, isSuperAdminRoleName, roleLabel } from './utils/permissions';
+import { derivePermissionState, isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, roleLabel } from './utils/permissions';
 import { NAV_GROUPS, catalogueFor, viewForHash } from './utils/catalogueAccess';
 import { canListUsers, canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
@@ -1913,7 +1913,7 @@ const App: React.FC = () => {
       case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
       case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
-      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} /></ErrorBoundary>;
+      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} isPlatformView={isPlatformRoleName(currentUser.role)} tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} /></ErrorBoundary>;
       case 'customerVectorDB': return <ErrorBoundary name="EnhancedVectorDashboard"><Suspense fallback={<SkeletonDashboard />}><EnhancedVectorDashboard /></Suspense></ErrorBoundary>;
       case 'federatedLearning': return <ErrorBoundary name="FederatedLearningDashboard"><Suspense fallback={<SkeletonDashboard />}><FederatedLearningDashboard /></Suspense></ErrorBoundary>;
       case 'webgpuInference': return <ErrorBoundary name="WebGPUDashboard"><Suspense fallback={<SkeletonDashboard />}><WebGPUDashboard /></Suspense></ErrorBoundary>;
