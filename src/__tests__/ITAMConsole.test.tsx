@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 const getItamSettings = vi.fn();
 const runItamPrebuiltReport = vi.fn();
@@ -375,6 +375,31 @@ describe('ITAMConsole', () => {
       fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
       expect(await screen.findByText('Laptop 1')).toBeInTheDocument();
       expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1');
+    });
+
+    it('a pre-built run for the previous tenant that resolves after the switch renders nothing', async () => {
+      let resolveHeld: (v: unknown) => void = () => {};
+      runItamPrebuiltReport.mockImplementationOnce(() => new Promise((resolve) => { resolveHeld = resolve; }));
+
+      const { rerender } = await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+      await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50, 't-1'));
+
+      rerender(<ITAMConsole isSuperAdminView tenantId="t-2" />);
+      // Flush whatever the late response writes before asserting absence.
+      await act(async () => {
+        resolveHeld(assetValueResult);
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Asset Value', level: 3 })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
+
+      runItamPrebuiltReport.mockResolvedValueOnce({ ...assetValueResult, rows: [{ Name: 'Laptop 2' }] });
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Report' }));
+      expect(await screen.findByText('Laptop 2')).toBeInTheDocument();
+      expect(runItamPrebuiltReport).toHaveBeenLastCalledWith('asset_value', 1, 50, 't-2');
+      expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument();
     });
   });
 });
