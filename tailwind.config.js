@@ -51,7 +51,15 @@ export default {
                 '3xl': '1.75rem',
             },
             boxShadow: {
-                neon: '0 0 0 1px rgb(var(--primary-400) / 0.35), 0 0 24px -4px rgb(var(--primary-400) / 0.45)',
+                // Gloss: every elevation step carries a specular top edge (--sh-hi) and soft,
+                // layered depth; the colours come from styles/gloss.css and follow the theme.
+                sm: 'inset 0 1px 0 var(--sh-hi), 0 1px 2px var(--sh-1), 0 3px 10px -4px var(--sh-2)',
+                DEFAULT: 'inset 0 1px 0 var(--sh-hi), 0 1px 3px var(--sh-1), 0 6px 14px -6px var(--sh-2)',
+                md: 'inset 0 1px 0 var(--sh-hi), 0 2px 4px var(--sh-1), 0 12px 28px -12px var(--sh-3)',
+                lg: 'inset 0 1px 0 var(--sh-hi), 0 4px 8px -2px var(--sh-1), 0 18px 40px -16px var(--sh-3)',
+                xl: 'inset 0 1px 0 var(--sh-hi), 0 8px 16px -4px var(--sh-2), 0 28px 56px -20px var(--sh-3)',
+                '2xl': 'inset 0 1px 0 var(--sh-hi), 0 12px 24px -6px var(--sh-2), 0 40px 80px -24px var(--sh-3)',
+                neon:'0 0 0 1px rgb(var(--primary-400) / 0.35), 0 0 24px -4px rgb(var(--primary-400) / 0.45)',
                 'neon-sm': '0 0 12px -2px rgb(var(--primary-400) / 0.4)',
                 glass: 'var(--glass-shadow)',
                 card: 'var(--card-shadow)',

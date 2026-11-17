@@ -52,6 +52,24 @@ icons directly. Text symbols (✓ ✕ ★) are text, not icons, and may stay.
 - Radii: lg 10px, xl 14px, 2xl 20px, 3xl 28px.
 - Ambient light: fixed `body::before` radial gradients (cyan top-left, blue bottom-right).
 
+## Gloss (2026-11-17, `styles/gloss.css` + index.css)
+Liquid-glass finish in both themes, with no extra blur (blur stays on the shell panes):
+- **Specular edge:** every elevation step (`shadow-sm` … `shadow-2xl`, redefined in
+  tailwind.config.js) starts with `inset 0 1px 0 var(--sh-hi)`; depth colours `--sh-1..3`
+  are cool navy in light mode and black in dark.
+- **Light strip:** a thin cyan edge light (`--light-strip`) 1px under the top edge of the
+  sidebar, header, modals and every card (block containers from `rounded-lg` up that carry
+  `dark:bg-gray-800`/`slate-800`); never on controls or chips.
+- **Porcelain / sheen:** light cards fall off from white to `space-50`; dark cards keep a
+  lit top sheen (`--card-sheen`).
+- **Controls:** solid buttons get a glossy sheen and specular edge (primary ones a cyan
+  glow); fields sit in recessed wells and get a soft halo on focus.
+- **Canvas:** stronger ambient light, a faint HUD dot grid fading from the top-left light,
+  and fine grain against banding.
+Rules are `:where()`-wrapped, so a screen's own classes win, except the button sheen, which
+needs element specificity to beat Tailwind's `button { background-image: none }` reset
+(guarded by `src/__tests__/GlossLayer.test.ts`).
+
 ## Interaction
 - One visible focus ring everywhere (`:focus-visible`, 2px `--focus-ring`, offset 2).
 - Primary buttons glow softly in dark mode; motion 150–360ms, expo-out easing;

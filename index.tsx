@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css'; // Tailwind directives
+import './styles/gloss.css'; // glossy layer of the design system (after index.css: same-specificity rules win)
 import App from './App';
 
 // Polyfill crypto.randomUUID for non-secure HTTP contexts (localhost dev).

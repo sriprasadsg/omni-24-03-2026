@@ -35,7 +35,7 @@ const NavLink: React.FC<{
         className={`w-full flex items-center px-3 py-2 text-[13px] font-medium rounded-xl transition-all duration-200 relative group border
             ${locked ? 'opacity-40 cursor-not-allowed' : ''}
             ${active && !locked
-                ? 'text-primary-700 dark:text-primary-300 bg-primary-500/10 dark:bg-primary-400/10 border-primary-500/20 dark:border-primary-400/20 shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]'
+                ? 'text-primary-700 dark:text-primary-300 bg-gradient-to-r from-primary-500/15 via-primary-500/[0.07] to-primary-500/[0.02] dark:from-primary-400/20 dark:via-primary-400/[0.08] dark:to-primary-400/[0.02] border-primary-500/25 dark:border-primary-400/25 shadow-[inset_0_1px_0_rgb(255_255_255/0.7),0_4px_14px_-6px_rgb(8_145_178/0.35)] dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.1),0_0_22px_-6px_rgb(34_211_238/0.45)]'
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05]'
             } ${disabled && !locked ? 'opacity-40 cursor-not-allowed' : ''}`}
     >

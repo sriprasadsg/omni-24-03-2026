@@ -1,0 +1,107 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Liquid gloss — the glossy layer of Spatial Glass (2026-11-17)
+   Source of truth: design-system/omni-agent-2030/MASTER.md ("Gloss")
+
+   Light catches the top edge of every raised surface (a specular line), solid
+   controls carry a soft sheen, fields sit in recessed wells, and the canvas has
+   a faint HUD dot grid and grain under the ambient light. No backdrop blur here:
+   blur stays on the shell panes in index.css. Every selector below is wrapped
+   in :where(), so a class a screen sets on its own element still wins.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    /* Elevation colours used by tailwind.config.js boxShadow (sm … 2xl) */
+    --sh-hi: rgb(255 255 255 / 0.6);
+    --sh-1: rgb(16 42 67 / 0.05);
+    --sh-2: rgb(16 42 67 / 0.09);
+    --sh-3: rgb(16 42 67 / 0.18);
+    --gloss-card: inset 0 1px 0 var(--sh-hi), 0 1px 2px var(--sh-1), 0 2px 6px -2px var(--sh-1), 0 14px 32px -16px var(--sh-3);
+    --gloss-sheen: linear-gradient(180deg, rgb(255 255 255) 0%, rgb(var(--space-50)) 100%);
+    --card-sheen: var(--gloss-sheen);
+    /* The light strip: a thin cyan edge light along the top of raised panes */
+    --light-strip: linear-gradient(90deg, rgb(var(--primary-400) / 0) 6%, rgb(var(--primary-400) / 0.55) 50%, rgb(var(--primary-400) / 0) 94%);
+    --gloss-control-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.26) 0%, rgb(255 255 255 / 0.06) 50%, rgb(0 0 0 / 0) 51%, rgb(0 0 0 / 0.06) 100%);
+    --gloss-well: inset 0 1px 2px var(--sh-1);
+    --hud-dot: rgb(var(--space-900) / 0.09);
+    --grain-opacity: 0.025;
+}
+
+.dark {
+    --sh-hi: rgb(255 255 255 / 0.07);
+    --sh-1: rgb(0 0 0 / 0.3);
+    --sh-2: rgb(0 0 0 / 0.42);
+    --sh-3: rgb(0 0 0 / 0.6);
+    --gloss-card: inset 0 1px 0 var(--sh-hi), inset 0 -1px 0 rgb(var(--primary-400) / 0.04), 0 1px 2px var(--sh-1), 0 12px 32px -16px var(--sh-3);
+    --card-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.055) 0%, rgb(255 255 255 / 0.015) 56px, rgb(255 255 255 / 0) 140px);
+    --light-strip: linear-gradient(90deg, rgb(var(--primary-400) / 0) 6%, rgb(var(--primary-400) / 0.4) 50%, rgb(var(--primary-400) / 0) 94%);
+    --gloss-well: inset 0 1px 2px var(--sh-1), inset 0 0 0 1px rgb(255 255 255 / 0.02);
+    --hud-dot: rgb(148 163 184 / 0.13);
+    --grain-opacity: 0.04;
+}
+
+/* ── Canvas: HUD dot grid + grain ──────────────────────────────────────────── */
+/* Fixed, behind content, painted once. The grid fades out away from the top-left light;
+   the grain breaks up banding in the large ambient gradients. */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(circle at 1px 1px, var(--hud-dot) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 30% 0%, #000 0%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 60% at 30% 0%, #000 0%, transparent 75%);
+}
+html::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Raised surfaces ───────────────────────────────────────────────────────── */
+/* The app's cards are `bg-white dark:bg-gray-800 rounded-*` (~460). Cards that set no shadow
+   of their own get the glossy card depth; cards with shadow-* get it from the elevation scale. */
+:where([class*="dark:bg-gray-800"], [class*="dark:bg-slate-800"], .glass-premium):where([class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"]):not(:where(input, select, textarea, option, button, [class*="shadow"])) {
+    box-shadow: var(--gloss-card);
+}
+
+/* Light mode: white cards are porcelain, a faint cool fall-off from the lit top edge; cards
+   (rounded-xl and up, not controls) also carry the light strip, as they do in dark mode. */
+:where(:root:not(.dark)) :where([class*="dark:bg-gray-800"], [class*="dark:bg-slate-800"]):where([class~="bg-white"]):not(:where(input, select, textarea, option)) {
+    background-image: var(--gloss-sheen);
+}
+:where(:root:not(.dark)) :where(div, section, article, li, form):where([class*="dark:bg-gray-800"], [class*="dark:bg-slate-800"]):where([class~="bg-white"]):where([class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"]) {
+    background-image: var(--light-strip), var(--gloss-sheen);
+    background-size: 100% 1px, 100% 100%;
+    background-position: 0 1px, 0 0;
+    background-repeat: no-repeat;
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────────── */
+/* Solid buttons: a sheen from the top and a specular edge, like a lit key. :is(button, a) carries
+   element specificity on purpose: Tailwind's reset sets background-image: none on every button. */
+:is(button, a):where([class~="bg-primary-600"], [class~="bg-primary-500"], [class~="bg-blue-600"], [class~="bg-indigo-600"], [class~="bg-red-600"], [class~="bg-green-600"], [class~="bg-emerald-600"], [class~="bg-amber-600"], [class~="bg-orange-600"], [class~="bg-teal-600"]) {
+    background-image: var(--gloss-control-sheen);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.1), 0 1px 2px var(--sh-1), 0 6px 14px -8px var(--sh-3);
+}
+:is(button, a):where([class~="bg-primary-600"], [class~="bg-primary-500"], [class~="bg-blue-600"], [class~="bg-indigo-600"]) {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.1), 0 1px 2px var(--sh-1), 0 8px 18px -8px rgb(var(--primary-600) / 0.55);
+}
+
+/* Bordered secondary buttons: a specular edge on the light face. */
+:where(button):where([class*="border"]):where([class~="bg-white"], [class*="dark:bg-gray-800"], [class*="dark:bg-gray-700"]):not(:where([class*="shadow"])) {
+    box-shadow: inset 0 1px 0 var(--sh-hi), 0 1px 2px var(--sh-1);
+}
+
+/* Fields sit in a recessed well and light up when focused. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), select, textarea) {
+    box-shadow: var(--gloss-well);
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea):focus-visible {
+    box-shadow: var(--gloss-well), 0 0 0 3px rgb(var(--primary-500) / 0.2);
+}
