@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from database import get_database
@@ -60,6 +60,28 @@ def _normalize_disks(raw_disks) -> List[Dict[str, Any]]:
         })
     return out
 
+async def asset_list_scope(
+    request: Request,
+    tenant_id: Optional[str] = Query(None),
+    tenantId: Optional[str] = Query(None),
+    current_user=Depends(get_current_user),
+) -> str:
+    """The one tenant the asset list covers; "" is the Owner's all-tenants view.
+
+    A tenant user's scope is their own tenant, whatever they send. The Owner's choice is the
+    X-Tenant-ID header (what the tenant switcher sends) or the tenant_id / tenantId query
+    parameter. The header is read here because authentication resets the ambient tenant to the
+    token's own after TenantMiddleware applied it. It is a handler argument so @cached keys on
+    it: a list cached for one scope is never served for another.
+    """
+    if not is_super_admin(current_user.role):
+        return current_user.tenant_id or ""
+    for chosen in (request.headers.get("X-Tenant-ID"), tenant_id, tenantId):
+        if chosen and chosen.strip():
+            return chosen.strip()
+    return ""
+
+
 @router.get("")
 @finance_filtered
 @cached(ttl=60, key_prefix="assets")
@@ -67,7 +89,7 @@ async def get_assets(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     os: Optional[str] = None,
-    tenant_id: Optional[str] = None,
+    scope: str = Depends(asset_list_scope),
     db=Depends(get_database),
     current_user=Depends(get_current_user)
 ):
@@ -79,8 +101,8 @@ async def get_assets(
     query = {}
     
     if is_admin:
-        if tenant_id:
-            query["tenantId"] = tenant_id
+        if scope:
+            query["tenantId"] = scope
     else:
         query["tenantId"] = current_user.tenant_id
 
