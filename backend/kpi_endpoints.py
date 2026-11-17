@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from datetime import datetime, timezone
 from database import get_database
 
@@ -7,19 +7,28 @@ router = APIRouter(prefix="/api/kpi", tags=["Business KPI"])
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
+from rbac_utils import is_super_admin
 import logging
 
 
 logger = logging.getLogger(__name__)
 
 @router.get("/summary")
-async def get_kpi_summary(current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
+async def get_kpi_summary(request: Request, current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))):
     """
     Get absolute counts for agents and assets for the current tenant.
+
+    The Platform Owner counts every tenant unless the tenant switcher names one in X-Tenant-ID
+    ("platform-admin" is the Owner's own, all-tenants view). Authentication resets the ambient
+    tenant to the token's own after TenantMiddleware applied the header, so it is read here.
     """
     db = get_database()
     tenant_id = get_tenant_id()
-    
+    if tenant_id == "platform-admin" and is_super_admin(current_user.role):
+        chosen = (request.headers.get("X-Tenant-ID") or "").strip()
+        if chosen and chosen != "platform-admin":
+            tenant_id = chosen
+
     # Global aggregation for Super Admins
     query = {"tenantId": tenant_id}
     if tenant_id == "platform-admin" or tenant_id is None:
