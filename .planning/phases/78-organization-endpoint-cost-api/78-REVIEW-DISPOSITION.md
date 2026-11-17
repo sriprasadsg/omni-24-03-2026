@@ -5,27 +5,27 @@ titles: json
 findings:
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A stale preview or save failure is re-thrown to the builder toast, rendering the server's \"Select a tenant\" text for the wrong tenant"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Salvage above cost now makes the cost API disagree with the per-asset Finance route for the same asset (parity broken, no test)"
   - id: IN-10
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`handleDeleteConfirm` reads `pending` and `shown` from the render-time closure"
   - id: IN-11
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The new \"Unknown tenant\" 400 is not treated as a blocked state on the frontend"
   - id: IN-12
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The reason code reused for salvage above cost tells the user to fix something that is not wrong"
   - id: IN-13
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The existence check accepts any `tenants` row, including partner organizations"
   - id: IN-06
     severity: info
@@ -79,21 +79,21 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 6
+open: 0
 total: 19
-recorded: 2026-11-17T09:47:17.250Z
+recorded: 2026-11-17T10:00:21.176Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| IN-10 | info | open | - |
-| IN-11 | info | open | - |
-| IN-12 | info | open | - |
-| IN-13 | info | open | - |
+| WR-05 | warning | fixed | 78-REVIEW-FIX.md |
+| WR-06 | warning | fixed | 78-REVIEW-FIX.md |
+| IN-10 | info | fixed | 78-REVIEW-FIX.md |
+| IN-11 | info | fixed | 78-REVIEW-FIX.md |
+| IN-12 | info | fixed | 78-REVIEW-FIX.md |
+| IN-13 | info | fixed | 78-REVIEW-FIX.md |
 | IN-06 | info | fixed | no code change needed: live omni_platform has no itam_reports collection (0 documents, checked read-only 2026-11-17), so no definition is stranded; evidence in 78-REVIEW-FIX.md (not in the current review) |
 | IN-07 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-08 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
