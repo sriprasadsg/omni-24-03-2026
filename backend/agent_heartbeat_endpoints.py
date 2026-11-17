@@ -20,6 +20,7 @@ import licensing
 import pending_agents
 import agent_capabilities
 import asset_identity
+import network_rate
 from autonomous_ops import response_settings
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -194,11 +195,29 @@ async def report_heartbeat(
                 geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
                 update_data["geo"] = geo
 
+    # Live transfer rate, measured between changes of the agent's byte counters.
+    rate_update = network_rate.on_heartbeat(
+        existing_agent, network_rate.network_counters(payload.get("meta")), datetime.now(timezone.utc))
+    update_data.update(rate_update)
+
     await db.agents.update_one(
         _hb_agent_filter,
         {"$set": update_data, "$setOnInsert": {"registeredAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
+
+    # Open Network Topology maps of the tenant pick the new rate up at once.
+    if "networkRate" in rate_update and _hb_tenant_id:
+        try:
+            from websocket_manager import broadcast_endpoint_traffic
+            await broadcast_endpoint_traffic(_hb_tenant_id, {
+                "agentId": (existing_agent or {}).get("id") or agent_id,
+                "hostname": update_data.get("hostname") or (existing_agent or {}).get("hostname"),
+                "ip": update_data.get("ipAddress"),
+                **rate_update["networkRate"],
+            })
+        except Exception as e:
+            logger.debug("Endpoint traffic broadcast failed (non-fatal): %s", e)
 
     # Phase 51-03 (VULN-01/03): upsert the agent's vuln-capability findings into
     # the `vulnerabilities` store the dashboard reads. Non-blocking — a vuln

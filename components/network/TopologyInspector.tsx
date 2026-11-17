@@ -1,15 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Cloud, Shield, Server, Layers, Printer, Monitor, CircleCheck, CircleX } from 'lucide-react';
-import { deviceFacts, isDown } from './networkData';
+import { X, Cloud, Shield, Server, Layers, Printer, Monitor, Globe, CircleCheck, CircleX, ArrowUp, ArrowDown } from 'lucide-react';
+import { deviceFacts, formatAgo, formatBytes, formatRate, isDown, isFreshRate } from './networkData';
 
 export interface Neighbour { id: string; label: string; ip?: string; status?: string }
+export interface Connection { id: string; label: string; ports: number[]; processes: string[]; connections: number }
 
-const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer };
+const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer, globe: Globe };
 
-// The API adds these two nodes itself; say so rather than present them as discovered devices.
-const SYNTHETIC_NOTES: Record<string, string> = {
-    internet: 'The internet edge. The address is the public IP of the platform server, as that server sees it.',
-    'virtual-gateway': 'A placeholder: no gateway, firewall or router is among the discovered devices yet.',
+// Nodes that are not machines the platform found; say what they are.
+const KIND_NOTES: Record<string, string> = {
+    internet: 'The internet edge.',
+    placeholder: 'A placeholder: no gateway is known for these endpoints yet (none in their neighbour tables or among scanned devices).',
+    remote: 'A remote host an endpoint had an open connection to in its last report.',
 };
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -19,14 +21,46 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
     </div>
 );
 
-export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; onSelect: (id: string) => void; onClose: () => void }> = ({ node, neighbours, onSelect, onClose }) => {
+const LiveTransfer: React.FC<{ metrics: any }> = ({ metrics }) => {
+    const fresh = isFreshRate(metrics);
+    const total = typeof metrics?.bytesSent === 'number' && typeof metrics?.bytesRecv === 'number';
+    return (
+        <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Live transfer</h3>
+            {fresh ? (
+                <>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                        {([['Upload', ArrowUp, metrics.sentBps], ['Download', ArrowDown, metrics.recvBps]] as const).map(([label, Icon, bps]) => (
+                            <div key={label} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.05] px-3 py-2">
+                                <p className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><Icon className="w-3 h-3" aria-hidden="true" />{label}</p>
+                                <p className="mt-0.5 text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">{formatRate(bps)}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                        Averaged over {Math.round(metrics.windowSeconds || 0)} s, measured {formatAgo(Date.parse(metrics.rateAt))}
+                    </p>
+                </>
+            ) : (
+                <p className="mt-2 text-[13px] text-gray-500 dark:text-gray-400">No transfer measured in the last 5 minutes.</p>
+            )}
+            {total && (
+                <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
+                    Since the host started: ↑ {formatBytes(metrics.bytesSent)} · ↓ {formatBytes(metrics.bytesRecv)}
+                </p>
+            )}
+        </section>
+    );
+};
+
+export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; connections: Connection[]; onSelect: (id: string) => void; onClose: () => void }> = ({ node, neighbours, connections, onSelect, onClose }) => {
     const closeRef = useRef<HTMLButtonElement>(null);
     useEffect(() => { closeRef.current?.focus({ preventScroll: true }); }, [node.id]);
 
     const Icon = ICONS[node.icon] || Monitor;
     const [title] = String(node.label || node.id).split('\n');
     const facts = deviceFacts(node.details);
-    const note = SYNTHETIC_NOTES[node.id];
+    const note = KIND_NOTES[node.kind];
     const down = isDown(node.status);
 
     return (
@@ -55,6 +89,7 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; o
                     </span>
                 )}
                 {note && <p className="text-[13px] text-gray-600 dark:text-gray-300">{note}</p>}
+                {node.kind === 'agent' && <LiveTransfer metrics={node.metrics} />}
 
                 <dl className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                     {node.zone && <Field label="Zone">{node.zone}</Field>}
@@ -79,6 +114,31 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; o
                             ))}
                         </ul>
                         {node.hosts.length === 0 && <p className="mt-2 text-[13px] text-gray-500 dark:text-gray-400">No hosts detected in this segment.</p>}
+                    </section>
+                )}
+
+                {node.kind === 'agent' && (
+                    <section>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Latest connections ({connections.length})</h3>
+                        {connections.length ? (
+                            <ul className="mt-2 space-y-1">
+                                {connections.map(c => (
+                                    <li key={c.id}>
+                                        <button type="button" onClick={() => onSelect(c.id)}
+                                            className="w-full rounded-lg px-2.5 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-white/[0.05]">
+                                            <span className="block font-mono text-[12px] text-gray-800 dark:text-gray-200 truncate">{String(c.label).split('\n')[0]}</span>
+                                            <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                                {[c.ports.length ? `port ${c.ports.join(', ')}` : '', c.processes.join(', '), `${c.connections} open`].filter(Boolean).join(' · ')}
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="mt-2 text-[13px] text-gray-500 dark:text-gray-400">
+                                None reported. Outbound connections come from the agent's Web Monitor; the Windows agent does not report them yet.
+                            </p>
+                        )}
                     </section>
                 )}
 

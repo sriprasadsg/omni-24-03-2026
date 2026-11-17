@@ -117,6 +117,11 @@ class SocketService {
             this.emit('network_traffic', data);
         });
 
+        // A newly measured endpoint transfer rate: { agentId, hostname, ip, sentBps, recvBps, at, windowSeconds }
+        this.socket.on('endpoint_traffic', (data) => {
+            this.emit('endpoint_traffic', data);
+        });
+
         this.socket.on('support_message', (data) => {
             this.emit('support_message', data);
         });

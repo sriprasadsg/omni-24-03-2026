@@ -17,6 +17,9 @@ const ROLE_HEX: Record<'light' | 'dark', Record<RoleGroup, string>> = {
     dark: { internet: '#3987e5', perimeter: '#d95926', server: '#199e70', device: '#8F9BB0' },
 };
 
+// Endpoint uplink with live transfer, and latest outbound connection.
+export const LINK_LEGEND = { live: 'border-[#0891B2] dark:border-[#22D3EE]', connection: 'border-[#2a78d6] dark:border-[#3987e5]' };
+
 export const ROLE_LEGEND: { group: RoleGroup; label: string; swatch: string }[] = [
     { group: 'internet', label: 'Internet', swatch: 'border-[#2a78d6] dark:border-[#3987e5]' },
     { group: 'perimeter', label: 'Perimeter', swatch: 'border-[#eb6834] dark:border-[#d95926]' },
@@ -35,6 +38,7 @@ const ICON_SVG: Record<string, string> = {
     layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
     printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
     monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/>',
 };
 
 export const iconUri = (icon: string | undefined, color: string) => {
@@ -104,6 +108,9 @@ export const topologyStylesheet = (dark: boolean): any[] => {
                 'transition-duration': 150,
             },
         },
+        // Agent endpoints are the subject of the map; neighbours and remote hosts are context.
+        { selector: 'node[kind = "agent"]', style: { width: 46, height: 46, 'border-width': 2.5, 'font-weight': 600 } },
+        { selector: 'node[kind = "neighbour"], node[kind = "remote"]', style: { width: 32, height: 32, 'font-size': 11 } },
         {
             selector: 'node[status = "Down"], node[status = "down"]',
             style: { 'border-style': 'dashed', 'border-color': CRITICAL, 'border-width': 2 },
@@ -135,7 +142,39 @@ export const topologyStylesheet = (dark: boolean): any[] => {
         },
         {
             selector: 'edge',
-            style: { width: 1.5, 'line-color': t.edge, 'line-opacity': 0.45, 'curve-style': 'bezier', 'overlay-opacity': 0 },
+            style: { width: 'data(width)', 'line-color': t.edge, 'line-opacity': 0.45, 'curve-style': 'bezier', 'overlay-opacity': 0 },
+        },
+        // An endpoint's uplink while it moves data: cyan dashes (animated by the map at a speed set
+        // by the measured rate) and the rate as a label.
+        {
+            selector: 'edge[?active]',
+            style: {
+                'line-color': t.accent,
+                'line-opacity': 0.9,
+                'line-style': 'dashed',
+                'line-dash-pattern': [9, 6],
+                label: 'data(rateLabel)',
+                'font-size': 10,
+                'font-family': 'Inter, system-ui, sans-serif',
+                color: t.label,
+                'text-background-color': t.textBg,
+                'text-background-opacity': 0.85,
+                'text-background-padding': '2px',
+                'text-background-shape': 'roundrectangle',
+            },
+        },
+        // An endpoint's latest outbound connection (from its last report; not a measured stream).
+        {
+            selector: 'edge[kind = "flow"]',
+            style: {
+                'line-color': ROLE_HEX[mode].internet,
+                'line-opacity': 0.55,
+                'line-style': 'dashed',
+                'line-dash-pattern': [3, 4],
+                'target-arrow-shape': 'triangle',
+                'target-arrow-color': ROLE_HEX[mode].internet,
+                'arrow-scale': 0.7,
+            },
         },
         { selector: 'node:selected', style: { 'border-width': 3, 'border-color': t.accent, 'border-style': 'solid', 'background-color': t.node } },
         { selector: '.faded', style: { opacity: 0.18 } },

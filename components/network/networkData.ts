@@ -144,8 +144,9 @@ export const rankBy = <T,>(items: T[], keyOf: (item: T) => string, limit = 8): R
 /** Same id the backend gives zone parents (Python str.replace swaps every space). */
 export const zoneId = (zone: string) => `zone-${zone.replace(/ /g, '-')}`;
 
-// Nodes the API adds itself, so they are not discovered devices.
+// Nodes that are not machines on the network: the Internet, the placeholder gateway, remote hosts.
 const SYNTHETIC_NODES = new Set(['internet', 'virtual-gateway']);
+const NOT_DEVICES = new Set(['internet', 'placeholder', 'remote']);
 
 /**
  * Cytoscape elements from GET /api/network-devices/topology. Every zone a node belongs to gets a
@@ -174,18 +175,76 @@ export const buildTopologyElements = (data: any): any[] => {
     return [...zoneNodes, ...vlans, ...rest, ...liveEdges];
 };
 
-export const isDeviceNode = (d: any) => !!d && !d.isZone && !d.isVlan && !d.source && !SYNTHETIC_NODES.has(d.id);
+export const isDeviceNode = (d: any) => !!d && !d.isZone && !d.isVlan && !d.source && !SYNTHETIC_NODES.has(d.id) && !NOT_DEVICES.has(d.kind);
 
 export const isDown = (status?: string) => !!status && status.toLowerCase() === 'down';
 
-export const topologyStats = (elements: any[]) => {
+// ── Live transfer ───────────────────────────────────────────────────────────
+
+/** A rate the backend measured between two changes of an agent's byte counters (network_rate.py). */
+export interface LiveRate { sentBps: number; recvBps: number; at: string; windowSeconds?: number }
+
+// Same freshness the API applies (network_topology_service.RATE_FRESH_FOR).
+export const RATE_FRESH_MS = 5 * 60 * 1000;
+
+export const formatRate = (bps?: number) => `${formatBytes(bps ?? 0)}/s`;
+
+export const isFreshRate = (m: any, now: number = Date.now()) =>
+    !!m?.rateAt && typeof m.sentBps === 'number' && typeof m.recvBps === 'number' && now - Date.parse(m.rateAt) <= RATE_FRESH_MS;
+
+/**
+ * Overlays rates pushed over the socket (newer than the last fetch) on the endpoint nodes, then
+ * sets what the map draws on every link. Every field is always written: Cytoscape merges data on
+ * update, so a field left out would keep its old value.
+ */
+export const withLiveTraffic = (elements: any[], pushed: Record<string, LiveRate>, now: number = Date.now()): any[] => {
+    const metricsById = new Map<string, any>();
+    const withRates = elements.map(el => {
+        const d = el.data;
+        if (!d || d.source || d.kind !== 'agent') return el;
+        const current = d.metrics || {};
+        const push = pushed[d.agentId];
+        const newer = push && (!current.rateAt || Date.parse(push.at) > Date.parse(current.rateAt));
+        const metrics = newer ? { ...current, sentBps: push.sentBps, recvBps: push.recvBps, rateAt: push.at, windowSeconds: push.windowSeconds } : current;
+        metricsById.set(d.id, metrics);
+        return newer ? { ...el, data: { ...d, metrics } } : el;
+    });
+    return withRates.map(el => {
+        const d = el.data;
+        if (!d?.source) return el;
+        const m = d.kind === 'uplink' ? metricsById.get(d.target) : undefined;
+        const live = !!m && isFreshRate(m, now) && (m.sentBps > 0 || m.recvBps > 0);
+        const total = live ? m.sentBps + m.recvBps : 0;
+        return {
+            ...el,
+            data: {
+                ...d,
+                active: live,
+                rateLabel: live ? `↑ ${formatRate(m.sentBps)}   ↓ ${formatRate(m.recvBps)}` : '',
+                width: live ? Math.min(6, 1.5 + Math.log10(1 + total / 1024)) : 1.5,
+                // Dashes run the way most bytes go: down to the endpoint, or up to its gateway.
+                towardTarget: live ? m.recvBps >= m.sentBps : true,
+                bps: total,
+            },
+        };
+    });
+};
+
+export const topologyStats = (elements: any[], now: number = Date.now()) => {
     const data = elements.map(e => e.data || {});
+    const endpoints = data.filter(d => d.kind === 'agent');
+    const measured = endpoints.filter(d => isFreshRate(d.metrics, now));
     return {
-        devices: data.filter(isDeviceNode).length,
+        endpoints: endpoints.length,
+        devices: data.filter(d => isDeviceNode(d) && d.kind !== 'agent').length,
+        remote: data.filter(d => d.kind === 'remote').length,
         down: data.filter(d => isDeviceNode(d) && isDown(d.status)).length,
         links: data.filter(d => d.source).length,
         zones: data.filter(d => d.isZone).length,
         segments: data.filter(d => d.isVlan).length,
+        measured: measured.length,
+        sentBps: measured.reduce((s, d) => s + d.metrics.sentBps, 0),
+        recvBps: measured.reduce((s, d) => s + d.metrics.recvBps, 0),
     };
 };
 
@@ -200,6 +259,9 @@ export const deviceFacts = (details: any): { label: string; value: string }[] =>
     add('Model', details.model);
     add('OS', details.osVersion);
     add('Subnet', details.subnet);
+    add('Public IP', details.publicIp);
+    add('Agent version', details.agentVersion);
+    add('Found in', details.source);
     if (Array.isArray(details.openPorts) && details.openPorts.length) {
         facts.push({ label: 'Open ports', value: [...details.openPorts].sort((a, b) => Number(a) - Number(b)).join(', ') });
     }

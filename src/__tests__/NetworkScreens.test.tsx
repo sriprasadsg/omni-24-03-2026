@@ -13,12 +13,15 @@ import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 
 const authFetch = vi.fn();
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', authFetch: (...a: unknown[]) => authFetch(...a) }));
-vi.mock('../../services/socketService', () => ({ socketService: { on: vi.fn(), off: vi.fn(), connected: false } }));
+const socketHandlers: Record<string, (data: any) => void> = {};
+vi.mock('../../services/socketService', () => ({
+    socketService: { on: (ev: string, fn: (data: any) => void) => { socketHandlers[ev] = fn; }, off: vi.fn(), connected: false },
+}));
 vi.mock('react-cytoscapejs', () => ({ default: () => null }));
 vi.mock('cytoscape', () => ({ default: { use: vi.fn() } }));
 vi.mock('cytoscape-cose-bilkent', () => ({ default: {} }));
 
-import { collectWebActivity, buildTopologyElements, topologyStats, formatAgentTime, deviceFacts, formatBytes } from '../../components/network/networkData';
+import { collectWebActivity, buildTopologyElements, topologyStats, formatAgentTime, deviceFacts, formatBytes, withLiveTraffic } from '../../components/network/networkData';
 import { useLiveData } from '../../components/network/NetworkKit';
 import { WebMonitoringDashboard } from '../../components/WebMonitoringDashboard';
 import { DataUtilizationDashboard } from '../../components/DataUtilizationDashboard';
@@ -98,7 +101,7 @@ describe('buildTopologyElements', () => {
         expect(byId.get('pc')?.data.parent).toBe('vlan-10');
         expect(byId.get('orphan')?.data.parent).toBe('zone-Internal-LAN');
         expect(byId.has('e3')).toBe(false);
-        expect(topologyStats(els)).toEqual({ devices: 4, down: 1, links: 2, zones: 4, segments: 1 });
+        expect(topologyStats(els)).toMatchObject({ endpoints: 0, devices: 4, remote: 0, down: 1, links: 2, zones: 4, segments: 1, measured: 0 });
     });
 
     it('lists only real device facts', () => {
@@ -177,5 +180,63 @@ describe('screens', () => {
         expect(panel.textContent).toContain('Internet (External)');
         fireEvent.keyDown(window, { key: 'Escape' });
         await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    });
+
+    it('Topology shows an endpoint’s live transfer and latest connections, and takes pushed rates', async () => {
+        authFetch.mockResolvedValue(ok(endpointTopology(new Date(Date.now() - 20_000).toISOString())));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'List' }));
+        expect(await screen.findByText(`↑ ${formatBytes(41_000)}/s · ↓ ${formatBytes(178_000)}/s`)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'EILT0197' }));
+        const panel = await screen.findByRole('complementary', { name: 'Details for EILT0197' });
+        expect(panel.textContent).toContain('Upload');
+        expect(panel.textContent).toContain('api.anthropic.com');
+        expect(panel.textContent).toContain('port 443 · claude, node · 2 open');
+        act(() => socketHandlers.endpoint_traffic({ agentId: 'a-win', sentBps: 2048, recvBps: 4096, at: new Date().toISOString(), windowSeconds: 30 }));
+        expect(await screen.findByText(`↑ ${formatBytes(2048)}/s · ↓ ${formatBytes(4096)}/s`)).toBeTruthy();
+    });
+});
+
+// What GET /api/network-devices/topology answers for one Windows endpoint behind its gateway.
+function endpointTopology(rateAt: string) {
+    return { elements: {
+        nodes: [
+            { data: { id: 'internet', label: 'Internet', zone: 'Internet', kind: 'internet', status: 'up', icon: 'cloud' } },
+            { data: { id: 'gw-192.168.0.1', label: 'Gateway\n(192.168.0.1)', ip: '192.168.0.1', zone: 'Perimeter', role: 'Gateway', kind: 'gateway', status: 'Up' } },
+            { data: { id: 'agent-a-win', label: 'EILT0197\n(192.168.0.105)', ip: '192.168.0.105', zone: 'Internal LAN', role: 'Endpoint', kind: 'agent', agentId: 'a-win', status: 'Up',
+                metrics: { sentBps: 41_000, recvBps: 178_000, rateAt, windowSeconds: 42, bytesSent: 1, bytesRecv: 2 } } },
+            { data: { id: 'remote-api.anthropic.com', label: 'api.anthropic.com', zone: 'Internet', role: 'Remote host', kind: 'remote', status: 'Up', icon: 'globe' } },
+        ],
+        edges: [
+            { data: { id: 'e1', source: 'internet', target: 'gw-192.168.0.1', kind: 'uplink' } },
+            { data: { id: 'e2', source: 'gw-192.168.0.1', target: 'agent-a-win', kind: 'uplink' } },
+            { data: { id: 'e3', source: 'agent-a-win', target: 'remote-api.anthropic.com', kind: 'flow', ports: [443], processes: ['claude', 'node'], connections: 2 } },
+        ],
+    } };
+}
+
+describe('withLiveTraffic', () => {
+    const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+
+    it('animates an uplink only while its endpoint has a fresh rate, and always writes every field', () => {
+        const els = withLiveTraffic(buildTopologyElements(endpointTopology(at(20_000))), {});
+        const edge = (id: string) => els.find(e => e.data.id === id).data;
+        expect(edge('e2')).toMatchObject({ active: true, towardTarget: true });
+        expect(edge('e2').rateLabel).toContain('↑');
+        expect(edge('e2').width).toBeGreaterThan(1.5);
+        expect(edge('e3')).toMatchObject({ active: false, rateLabel: '', width: 1.5 });
+        expect(topologyStats(els)).toMatchObject({ endpoints: 1, remote: 1, measured: 1, sentBps: 41_000 });
+
+        const stale = withLiveTraffic(buildTopologyElements(endpointTopology(at(10 * 60_000))), {});
+        expect(stale.find(e => e.data.id === 'e2').data).toMatchObject({ active: false, rateLabel: '' });
+    });
+
+    it('takes a pushed rate only when it is newer than the fetched one', () => {
+        const fetched = buildTopologyElements(endpointTopology(at(20_000)));
+        const newer = withLiveTraffic(fetched, { 'a-win': { sentBps: 1, recvBps: 0, at: at(0) } });
+        expect(newer.find(e => e.data.id === 'agent-a-win').data.metrics.sentBps).toBe(1);
+        expect(newer.find(e => e.data.id === 'e2').data.towardTarget).toBe(false);
+        const older = withLiveTraffic(fetched, { 'a-win': { sentBps: 1, recvBps: 0, at: at(60_000) } });
+        expect(older.find(e => e.data.id === 'agent-a-win').data.metrics.sentBps).toBe(41_000);
     });
 });

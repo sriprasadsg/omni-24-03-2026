@@ -457,6 +457,14 @@ async def broadcast_network_traffic(tenant_id: str, traffic_event: dict):
     for sid in connected_clients[tenant_id]:
         await sio.emit('network_traffic', traffic_event, room=sid)
 
+async def broadcast_endpoint_traffic(tenant_id: str, rate: dict):
+    """Push an endpoint's newly measured transfer rate to the tenant's topology maps.
+
+    payload: { agentId, hostname, ip, sentBps, recvBps, at, windowSeconds }
+    """
+    for sid in list(connected_clients.get(tenant_id, ())):
+        await sio.emit('endpoint_traffic', rate, room=sid)
+
 async def broadcast_mitre_heatmap(tenant_id: str, heatmap: list):
     """Push a fresh MITRE ATT&CK heatmap to all connected clients of a tenant."""
     if tenant_id not in connected_clients:
