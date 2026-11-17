@@ -35,6 +35,8 @@ interface ReportsPanelProps {
   needsTenant?: boolean;
 }
 
+const isTenantRejection = (err: unknown) => SELECT_TENANT_RE.test(err instanceof Error ? err.message : '');
+
 const SELECT_TENANT_NOTE_ID = 'itam-reports-select-tenant-note';
 const CUSTOM_SELECT_TENANT_NOTE_ID = 'itam-custom-reports-select-tenant-note';
 
@@ -60,8 +62,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
 
   // True when the error is that 400. The message is only matched, never rendered (T-78-07).
   function takeTenantRejection(err: unknown): boolean {
-    const message = err instanceof Error ? err.message : '';
-    if (!SELECT_TENANT_RE.test(message)) return false;
+    if (!isTenantRejection(err)) return false;
     setTenantRejected(true);
     // Nothing shown or running belongs to a blocked tab (IN-08).
     runSeq.current += 1;
@@ -182,8 +183,12 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       if (seq !== runSeq.current) return;
       setShown({ kind: null, key: null, page: targetPage, data: r });
     } catch (e) {
-      // The same blocked state as a run; any other failure goes to the builder's own toast.
-      if (seq === runSeq.current && takeTenantRejection(e)) return;
+      // The same blocked state as a run; any other failure goes to the builder's own toast. A tenant
+      // rejection from a superseded preview is dropped: it says nothing about the current tenant (WR-05).
+      if (isTenantRejection(e)) {
+        if (seq === runSeq.current) takeTenantRejection(e);
+        return;
+      }
       throw e;
     } finally {
       setBuilderBusy(false);
@@ -202,7 +207,10 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       showToast('Report saved.', 'success');
       await runSavedCustom(saved.id, 1);
     } catch (e) {
-      if (epoch === tenantEpoch.current && takeTenantRejection(e)) return;
+      if (isTenantRejection(e)) {
+        if (epoch === tenantEpoch.current) takeTenantRejection(e);
+        return;
+      }
       throw e;
     } finally {
       setBuilderBusy(false);

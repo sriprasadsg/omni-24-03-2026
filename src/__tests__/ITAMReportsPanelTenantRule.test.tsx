@@ -370,6 +370,45 @@ describe('a Select a tenant rejection on the Reports tab (Phase 78 plan 15)', ()
     expect(showToast).not.toHaveBeenCalled();
   });
 
+  // WR-05: a failure from a request the panel has already moved past is dropped silently. It is not the
+  // blocked state of the new tenant, and the server's text must not reach the builder's toast.
+  it('a stale builder preview rejection after a tenant switch raises no toast and blocks nothing', async () => {
+    const held = deferred();
+    previewItamCustomReport.mockReturnValue(held.promise);
+    const { rerender } = await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: /Create Custom Report/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset Tag' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(previewItamCustomReport).toHaveBeenCalledTimes(1));
+
+    rerender(<ReportsPanel tenantId="t-2" />);
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalledWith('t-2'));
+    await settle(() => held.reject(new Error(REJECTION)));
+
+    expect(showToast).not.toHaveBeenCalled();
+    expect(screen.queryByText(PREBUILT_NOTE)).not.toBeInTheDocument();
+    expect(runButton()).toBeEnabled();
+  });
+
+  it('a stale builder save rejection after a tenant switch raises no toast and blocks nothing', async () => {
+    const held = deferred();
+    saveItamCustomReport.mockReturnValue(held.promise);
+    const { rerender } = await renderPanel({ tenantId: 't-1' });
+    fireEvent.click(await screen.findByRole('button', { name: /Create Custom Report/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset Tag' }));
+    fireEvent.change(screen.getByLabelText('Report Name'), { target: { value: 'Mine' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Report/ }));
+    await waitFor(() => expect(saveItamCustomReport).toHaveBeenCalledTimes(1));
+
+    rerender(<ReportsPanel tenantId="t-2" />);
+    await waitFor(() => expect(listItamCustomReports).toHaveBeenCalledWith('t-2'));
+    await settle(() => held.reject(new Error(REJECTION)));
+
+    expect(showToast).not.toHaveBeenCalled();
+    expect(screen.queryByText(PREBUILT_NOTE)).not.toBeInTheDocument();
+    expect(runButton()).toBeEnabled();
+  });
+
   it('a builder save failing for another reason still raises its toast', async () => {
     saveItamCustomReport.mockRejectedValue(new Error('boom'));
     await renderPanel({ tenantId: 't-1' });
