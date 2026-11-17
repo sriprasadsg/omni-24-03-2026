@@ -313,6 +313,22 @@ class TestOwnerChoosesTenant:
         assert cost.status_code == 400 and cost.json()["detail"] == UNKNOWN_TENANT_DETAIL
 
     @pytest.mark.asyncio
+    async def test_owner_header_for_a_partner_organization_is_400_like_an_unknown_tenant(self, client, seeded):
+        # IN-13: the tenants collection also holds partner organizations; they are not customer tenants.
+        await seeded.tenants.insert_one({"id": "partner-x", "name": "Partner X", "type": "partner"})
+        owner = token("Super Admin", "platform-admin")
+        exports_before = await seeded.itam_report_exports.count_documents({})
+        for route in ROUTES:
+            result = await call(client, route, owner, header="partner-x")
+            assert result.status_code == 400, route
+            assert result.json()["detail"] == UNKNOWN_TENANT_DETAIL, route
+            assert_no_figure(result)
+        assert await seeded.itam_reports.count_documents({"tenantId": "partner-x"}) == 0
+        assert await seeded.itam_report_exports.count_documents({}) == exports_before
+        cost = await client.get("/api/itam/costs/summary", headers=_headers(owner, "partner-x"))
+        assert cost.status_code == 400 and cost.json()["detail"] == UNKNOWN_TENANT_DETAIL
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("tenant", TENANTS)
     async def test_owner_with_tenant_covers_only_that_tenant(self, client, tenant):
         owner = token("Super Admin", "platform-admin")

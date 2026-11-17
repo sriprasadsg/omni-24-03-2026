@@ -11,7 +11,8 @@ Only the Owner tier, on a session (never an API key), may choose a tenant (D-15,
 by the route guard with 403 before this resolver runs; Platform Support and an Owner with no
 choice get 400 here, before any database read.
 
-A tenant the Owner names in the header must exist (IN-01): an unknown id is a 400, so a typo
+A tenant the Owner names in the header must exist (IN-01) and be a customer tenant (IN-13: a partner
+organization row is not one, as in plan_service): an unknown id is a 400, so a typo
 cannot read empty figures or have an export or a saved report written under a tenant that does not
 exist. The database is reached only for that header case, through the caller's own get_database.
 
@@ -47,7 +48,7 @@ async def resolve_itam_tenant(request: Request, current_user: TokenData, get_db:
         tenant_id = header
     if not tenant_id or tenant_id == rbac_defaults.PLATFORM_TENANT_ID:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TENANT_REQUIRED_DETAIL)
-    if from_header and await get_db().tenants.find_one({"id": tenant_id}, {"_id": 1}) is None:
+    if from_header and await get_db().tenants.find_one({"id": tenant_id, "type": {"$ne": "partner"}}, {"_id": 1}) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UNKNOWN_TENANT_DETAIL)
     tenant_context.set_tenant_id(tenant_id)
     return tenant_id
