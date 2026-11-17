@@ -3,6 +3,10 @@ phase: 78
 review: 78-REVIEW.md
 titles: json
 findings:
+  - id: WR-08
+    severity: warning
+    disposition: open
+    title: "Book-value route echoes the raw unreadable cost, and FinancePanel pre-fills the Purchase Cost field from it"
   - id: WR-07
     severity: warning
     disposition: fixed
@@ -87,17 +91,18 @@ findings:
     severity: info
     disposition: fixed
     title: "A salvage value above the purchase cost produces a book value above the purchase cost"
-open: 0
-total: 21
-recorded: 2026-11-17T10:53:35.788Z
+open: 1
+total: 22
+recorded: 2026-11-17T10:54:53.241Z
 ---
 
 # Phase 78: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-07 | warning | fixed | 78-REVIEW-FIX.md |
-| IN-14 | info | fixed | 78-REVIEW-FIX.md |
+| WR-08 | warning | open | - |
+| WR-07 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
+| IN-14 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | WR-05 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | WR-06 | warning | fixed | 78-REVIEW-FIX.md (not in the current review) |
 | IN-10 | info | fixed | 78-REVIEW-FIX.md (not in the current review) |
