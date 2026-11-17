@@ -204,4 +204,25 @@ describe('ReportsPanel stale responses (Phase 78 plan 11)', () => {
     expect(screen.getByText('IT-KEEP')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Export CSV/ })).toBeInTheDocument();
   });
+
+  it("a failed run after a successful one keeps the earlier report's title, rows and export target", async () => {
+    runItamPrebuiltReport
+      .mockResolvedValueOnce(resultFor('Asset Value', 'IT-A'))
+      .mockRejectedValueOnce(new Error('boom'));
+    generateItamReport.mockResolvedValue({ filename: 'a.csv' });
+    downloadItamReport.mockResolvedValue(undefined);
+    await renderPanel({ tenantId: 't-1' });
+
+    const runButtons = screen.getAllByRole('button', { name: 'Run Report' });
+    fireEvent.click(runButtons[0]);
+    expect(await screen.findByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(runButtons[1]);
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('boom', 'error'));
+
+    expect(screen.getByRole('heading', { name: 'Asset Value', level: 3 })).toBeInTheDocument();
+    expect(screen.getByText('IT-A')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    await waitFor(() => expect(downloadItamReport).toHaveBeenCalledWith('a.csv'));
+    expect(generateItamReport).toHaveBeenLastCalledWith('prebuilt', 'asset_value', 'csv', 't-1');
+  });
 });
