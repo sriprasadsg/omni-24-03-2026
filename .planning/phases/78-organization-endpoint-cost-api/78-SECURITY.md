@@ -69,7 +69,20 @@ created: "2026-11-17"
 | T-78-26 | Tampering | The temporary pre-phase worktree left registered or created inside the repository | low | mitigate | Worktree in the session scratchpad, removed and pruned; `git worktree list` identical before and after (78-10) | closed |
 | T-78-27 | Information Disclosure | ReportsPanel async writers (`runPrebuilt`, `runSavedCustom`, `handlePreviewCustom`) after a tenant switch or a newer request (78-11) | medium | mitigate | `runSeq` ref (`components/itam/ReportsPanel.tsx:88`) taken by every run and preview (`:107`, `:132`, `:158`) and bumped by the tenant-change effect (`:93`); superseded responses and failures dropped (`if (seq !== runSeq.current) return`); `running` cleared only by the current request; result block gated on `resultIsCurrent` (`:222`, `:321`); 7 tests in `src/__tests__/ITAMReportsPanelStaleResponse.test.tsx` plus the console test, RED recorded before each fix (0cebd4d9d, ebdca3fd7); full frontend suite 2,242 passed | closed |
 | T-78-28 | Tampering | User's uncommitted hunks in ReportsPanel.tsx, ITAMConsole.test.tsx, App.tsx, services/apiService.ts, .planning/ui-reviews/.gitignore (78-11) | medium | mitigate | Patch reverse-apply staging with `git update-index`; after the last commit `git diff --cached --quiet` exits 0, `git diff --numstat` shows `0 1` for each user-removed lint comment, HEAD still holds both comments, and the other three files remain ` M` and unstaged (orchestrator check 2026-11-17) | closed |
-| T-78-SC | Tampering | npm/pip installs | low | accept | No package installed: `package.json`, lock files and requirements files unchanged over `fd4e00f24..HEAD`, including gap plan 78-11 (`edbb1bb46..HEAD` dependency-file diff empty). See AR-78-01 | closed |
+| T-78-29 | Information Disclosure | Custom report run, preview and export for a platform session (rows and Book Value blended across tenants) | high | mitigate | `resolve_itam_tenant(request, current_user)` is the first call in `run_saved_custom_report`, `preview_custom_report` and `export_custom_report` (`backend/itam_reporting_endpoints.py:280, 327, 355`; export resolves before the format check); Owner without a tenant 400, Owner with a tenant sees only that tenant's rows and Book Value, through the real middleware and real Mongo in `test_itam_custom_report_tenant.py` (78-12, 21 tests) | closed |
+| T-78-30 | Information Disclosure / Tampering | Saved-definition list, get, save and delete for a platform session | medium | mitigate | Resolver first in `create_custom_report`, `list_custom_reports`, `get_custom_report`, `delete_custom_report` (`itam_reporting_endpoints.py:236, 261, 294, 308`); every `itam_reports` find/find_one/delete_one/insert carries `"tenantId": tenant_id` (lines 241, 263, 296, 310, 329, 362); foreign and unknown ids answer the same 404 and a refused delete leaves the document (78-12) | closed |
+| T-78-31 | Elevation of Privilege | X-Tenant-ID sent by a tenant admin, Platform Support or Billing on custom routes | high | mitigate | Header honoured only when `auth_source == "session"` and `platform_tier(role) == "owner"` (`itam_tenant_scope.py:30-34`, resolver code unchanged by 78-12); tests: tenant admin spoof ignored, Support 400 on list/get and 403 elsewhere, Billing 403 on all seven, 10 concurrent rounds never mix (78-12) | closed |
+| T-78-32 | Tampering | Owner saving a custom definition under a fabricated X-Tenant-ID | low | accept | See AR-78-03 | closed |
+| T-78-33 | Tampering | ReportsPanel export and pagination after a failed or superseded run (WR-04) | medium | mitigate | One `shown` value (kind, key, page, data) plus a separate `pending` run in `components/itam/ReportsPanel.tsx:46-47`, written only after the runSeq check; title, export target and page controls derived from it in `components/itam/ReportResultView.tsx`; tests T-h..T-k in `ITAMReportsPanelStaleResponse.test.tsx` (78-13) | closed |
+| T-78-34 | Information Disclosure | Export started for the previous tenant downloading after an Owner tenant switch (IN-05) | low | mitigate | `tenantEpoch` ref bumped by the tenant-change effect (`ReportsPanel.tsx:107-113`); `handleExport` skips download and toast for a stale epoch and resets `exportingFormat` only for the current one (lines 222-233); tests T-l..T-n (78-13) | closed |
+| T-78-35 | Tampering | The user's uncommitted hunk in ReportsPanel.tsx and other user-modified files during 78-13 | medium | mitigate | Insertion staging with `git update-index --cacheinfo`; after the gap round the user numstat is unchanged (App.tsx 21/15, ReportsPanel.tsx 0/1, apiService.ts 10/0, ITAMConsole.test.tsx 0/1, ITAMReportsPanel.test.tsx 4/3) and the index is clean | closed |
+| T-78-36 | Information Disclosure | Saved-reports list after a tenant switch and custom calls sent without the selected tenant | medium | mitigate | Trailing `tenantId` on `listItamCustomReports`, `saveItamCustomReport`, `deleteItamCustomReport`, `previewItamCustomReport`, `runItamCustomReport` and `generateItamReport` (`services/apiService.ts:5992-6099`); `listSeq` guard and list cleared on a switch (`ReportsPanel.tsx:75-89`); no list request without a tenant; `ITAMReportsPanelTenantRule.test.tsx` (78-14) | closed |
+| T-78-37 | Tampering | A save or delete completing after a tenant switch | low | mitigate | `tenantEpoch` captured in the save and delete handlers; stale completions return before reload, toast or state change (`ReportsPanel.tsx:187-212`); tests for both (78-14) | closed |
+| T-78-38 | Tampering | User hunks in services/apiService.ts, ReportsPanel.tsx, ITAMConsole.test.tsx, ITAMReportsPanel.test.tsx during 78-14 | medium | mitigate | Insertion and patch staging with `git update-index`; HEAD lacks `setUserPassword` and the `ComponentProps` import, both removed lint lines stay in HEAD; numstat unchanged (see T-78-35) | closed |
+| T-78-39 | Information Disclosure | Reports tab for Platform Support (enabled controls, server detail shown in toasts) | low | mitigate | `needsTenant = (isSuperAdminView \|\| isPlatformView) && !tenantId` (`components/itam/ITAMConsole.tsx:85`), App.tsx passes `isPlatformView={isPlatformRoleName(...)}`; `takeTenantRejection` matches the 400 detail with `SELECT_TENANT_RE` and shows the no-tenant state in the list, pre-built run, saved run and export catches (`ReportsPanel.tsx:59-64, 90, 132, 154, 230`) (78-15) | closed |
+| T-78-40 | Elevation of Privilege | Client-side gating read as access control | low | accept | See AR-78-04 | closed |
+| T-78-41 | Tampering | User hunks in App.tsx, ReportsPanel.tsx, ITAMConsole.test.tsx during 78-15 | medium | mitigate | Patch and insertion staging with `git update-index`; HEAD App.tsx lacks `handleSetUserPassword` while the working tree keeps it; services/apiService.ts and ITAMReportsPanel.test.tsx untouched; numstat unchanged (see T-78-35) | closed |
+| T-78-SC | Tampering | npm/pip installs | low | accept | No package installed: `package.json`, lock files and requirements files unchanged over `fd4e00f24..HEAD`, including gap plan 78-11 (`edbb1bb46..HEAD` dependency-file diff empty) and gap round 2 78-12..78-15 (`fd4e00f24..HEAD` dependency-file diff still empty). See AR-78-01 | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -83,6 +96,8 @@ created: "2026-11-17"
 |---------|------------|-----------|-------------|------|
 | AR-78-01 | T-78-SC | No npm or pip package is added by any Phase 78 plan; verified by an empty dependency-file diff over `fd4e00f24..HEAD` | Plan-time disposition (78 plans, bd9d608f9 / eb208bf1b) | 2026-11-17 |
 | AR-78-02 | T-78-14 | The export download route is unchanged; its existing tenant-ownership check on `itam_report_exports` (Super Admin bypass as before) stays the control, and exports now record the resolved tenant | Plan-time disposition (78-05 plan, eb208bf1b) | 2026-11-17 |
+| AR-78-03 | T-78-32 | Only the Owner tier can choose X-Tenant-ID; a fabricated id stores a definition under a tenant that does not exist and reads or exposes no real tenant's data. Same class as 78-REVIEW IN-01 (unvalidated Owner X-Tenant-ID), which stays out of scope (A-78-24) | Plan-time disposition (78-12 plan, a96451eb8) | 2026-11-17 |
+| AR-78-04 | T-78-40 | The client no-tenant state is presentation only; the resolver's 400 (T-78-29..T-78-31) and the view and route guards' 403 remain the controls and were not changed by 78-15 (PROH-78-16) | Plan-time disposition (78-15 plan, 05bbe5d7b) | 2026-11-17 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -95,6 +110,7 @@ created: "2026-11-17"
 | 2026-11-17 | 27 | 27 | 0 | secure-phase (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule) |
 | 2026-11-17 | 27 | 26 | 0 (1 open below the high threshold: T-78-15) | orchestrator, after gsd-verifier found the ReportsPanel stale-response gap; also noted: 78-REVIEW WR-02 (custom report routes keep today's tenant handling per A-78-17, so a Platform Owner's custom report can blend tenants) has no accepted-risk row yet and awaits the user's call |
 | 2026-11-17 | 29 | 29 | 0 | secure-phase after gap plan 78-11 (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule): T-78-27 and T-78-28 added and closed, T-78-15 closed again; WR-02 still awaits the user's call |
+| 2026-11-17 | 42 | 42 | 0 | secure-phase after gap round 2 78-12..78-15 (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule): T-78-29..T-78-41 added and closed (T-78-32 and T-78-40 accepted as AR-78-03/AR-78-04); WR-02 resolved by the user's decision to fix it (D-13 amended), now mitigated by T-78-29..T-78-31 |
 
 ---
 
@@ -105,7 +121,7 @@ created: "2026-11-17"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-17 (threats_open 0 at the high threshold; T-78-15, medium, reopened the same day after verification and closed again after gap plan 78-11 added T-78-27/T-78-28; all 29 threats closed. 78-REVIEW WR-02, custom report routes keeping today's tenant handling, still has no accepted-risk row and awaits the user's call)
+**Approval:** verified 2026-11-17 (threats_open 0 at the high threshold; T-78-15, medium, reopened the same day after verification and closed again after gap plan 78-11 added T-78-27/T-78-28; all 29 threats closed. 78-REVIEW WR-02, custom report routes keeping today's tenant handling, still has no accepted-risk row and awaits the user's call). Re-verified 2026-11-17 after gap round 2 (78-12..78-15): 42 threats, all closed, threats_open 0; the user chose to fix WR-02 (D-13 amended), and the custom report routes now resolve one tenant (T-78-29..T-78-31)
 
 ## Security Audit 2026-11-17
 
@@ -113,4 +129,12 @@ created: "2026-11-17"
 |---|---|
 | Threats found | 29 |
 | Closed | 29 |
+| Open | 0 |
+
+## Security Audit 2026-11-17
+
+| Metric | Count |
+|---|---|
+| Threats found | 42 |
+| Closed | 42 |
 | Open | 0 |
