@@ -53,21 +53,21 @@ export const VendorFormModal: React.FC<VendorFormModalProps> = ({ isOpen, onClos
             <form id="vendor-form" onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className={labelCls}>Vendor Name</label>
-                    <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputCls} />
+                    <input aria-label="Vendor Name" type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputCls} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className={labelCls}>Website</label>
-                        <input type="url" required value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} className={inputCls} />
+                        <input aria-label="Website" type="url" required value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} className={inputCls} />
                     </div>
                     <div>
                         <label className={labelCls}>Category</label>
-                        <input type="text" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls} placeholder="e.g. Cloud Provider" />
+                        <input aria-label="Category" type="text" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls} placeholder="e.g. Cloud Provider" />
                     </div>
                 </div>
                 <div>
                     <label className={labelCls}>Criticality</label>
-                    <select value={formData.criticality} onChange={e => setFormData({ ...formData, criticality: e.target.value })} className={inputCls}>
+                    <select aria-label="Criticality" value={formData.criticality} onChange={e => setFormData({ ...formData, criticality: e.target.value })} className={inputCls}>
                         <option value="Low">Low</option>
                         <option value="Medium">Medium</option>
                         <option value="High">High</option>
@@ -77,11 +77,11 @@ export const VendorFormModal: React.FC<VendorFormModalProps> = ({ isOpen, onClos
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className={labelCls}>Contact Name</label>
-                        <input type="text" value={formData.contact_name} onChange={e => setFormData({ ...formData, contact_name: e.target.value })} className={inputCls} />
+                        <input aria-label="Contact Name" type="text" value={formData.contact_name} onChange={e => setFormData({ ...formData, contact_name: e.target.value })} className={inputCls} />
                     </div>
                     <div>
                         <label className={labelCls}>Contact Email</label>
-                        <input type="email" value={formData.contact_email} onChange={e => setFormData({ ...formData, contact_email: e.target.value })} className={inputCls} />
+                        <input aria-label="Contact Email" type="email" value={formData.contact_email} onChange={e => setFormData({ ...formData, contact_email: e.target.value })} className={inputCls} />
                     </div>
                 </div>
             </form>

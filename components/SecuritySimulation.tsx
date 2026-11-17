@@ -162,7 +162,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                             <div className="space-y-5">
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Asset</label>
-                                    <select
+                                    <select aria-label="Target Asset"
                                         value={selectedAsset}
                                         onChange={(e) => setSelectedAsset(e.target.value)}
                                         className="w-full rounded-xl border-slate-200 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white text-sm px-4 py-3"
@@ -176,7 +176,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
 
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Injection Technique</label>
-                                    <select
+                                    <select aria-label="Injection Technique"
                                         value={technique}
                                         onChange={(e) => setTechnique(e.target.value)}
                                         className="w-full rounded-xl border-slate-200 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white text-sm px-4 py-3"
@@ -189,7 +189,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
 
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Target Process</label>
-                                    <input
+                                    <input aria-label="Target Process"
                                         type="text"
                                         value={target}
                                         onChange={(e) => setTarget(e.target.value)}

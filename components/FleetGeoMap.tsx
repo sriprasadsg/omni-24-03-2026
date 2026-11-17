@@ -118,7 +118,7 @@ export function FleetGeoMap() {
       {/* Filters (GMAP-02) */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <label className="text-xs text-gray-600 dark:text-gray-400">Tenant</label>
-        <select
+        <select aria-label="Tenant"
           value={tenantFilter}
           onChange={(e) => { setTenantFilter(e.target.value); setSelected(null); setExpanded(null); }}
           className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm px-2 py-1"

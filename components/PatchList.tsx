@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Patch, PatchSeverity, PatchStatus } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { EnrichedPatchModal } from './EnrichedPatchModal';
+import { activateOnKey } from './ui/a11y';
 
 interface PatchListProps {
   patches: Patch[];
@@ -125,7 +126,7 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
     <div>
       <div className="p-4 flex flex-col md:flex-row gap-4">
         <div className="flex-grow">
-          <input
+          <input aria-label="Search by CVE or description"
             type="text"
             placeholder="Search by CVE or description..."
             value={searchTerm}
@@ -190,7 +191,7 @@ export const PatchList: React.FC<PatchListProps> = ({ patches, selectedPatchIds,
             {filteredPatches.map(patch => (
               <tr
                 key={patch.id}
-                onClick={() => handleRowClick(patch)}
+                tabIndex={0} onKeyDown={activateOnKey} onClick={() => handleRowClick(patch)}
                 className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
               >
                 {canManagePatches && (

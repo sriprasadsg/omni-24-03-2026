@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { ActivityIcon, TrendingUpIcon, AlertTriangleIcon, CheckCircleIcon } from './icons';
+import { activateOnKey } from './ui/a11y';
 
 interface DriftMetrics {
     psi_score: number;
@@ -216,7 +217,7 @@ export const ModelMonitoringDashboard: React.FC<ModelMonitoringDashboardProps> =
                         modelsStatus.map((model) => (
                             <div
                                 key={model.model_id}
-                                onClick={() => setSelectedModel(model)}
+                                role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedModel(model)}
                                 className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedModel?.model_id === model.model_id
                                         ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 shadow-lg'
                                         : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md'

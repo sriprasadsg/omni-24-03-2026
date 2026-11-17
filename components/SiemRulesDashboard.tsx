@@ -162,7 +162,7 @@ export const SiemRulesDashboard: React.FC = () => {
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">Rule Name</label>
-                            <input
+                            <input aria-label="Rule Name"
                                 type="text" value={name} onChange={e => setName(e.target.value)}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 placeholder="e.g. Multiple Failed Logins"
@@ -170,7 +170,7 @@ export const SiemRulesDashboard: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">Description</label>
-                            <textarea
+                            <textarea aria-label="Description"
                                 value={description} onChange={e => setDescription(e.target.value)} rows={2}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 placeholder="What does this rule detect?"
@@ -178,7 +178,7 @@ export const SiemRulesDashboard: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">Severity</label>
-                            <select
+                            <select aria-label="Severity"
                                 value={severity} onChange={e => setSeverity(e.target.value)}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             >
@@ -191,7 +191,7 @@ export const SiemRulesDashboard: React.FC = () => {
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-xs font-medium dark:text-gray-400 mb-1">Event Field</label>
-                                    <select
+                                    <select aria-label="Event Field"
                                         value={conditionKey} onChange={e => setConditionKey(e.target.value)}
                                         className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                                     >
@@ -202,7 +202,7 @@ export const SiemRulesDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex-1">
                                     <label className="block text-xs font-medium dark:text-gray-400 mb-1">Equals Value</label>
-                                    <input
+                                    <input aria-label="Equals Value"
                                         type="text" value={conditionValue} onChange={e => setConditionValue(e.target.value)}
                                         className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                                         placeholder="e.g. login_failed"
@@ -212,7 +212,7 @@ export const SiemRulesDashboard: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">Remediation Steps</label>
-                            <input
+                            <input aria-label="Remediation Steps"
                                 type="text" value={remediation} onChange={e => setRemediation(e.target.value)}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 placeholder="e.g. Block IP, notify security team"

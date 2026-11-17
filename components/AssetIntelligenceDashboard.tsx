@@ -122,7 +122,7 @@ export default function AssetIntelligenceDashboard() {
             </button>
           ))}
         </div>
-        <input
+        <input aria-label="Search"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search..."

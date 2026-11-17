@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { authFetch } from '../services/apiService';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 const API = '/api';
 
@@ -162,7 +163,7 @@ export default function DLPDashboard() {
             {tab === 'scan' && (
                 <div style={{ maxWidth: 600 }}>
                     <div
-                        onClick={() => fileRef.current?.click()}
+                        tabIndex={0} onKeyDown={activateOnKey} onClick={() => fileRef.current?.click()}
                         style={{ cursor: 'pointer', background: 'var(--ink-panel)', borderRadius: 12, padding: 32, border: '2px dashed var(--ink-line-strong)', textAlign: 'center', marginBottom: 24 }}>
                         <div style={{ fontSize: 48, marginBottom: 12 }}><Glyph e="📁" /></div>
                         <p style={{ color: 'var(--ink-muted)', margin: 0 }}>Click or drag a file to scan for PII and sensitive data</p>
@@ -197,12 +198,12 @@ export default function DLPDashboard() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr auto', gap: 12, alignItems: 'end' }}>
                             <div>
                                 <label style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 4 }}>Policy Name</label>
-                                <input value={newPolicy.name} onChange={e => setNewPolicy(p => ({ ...p, name: e.target.value }))}
+                                <input aria-label="Policy Name" value={newPolicy.name} onChange={e => setNewPolicy(p => ({ ...p, name: e.target.value }))}
                                     style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', boxSizing: 'border-box' }} placeholder="e.g. NHS Patient ID" />
                             </div>
                             <div>
                                 <label style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 4 }}>Regex Pattern</label>
-                                <input value={newPolicy.pattern} onChange={e => setNewPolicy(p => ({ ...p, pattern: e.target.value }))}
+                                <input aria-label="Regex Pattern" value={newPolicy.pattern} onChange={e => setNewPolicy(p => ({ ...p, pattern: e.target.value }))}
                                     style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', boxSizing: 'border-box', fontFamily: 'monospace' }} placeholder="\b\d{3} \d{3} \d{4}\b" />
                             </div>
                             <button onClick={addPolicy} disabled={saving}

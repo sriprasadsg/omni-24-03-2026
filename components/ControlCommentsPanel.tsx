@@ -144,7 +144,7 @@ export const ControlCommentsPanel: React.FC<ControlCommentsPanelProps> = ({ cont
 
                 {isReviewer && (
                     <form onSubmit={handleSubmit} className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                        <textarea
+                        <textarea aria-label="Add a comment"
                             className="w-full text-xs p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
                             rows={2}
                             placeholder="Add a comment... (use @username to mention someone)"

@@ -109,7 +109,7 @@ export const VoiceBotSettingsPanel: React.FC<VoiceBotSettingsPanelProps> = ({ se
                     <>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Voice Selection</label>
-                            <select
+                            <select aria-label="Voice Selection"
                                 name="voiceURI"
                                 value={currentSettings.voiceURI}
                                 onChange={handleChange}
@@ -161,7 +161,7 @@ export const VoiceBotSettingsPanel: React.FC<VoiceBotSettingsPanelProps> = ({ se
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Reply</label>
-                            <textarea
+                            <textarea aria-label="Default Reply"
                                 name="defaultResponse"
                                 value={currentSettings.defaultResponse ?? ''}
                                 onChange={(e) => setCurrentSettings(prev => ({ ...prev, defaultResponse: e.target.value }))}

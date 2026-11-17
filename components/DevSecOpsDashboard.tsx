@@ -8,6 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import { UploadSbomModal } from './UploadSbomModal';
 import { ComponentDetailModal } from './ComponentDetailModal';
 import { SastFindingModal } from './SastFindingModal';
+import { activateOnKey } from './ui/a11y';
 
 interface DevSecOpsDashboardProps {
     sboms: Sbom[];
@@ -60,7 +61,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
             </div>
 
             <div className="flex justify-between items-center mb-4">
-                <input
+                <input aria-label="Search components"
                     type="text"
                     placeholder="Search components..."
                     value={searchTerm}
@@ -87,7 +88,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                     </thead>
                     <tbody>
                         {filteredComponents.map(component => (
-                            <tr key={component.id} onClick={() => setViewingComponent(component)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
+                            <tr key={component.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setViewingComponent(component)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{component.name}</td>
                                 <td className="px-6 py-4">{component.version}</td>
                                 <td className="px-6 py-4 capitalize">{component.type}</td>
@@ -140,7 +141,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                         {sastFindings.map(finding => {
                             const repo = repositories.find(r => r.id === finding.repositoryId);
                             return (
-                                <tr key={finding.id} onClick={() => setViewingSastFinding(finding)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
+                                <tr key={finding.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setViewingSastFinding(finding)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
                                     <td className="px-6 py-4 font-semibold text-gray-800 dark:text-gray-200">{finding.type}</td>
                                     <td className="px-6 py-4 font-mono text-xs">{finding.fileName}:{finding.line}</td>
                                     <td className="px-6 py-4">
@@ -230,7 +231,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                         {sastFindings.map(finding => {
                                             const repo = repositories.find(r => r.id === finding.repositoryId);
                                             return (
-                                                <tr key={finding.id} onClick={() => setViewingSastFinding(finding)} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
+                                                <tr key={finding.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setViewingSastFinding(finding)} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
                                                     <td className="px-6 py-5">
                                                         <div className="font-bold text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{finding.type}</div>
                                                     </td>
@@ -265,7 +266,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                 </div>
                             </div>
                             <div className="flex gap-4">
-                                <input
+                                <input aria-label="Search components"
                                     type="text"
                                     placeholder="Search components..."
                                     value={searchTerm}
@@ -285,7 +286,7 @@ export const DevSecOpsDashboard: React.FC<DevSecOpsDashboardProps> = ({ sboms, s
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                         {filteredComponents.map(component => (
-                                            <tr key={component.id} onClick={() => setViewingComponent(component)} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
+                                            <tr key={component.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setViewingComponent(component)} className="hover:bg-primary-500/5 transition-colors cursor-pointer group">
                                                 <td className="px-6 py-5">
                                                     <div className="font-bold text-gray-800 dark:text-gray-100 group-hover:translate-x-1 transition-transform">{component.name}</div>
                                                 </td>

@@ -83,7 +83,7 @@ export function FindingsTab() {
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4">
         <h3 className="text-sm font-medium mb-3">Scan Now</h3>
         <div className="flex flex-wrap gap-2 items-center">
-          <input
+          <input aria-label="Agent ID"
             className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white flex-1 min-w-[160px]"
             placeholder="Agent ID"
             value={agentId}

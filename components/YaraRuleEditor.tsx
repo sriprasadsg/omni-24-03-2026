@@ -216,7 +216,7 @@ export const YaraRuleEditor: React.FC = () => {
                                     </div>
                                 )}
                                 <div className="flex flex-wrap gap-3">
-                                    <input
+                                    <input aria-label="Rule name"
                                         type="text"
                                         value={name}
                                         onChange={e => !isBuiltin && setName(e.target.value)}
@@ -224,7 +224,7 @@ export const YaraRuleEditor: React.FC = () => {
                                         placeholder="Rule name"
                                         className={`flex-1 min-w-[160px] px-3 py-1.5 text-sm border rounded-md ${isBuiltin ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'}`}
                                     />
-                                    <input
+                                    <input aria-label="Description"
                                         type="text"
                                         value={description}
                                         onChange={e => !isBuiltin && setDescription(e.target.value)}
@@ -242,7 +242,7 @@ export const YaraRuleEditor: React.FC = () => {
                             </div>
 
                             <div className="flex-1 p-4 flex flex-col gap-3">
-                                <textarea
+                                <textarea aria-label={STARTER_TEMPLATE}
                                     ref={textareaRef}
                                     value={content}
                                     onChange={e => { if (!isBuiltin) { setContent(e.target.value); setValidationResult(null); } }}

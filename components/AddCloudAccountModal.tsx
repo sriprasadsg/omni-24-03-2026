@@ -140,29 +140,29 @@ export const AddCloudAccountModal: React.FC<AddCloudAccountModalProps> = ({ isOp
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Credentials (optional)</h3>
             {provider === 'OCI' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={ociTenancyOcid} onChange={e => setOciTenancyOcid(e.target.value)} placeholder="Tenancy OCID" className="w-full input-style" />
-                <input value={ociUserOcid} onChange={e => setOciUserOcid(e.target.value)} placeholder="User OCID" className="w-full input-style" />
-                <input value={ociFingerprint} onChange={e => setOciFingerprint(e.target.value)} placeholder="Key Fingerprint" className="w-full input-style" />
-                <input value={ociRegion} onChange={e => setOciRegion(e.target.value)} placeholder="Region (e.g. us-ashburn-1)" className="w-full input-style" />
-                <input value={ociCompartmentId} onChange={e => setOciCompartmentId(e.target.value)} placeholder="Compartment OCID" className="w-full input-style sm:col-span-2" />
-                <textarea value={ociPrivateKey} onChange={e => setOciPrivateKey(e.target.value)} placeholder="Private Key (PEM)" rows={3}
+                <input aria-label="Tenancy OCID" value={ociTenancyOcid} onChange={e => setOciTenancyOcid(e.target.value)} placeholder="Tenancy OCID" className="w-full input-style" />
+                <input aria-label="User OCID" value={ociUserOcid} onChange={e => setOciUserOcid(e.target.value)} placeholder="User OCID" className="w-full input-style" />
+                <input aria-label="Key Fingerprint" value={ociFingerprint} onChange={e => setOciFingerprint(e.target.value)} placeholder="Key Fingerprint" className="w-full input-style" />
+                <input aria-label="Region" value={ociRegion} onChange={e => setOciRegion(e.target.value)} placeholder="Region (e.g. us-ashburn-1)" className="w-full input-style" />
+                <input aria-label="Compartment OCID" value={ociCompartmentId} onChange={e => setOciCompartmentId(e.target.value)} placeholder="Compartment OCID" className="w-full input-style sm:col-span-2" />
+                <textarea aria-label="Private Key (PEM)" value={ociPrivateKey} onChange={e => setOciPrivateKey(e.target.value)} placeholder="Private Key (PEM)" rows={3}
                   className="w-full input-style sm:col-span-2 font-mono text-xs" />
               </div>
             ) : provider === 'Alibaba' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key ID" className="w-full input-style" />
-                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Access Key Secret" className="w-full input-style" />
-                <input value={regionId} onChange={e => setRegionId(e.target.value)} placeholder="Region ID (e.g. cn-hangzhou)" className="w-full input-style sm:col-span-2" />
+                <input aria-label="Access Key ID" value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key ID" className="w-full input-style" />
+                <input aria-label="Access Key Secret" type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Access Key Secret" className="w-full input-style" />
+                <input aria-label="Region ID" value={regionId} onChange={e => setRegionId(e.target.value)} placeholder="Region ID (e.g. cn-hangzhou)" className="w-full input-style sm:col-span-2" />
               </div>
             ) : provider === 'Cloudflare' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input type="password" value={cfApiToken} onChange={e => setCfApiToken(e.target.value)} placeholder="API Token" className="w-full input-style" />
-                <input value={cfAccountId} onChange={e => setCfAccountId(e.target.value)} placeholder="Cloudflare Account ID" className="w-full input-style" />
+                <input aria-label="API Token" type="password" value={cfApiToken} onChange={e => setCfApiToken(e.target.value)} placeholder="API Token" className="w-full input-style" />
+                <input aria-label="Cloudflare Account ID" value={cfAccountId} onChange={e => setCfAccountId(e.target.value)} placeholder="Cloudflare Account ID" className="w-full input-style" />
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
-                <input type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
+                <input aria-label="Access Key / Client ID" value={accessKey} onChange={e => setAccessKey(e.target.value)} placeholder="Access Key / Client ID" className="w-full input-style" />
+                <input aria-label="Secret Key / Client Secret" type="password" value={secretKey} onChange={e => setSecretKey(e.target.value)} placeholder="Secret Key / Client Secret" className="w-full input-style" />
               </div>
             )}
             <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-xs text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">

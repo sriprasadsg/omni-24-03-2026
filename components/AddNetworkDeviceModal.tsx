@@ -32,21 +32,21 @@ export const AddNetworkDeviceModal: React.FC<AddNetworkDeviceModalProps> = ({ is
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Add Network Device for Monitoring" size="lg" footer={footer}>
             <form id="add-network-device-form" onSubmit={handleSubmit} className="space-y-4">
-                <input value={hostname} onChange={e => setHostname(e.target.value)} required placeholder="Hostname (e.g., core-router-01.dc1)" className="w-full input-style" />
-                <input value={ipAddress} onChange={e => setIpAddress(e.target.value)} required placeholder="IP Address" className="w-full input-style" />
+                <input aria-label="Hostname" value={hostname} onChange={e => setHostname(e.target.value)} required placeholder="Hostname (e.g., core-router-01.dc1)" className="w-full input-style" />
+                <input aria-label="IP Address" value={ipAddress} onChange={e => setIpAddress(e.target.value)} required placeholder="IP Address" className="w-full input-style" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <select value={deviceType} onChange={e => setDeviceType(e.target.value as NetworkDeviceType)} className="w-full input-style">
                         {deviceTypeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
-                    <input value={model} onChange={e => setModel(e.target.value)} required placeholder="Model (e.g., Cisco ASR 9000)" className="w-full input-style" />
+                    <input aria-label="Model" value={model} onChange={e => setModel(e.target.value)} required placeholder="Model (e.g., Cisco ASR 9000)" className="w-full input-style" />
                 </div>
-                <input value={osVersion} onChange={e => setOsVersion(e.target.value)} required placeholder="OS Version (e.g., IOS XR 7.5.1)" className="w-full input-style" />
+                <input aria-label="OS Version" value={osVersion} onChange={e => setOsVersion(e.target.value)} required placeholder="OS Version (e.g., IOS XR 7.5.1)" className="w-full input-style" />
 
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Simulated Credentials</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input placeholder="SNMP Community (e.g., public)" className="w-full input-style" />
-                        <input placeholder="SSH Username (e.g., admin)" className="w-full input-style" />
+                        <input aria-label="SNMP Community" placeholder="SNMP Community (e.g., public)" className="w-full input-style" />
+                        <input aria-label="SSH Username" placeholder="SSH Username (e.g., admin)" className="w-full input-style" />
                     </div>
                 </div>
                 <style>{`.input-style { padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; } .dark .input-style { background-color: #374151; border-color: #4b5563; }`}</style>

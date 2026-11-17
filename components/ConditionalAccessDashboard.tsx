@@ -224,17 +224,17 @@ export default function ConditionalAccessDashboard() {
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
             <div>
               <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Device Trust Score (0–100)</label>
-              <input type="number" value={testCtx.device_trust_score} onChange={e => setTestCtx(c => ({ ...c, device_trust_score: e.target.value }))}
+              <input aria-label="Device Trust Score (0–100)" type="number" value={testCtx.device_trust_score} onChange={e => setTestCtx(c => ({ ...c, device_trust_score: e.target.value }))}
                 className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Session Risk Score (0–100)</label>
-              <input type="number" value={testCtx.session_risk_score} onChange={e => setTestCtx(c => ({ ...c, session_risk_score: e.target.value }))}
+              <input aria-label="Session Risk Score (0–100)" type="number" value={testCtx.session_risk_score} onChange={e => setTestCtx(c => ({ ...c, session_risk_score: e.target.value }))}
                 className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Platform</label>
-              <select value={testCtx.platform} onChange={e => setTestCtx(c => ({ ...c, platform: e.target.value }))}
+              <select aria-label="Platform" value={testCtx.platform} onChange={e => setTestCtx(c => ({ ...c, platform: e.target.value }))}
                 className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm">
                 {['windows', 'macos', 'linux', 'ios', 'android'].map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -262,18 +262,18 @@ export default function ConditionalAccessDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                <input aria-label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Description</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                <input aria-label="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Action</label>
-                  <select value={form.action} onChange={e => setForm(f => ({ ...f, action: e.target.value }))}
+                  <select aria-label="Action" value={form.action} onChange={e => setForm(f => ({ ...f, action: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
                     <option value="allow">Allow</option>
                     <option value="deny">Deny</option>
@@ -283,7 +283,7 @@ export default function ConditionalAccessDashboard() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Priority (lower = first)</label>
-                  <input type="number" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as any }))}
+                  <input aria-label="Priority (lower = first)" type="number" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as any }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
@@ -291,28 +291,28 @@ export default function ConditionalAccessDashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Device Trust Below (%)</label>
-                  <input type="number" placeholder="e.g. 70" value={form.conditions.device_trust_below} onChange={e => setCondition('device_trust_below', e.target.value)}
+                  <input aria-label="Device Trust Below (%)" type="number" placeholder="e.g. 70" value={form.conditions.device_trust_below} onChange={e => setCondition('device_trust_below', e.target.value)}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Session Risk Above (%)</label>
-                  <input type="number" placeholder="e.g. 60" value={form.conditions.session_risk_above} onChange={e => setCondition('session_risk_above', e.target.value)}
+                  <input aria-label="Session Risk Above (%)" type="number" placeholder="e.g. 60" value={form.conditions.session_risk_above} onChange={e => setCondition('session_risk_above', e.target.value)}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Allowed Hours Start (0–23)</label>
-                  <input type="number" placeholder="e.g. 8" value={form.conditions.allowed_hours_start} onChange={e => setCondition('allowed_hours_start', e.target.value)}
+                  <input aria-label="Allowed Hours Start (0–23)" type="number" placeholder="e.g. 8" value={form.conditions.allowed_hours_start} onChange={e => setCondition('allowed_hours_start', e.target.value)}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Allowed Hours End (0–23)</label>
-                  <input type="number" placeholder="e.g. 18" value={form.conditions.allowed_hours_end} onChange={e => setCondition('allowed_hours_end', e.target.value)}
+                  <input aria-label="Allowed Hours End (0–23)" type="number" placeholder="e.g. 18" value={form.conditions.allowed_hours_end} onChange={e => setCondition('allowed_hours_end', e.target.value)}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Platforms (comma-separated: windows, macos, linux, ios, android)</label>
-                <input value={form.conditions.platforms} onChange={e => setCondition('platforms', e.target.value)} placeholder="Leave blank for all"
+                <input aria-label="Platforms (comma-separated: windows, macos, linux, ios, android)" value={form.conditions.platforms} onChange={e => setCondition('platforms', e.target.value)} placeholder="Leave blank for all"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
               </div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">

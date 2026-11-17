@@ -3,6 +3,7 @@ import { CheckIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, UserIcon, BotMess
 import * as api from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 export const MultiStepApprovalDashboard: React.FC = () => {
     const { currentUser } = useUser();
@@ -95,7 +96,7 @@ export const MultiStepApprovalDashboard: React.FC = () => {
                         {(activeTab === 'pending' ? pendingRequests : history).map(req => (
                             <div
                                 key={req.id}
-                                onClick={() => setSelectedRequest(req)}
+                                role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedRequest(req)}
                                 className={`p-4 rounded-lg border cursor-pointer transition-all ${selectedRequest?.id === req.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 shadow-sm' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-300'}`}
                             >
                                 <div className="flex justify-between items-start mb-2">
@@ -204,7 +205,7 @@ export const MultiStepApprovalDashboard: React.FC = () => {
                                                 <BotMessageSquareIcon size={16} className="inline mr-2" />
                                                 Decision Comments
                                             </label>
-                                            <textarea
+                                            <textarea aria-label="Decision Comments"
                                                 value={comments}
                                                 onChange={(e) => setComments(e.target.value)}
                                                 className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm px-3 py-2"

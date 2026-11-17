@@ -234,7 +234,7 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             Comments (Optional)
                                         </label>
-                                        <textarea
+                                        <textarea aria-label="Comments (Optional)"
                                             value={comments}
                                             onChange={(e) => setComments(e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
@@ -260,7 +260,7 @@ export const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ currentUse
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                             Please provide a reason for rejecting this deployment. The deployment will be halted.
                         </p>
-                        <textarea
+                        <textarea aria-label="Enter rejection reason"
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm mb-4"

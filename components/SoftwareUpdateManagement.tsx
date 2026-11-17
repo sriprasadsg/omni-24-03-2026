@@ -235,7 +235,7 @@ export const SoftwareUpdateManagement: React.FC<SoftwareUpdateManagementProps> =
                         {/* Search */}
                         <div className="relative">
                             <SearchIcon size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input
+                            <input aria-label="Search software"
                                 type="text"
                                 placeholder="Search software..."
                                 value={searchTerm}

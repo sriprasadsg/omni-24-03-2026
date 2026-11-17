@@ -54,7 +54,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Webhook URL</label>
-                            <input 
+                            <input aria-label="Webhook URL" 
                                 type="text"
                                 value={config.webhookUrl || ''}
                                 onChange={(e) => handleConfigChange('webhookUrl', e.target.value)}
@@ -69,7 +69,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Instance URL</label>
-                            <input 
+                            <input aria-label="Instance URL" 
                                 type="text"
                                 value={config.apiUrl || ''}
                                 onChange={(e) => handleConfigChange('apiUrl', e.target.value)}
@@ -79,7 +79,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">API Token</label>
-                            <input 
+                            <input aria-label="API Token" 
                                 type="password"
                                 value={config.apiToken || ''}
                                 onChange={(e) => handleConfigChange('apiToken', e.target.value)}
@@ -89,7 +89,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Project Key</label>
-                            <input 
+                            <input aria-label="Project Key" 
                                 type="text"
                                 value={config.projectKey || ''}
                                 onChange={(e) => handleConfigChange('projectKey', e.target.value)}
@@ -104,7 +104,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">API Key</label>
-                            <input 
+                            <input aria-label="API Key" 
                                 type="password"
                                 value={config.apiKey || ''}
                                 onChange={(e) => handleConfigChange('apiKey', e.target.value)}
@@ -119,7 +119,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Instance URL</label>
-                            <input 
+                            <input aria-label="Instance URL" 
                                 type="text"
                                 value={config.instanceUrl || ''}
                                 onChange={(e) => handleConfigChange('instanceUrl', e.target.value)}
@@ -130,7 +130,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Username</label>
-                                <input 
+                                <input aria-label="Username" 
                                     type="text"
                                     value={config.username || ''}
                                     onChange={(e) => handleConfigChange('username', e.target.value)}
@@ -139,7 +139,7 @@ export const IntegrationSettingsModal: React.FC<IntegrationSettingsModalProps> =
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
-                                <input 
+                                <input aria-label="Password" 
                                     type="password"
                                     value={config.password || ''}
                                     onChange={(e) => handleConfigChange('password', e.target.value)}

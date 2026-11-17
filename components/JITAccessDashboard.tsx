@@ -213,25 +213,25 @@ export default function JITAccessDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Resource *</label>
-                  <input value={form.resource} onChange={e => setForm(p => ({ ...p, resource: e.target.value }))}
+                  <input aria-label="Resource" value={form.resource} onChange={e => setForm(p => ({ ...p, resource: e.target.value }))}
                     placeholder="e.g. prod-db, k8s-cluster, aws-root"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Role / Permission *</label>
-                  <input value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
+                  <input aria-label="Role / Permission" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
                     placeholder="e.g. admin, read-only, db-superuser"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Business Justification *</label>
-                  <textarea value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
+                  <textarea aria-label="Business Justification" value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
                     rows={3} placeholder="Explain why you need this access..."
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Duration (hours, max 8)</label>
-                  <input type="number" min={1} max={8} value={form.duration_hours}
+                  <input aria-label="Duration (hours, max 8)" type="number" min={1} max={8} value={form.duration_hours}
                     onChange={e => setForm(p => ({ ...p, duration_hours: Math.min(8, Math.max(1, Number(e.target.value))) }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
@@ -288,7 +288,7 @@ export default function JITAccessDashboard() {
               {selectedReq.status === 'pending' && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Note (optional)</label>
-                  <input value={actionNote} onChange={e => setActionNote(e.target.value)}
+                  <input aria-label="Note (optional)" value={actionNote} onChange={e => setActionNote(e.target.value)}
                     placeholder="Add a note to your decision..."
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white mb-3" />
                   <div className="flex gap-3">

@@ -136,14 +136,14 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
       {showCreateForm && (
         <div className="border p-4 rounded bg-gray-50 dark:bg-gray-800 space-y-3">
           <h3 className="font-medium">New Document</h3>
-          <input
+          <input aria-label="Title"
             type="text"
             value={newDocTitle}
             onChange={(e) => setNewDocTitle(e.target.value)}
             placeholder="Title"
             className="w-full px-3 py-2 border rounded"
           />
-          <textarea
+          <textarea aria-label="Content"
             value={newDocContent}
             onChange={(e) => setNewDocContent(e.target.value)}
             placeholder="Content"
@@ -221,7 +221,7 @@ export const GovernanceDocumentsDashboard: React.FC = () => {
           <div className="bg-white dark:bg-gray-900 p-6 rounded-lg space-y-4 max-w-md w-full">
             <h3 className="text-lg font-semibold">Sign Document</h3>
             <p className="text-sm text-gray-600">Enter your typed name and confirm consent.</p>
-            <input
+            <input aria-label="Full Name"
               type="text"
               value={signTypedName}
               onChange={(e) => setSignTypedName(e.target.value)}

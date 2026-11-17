@@ -164,7 +164,7 @@ export function BAAManagement() {
             ].map(({ label, key, placeholder }) => (
               <div key={key}>
                 <div style={{ fontSize: '0.78em', color: 'var(--ink-muted)', marginBottom: 6 }}>{label}</div>
-                <input value={form[key as keyof typeof form]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                <input aria-label={placeholder} value={form[key as keyof typeof form]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                   placeholder={placeholder}
                   style={{ width: '100%', background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink-text)', fontSize: '0.85em', outline: 'none', boxSizing: 'border-box' }} />
               </div>

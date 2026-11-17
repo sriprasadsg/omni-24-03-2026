@@ -22,6 +22,7 @@ import {
   BarChart3Icon,
 } from './icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { activateOnKey } from './ui/a11y';
 
 export const FederatedLearningDashboard: React.FC = () => {
   const [rounds, setRounds] = useState<FLTrainingRound[]>([]);
@@ -196,7 +197,7 @@ export const FederatedLearningDashboard: React.FC = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {rounds.slice(0, 5).map(round => (
-                  <tr key={round.round_id} className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => setSelectedRound(round)}>
+                  <tr key={round.round_id} className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedRound(round)}>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{round.round_id.substring(0, 10)}...</td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {getStatusDot(round.status)} {round.status}

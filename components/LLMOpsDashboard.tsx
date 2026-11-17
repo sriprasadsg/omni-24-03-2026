@@ -99,7 +99,7 @@ const LLMOpsDashboard: React.FC = () => {
                                     <SparklesIcon size={20} className="text-cyan-500" />
                                     Create Prompt
                                 </h2>
-                                <input
+                                <input aria-label="Prompt Name"
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-cyan-500 outline-none"
                                     placeholder="Prompt Name (e.g., system-audit)"
                                     value={newPrompt.name}
@@ -149,7 +149,7 @@ const LLMOpsDashboard: React.FC = () => {
                                     <UploadIcon size={20} />
                                     Ingest Knowledge
                                 </h2>
-                                <textarea
+                                <textarea aria-label="Paste documentation or text here"
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl h-48 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                                     placeholder="Paste documentation or text here..."
                                     value={ingestText}
@@ -167,7 +167,7 @@ const LLMOpsDashboard: React.FC = () => {
                             <div className="glass p-6 rounded-2xl border border-gray-200 dark:border-white/10 space-y-4">
                                 <h2 className="text-xl font-bold mb-2 text-purple-500 italic">Semantic Search</h2>
                                 <div className="flex gap-2">
-                                    <input
+                                    <input aria-label="Ask a question"
                                         className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-3 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none"
                                         placeholder="Ask a question..."
                                         value={queryText}

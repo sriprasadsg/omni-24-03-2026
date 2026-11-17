@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Activity, Shield, Cpu, MessageSquare, Terminal, Zap, AlertTriangle, Info } from 'lucide-react';
 import { fetchSwarmMissions, fetchSwarmTopology, startSwarmMission, propagateAntibody } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 interface AgentMessage {
     agent_name: string;
@@ -129,7 +130,7 @@ const SwarmDashboard: React.FC = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1 dark:text-slate-200">Mission Goal</label>
-                                <textarea
+                                <textarea aria-label="Mission Goal"
                                     className="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700"
                                     rows={3}
                                     placeholder="e.g., Scan network segment 192.168.1.0/24 and patch critical vulnerabilities..."
@@ -153,7 +154,7 @@ const SwarmDashboard: React.FC = () => {
                             {missions.map(m => (
                                 <div
                                     key={m.id}
-                                    onClick={() => setActiveMission(m)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setActiveMission(m)}
                                     className={`p-3 rounded-lg border cursor-pointer transition-all ${activeMission?.id === m.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:bg-slate-50'}`}
                                 >
                                     <div className="flex justify-between items-start mb-1">

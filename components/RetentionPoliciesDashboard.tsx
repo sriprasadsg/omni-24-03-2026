@@ -211,18 +211,18 @@ export default function RetentionPoliciesDashboard() {
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="space-y-3">
               <div><label className="text-xs text-slate-400">Name</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                <input aria-label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" /></div>
               <div><label className="text-xs text-slate-400">Tier</label>
-                <select value={form.tier} onChange={e => setForm(f => ({ ...f, tier: e.target.value as Tier }))}
+                <select aria-label="Tier" value={form.tier} onChange={e => setForm(f => ({ ...f, tier: e.target.value as Tier }))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
                   {TIERS.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
                 </select></div>
               <div><label className="text-xs text-slate-400">Retention Days</label>
-                <input type="number" min={1} value={form.retention_days} onChange={e => setForm(f => ({ ...f, retention_days: parseInt(e.target.value) || 1 }))}
+                <input aria-label="Retention Days" type="number" min={1} value={form.retention_days} onChange={e => setForm(f => ({ ...f, retention_days: parseInt(e.target.value) || 1 }))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" /></div>
               <div><label className="text-xs text-slate-400">Applies To</label>
-                <select value={form.applies_to} onChange={e => setForm(f => ({ ...f, applies_to: e.target.value }))}
+                <select aria-label="Applies To" value={form.applies_to} onChange={e => setForm(f => ({ ...f, applies_to: e.target.value }))}
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
                   <option value="all">All Log Sources</option>
                   <option value="security_events">Security Events</option>

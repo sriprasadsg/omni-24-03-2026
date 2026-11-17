@@ -212,7 +212,7 @@ export default function SecureFileShare() {
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expires In (Days)</label>
-                                    <input
+                                    <input aria-label="Expires In (Days)"
                                         type="number"
                                         className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                                         value={newShare.expires_in_days}
@@ -221,7 +221,7 @@ export default function SecureFileShare() {
                                 </div>
                                 <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Accesses</label>
-                                    <input
+                                    <input aria-label="Max Accesses"
                                         type="number"
                                         className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                                         value={newShare.max_accesses}
@@ -243,7 +243,7 @@ export default function SecureFileShare() {
                             {newShare.password_protected && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                                    <input
+                                    <input aria-label="Password"
                                         type="password"
                                         autoComplete="new-password"
                                         className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"

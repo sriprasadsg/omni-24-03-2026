@@ -178,13 +178,13 @@ export default function DeceptionDashboard() {
               </div>
               <div>
                 <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Label *</label>
-                <input value={form.label} onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
+                <input aria-label="Label" value={form.label} onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
                   placeholder="e.g. Finance S3 Backup Key"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
               </div>
               <div>
                 <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Deploy Location</label>
-                <input value={form.deploy_location} onChange={e => setForm(p => ({ ...p, deploy_location: e.target.value }))}
+                <input aria-label="Deploy Location" value={form.deploy_location} onChange={e => setForm(p => ({ ...p, deploy_location: e.target.value }))}
                   placeholder="e.g. /etc/config/backup.env"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
               </div>

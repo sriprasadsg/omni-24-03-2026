@@ -3,6 +3,7 @@ import { ComplianceFramework } from '../types';
 import { ShieldCheckIcon } from './icons';
 import { NistCsfDetail } from './NistCsfDetail';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { activateOnKey } from './ui/a11y';
 
 interface ComplianceStatusProps {
   frameworks: ComplianceFramework[];
@@ -64,7 +65,7 @@ export const ComplianceStatus: React.FC<ComplianceStatusProps> = ({ frameworks }
               <div
                 key={framework.id}
                 className={`p-4 rounded-lg border border-gray-200 dark:border-gray-700 ${classes.bg} cursor-pointer hover:shadow-lg transition-shadow duration-200`}
-                onClick={() => handleCardClick(framework)}
+                role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => handleCardClick(framework)}
               >
                 <div className="flex justify-between items-start">
                   <h4 className="font-bold text-gray-800 dark:text-white">{framework.shortName}</h4>

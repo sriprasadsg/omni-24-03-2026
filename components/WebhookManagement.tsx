@@ -3,6 +3,7 @@ import { Webhook, WebhookEvent, WebhookDelivery } from '../types';
 import { PlusCircleIcon, TrashIcon, RefreshCwIcon, CheckIcon, XCircleIcon, ClockIcon, CheckCircleIcon } from './icons';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 export const WebhookManagement: React.FC = () => {
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
@@ -164,7 +165,7 @@ export const WebhookManagement: React.FC = () => {
                                 <div
                                     key={webhook.id}
                                     className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedWebhook?.id === webhook.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                                    onClick={() => {
+                                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => {
                                         setSelectedWebhook(webhook);
                                         fetchDeliveries(webhook.id);
                                     }}
@@ -323,7 +324,7 @@ const CreateWebhookModal: React.FC<{
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                        <input
+                        <input aria-label="Name"
                             type="text"
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -333,7 +334,7 @@ const CreateWebhookModal: React.FC<{
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
-                        <input
+                        <input aria-label="URL"
                             type="url"
                             value={formData.url}
                             onChange={e => setFormData({ ...formData, url: e.target.value })}

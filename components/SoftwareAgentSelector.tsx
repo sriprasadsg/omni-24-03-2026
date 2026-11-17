@@ -1,6 +1,7 @@
 import React from 'react';
 import { SearchIcon, ServerIcon, ShieldIcon } from './icons';
 import { Agent } from '../types';
+import { activateOnKey } from './ui/a11y';
 
 interface Props {
     filteredAgents: Agent[];
@@ -20,7 +21,7 @@ export function SoftwareAgentSelector({
                 <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
                     <div className="relative w-64">
                         <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <input
+                        <input aria-label="Filter agents"
                             type="text"
                             placeholder="Filter agents..."
                             value={filter}
@@ -62,7 +63,7 @@ export function SoftwareAgentSelector({
                                 <tr
                                     key={agent.id}
                                     className={`transition-colors ${isExcluded ? 'opacity-40 cursor-not-allowed bg-amber-500/5' : `hover:bg-slate-800/30 cursor-pointer ${selectedAgentIds.has(agent.id) ? 'bg-blue-500/5' : ''}`}`}
-                                    onClick={() => !isExcluded && onToggle(agent.id)}
+                                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => !isExcluded && onToggle(agent.id)}
                                     title={isExcluded ? 'This agent is excluded from software operations' : undefined}
                                 >
                                     <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>

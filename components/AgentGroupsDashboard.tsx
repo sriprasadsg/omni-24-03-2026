@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LayersIcon } from './icons';
+import { activateOnKey } from './ui/a11y';
 
 const API = '/api/agent-groups';
 
@@ -148,7 +149,7 @@ export default function AgentGroupsDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {groups.map(g => (
           <div key={g.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3 cursor-pointer hover:border-blue-500/50 transition-colors"
-            onClick={() => loadMembers(g)}>
+            tabIndex={0} onKeyDown={activateOnKey} onClick={() => loadMembers(g)}>
             <div className="flex items-start justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
@@ -192,7 +193,7 @@ export default function AgentGroupsDashboard() {
             </div>
 
             <div className="flex gap-2">
-              <input value={addAgentId} onChange={e => setAddAgentId(e.target.value)}
+              <input aria-label="Agent ID to add" value={addAgentId} onChange={e => setAddAgentId(e.target.value)}
                 placeholder="Agent ID to add..."
                 className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
               <button onClick={addMember}
@@ -239,7 +240,7 @@ export default function AgentGroupsDashboard() {
             ].map(f => (
               <div key={f.key} className="space-y-1">
                 <label className="text-xs text-slate-400">{f.label}</label>
-                <input value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                <input aria-label={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
               </div>

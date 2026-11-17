@@ -70,11 +70,11 @@ export default function TicketingIntegration() {
         </div>
     );
     const Input = ({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        <input aria-label={placeholder} type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
             style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', fontSize: 14, boxSizing: 'border-box' }} />
     );
     const TextArea = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) => (
-        <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={4}
+        <textarea aria-label={placeholder} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={4}
             style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
     );
 

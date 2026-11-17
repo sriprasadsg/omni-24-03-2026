@@ -1,4 +1,5 @@
 import React from 'react';
+import { activateOnKey } from './ui/a11y';
 
 export type BotState = 'idle' | 'listening' | 'thinking' | 'speaking';
 export type CharacterType = 'genesis' | 'athena' | 'nexus' | 'heartbot' | 'nova';
@@ -393,7 +394,7 @@ export const MascotCharacter: React.FC<MascotCharacterProps> = ({ botState, type
     return (
         <div 
             className={`relative group flex items-center justify-center cursor-pointer transition-transform duration-500 ease-in-out hover:scale-105 ${className}`}
-            onClick={onClick}
+            role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={onClick}
             title={botState === 'idle' ? "Click to interact!" : `Your Guide is ${botState}`}
         >
             <style dangerouslySetInnerHTML={{

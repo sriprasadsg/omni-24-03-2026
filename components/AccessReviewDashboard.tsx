@@ -116,8 +116,8 @@ export default function AccessReviewDashboard() {
         <button onClick={() => setView('list')} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
       </div>
       <div className="space-y-3">
-        <input value={newReview.name} onChange={e => setNewReview(p => ({ ...p, name: e.target.value }))} placeholder="Review name *" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
-        <input value={newReview.description} onChange={e => setNewReview(p => ({ ...p, description: e.target.value }))} placeholder="Description" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
+        <input aria-label="Review name" value={newReview.name} onChange={e => setNewReview(p => ({ ...p, name: e.target.value }))} placeholder="Review name *" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
+        <input aria-label="Description" value={newReview.description} onChange={e => setNewReview(p => ({ ...p, description: e.target.value }))} placeholder="Description" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
         <div className="grid grid-cols-2 gap-3">
           <select value={newReview.type} onChange={e => setNewReview(p => ({ ...p, type: e.target.value }))} className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm">
             {['User Access', 'Privileged Access', 'Vendor Access', 'Application Access', 'Service Account'].map(t => <option key={t}>{t}</option>)}
@@ -126,7 +126,7 @@ export default function AccessReviewDashboard() {
             {['Weekly', 'Monthly', 'Quarterly', 'Semi-Annual', 'Annual'].map(f => <option key={f}>{f}</option>)}
           </select>
         </div>
-        <input value={newReview.reviewer} onChange={e => setNewReview(p => ({ ...p, reviewer: e.target.value }))} placeholder="Reviewer" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
+        <input aria-label="Reviewer" value={newReview.reviewer} onChange={e => setNewReview(p => ({ ...p, reviewer: e.target.value }))} placeholder="Reviewer" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm" />
       </div>
       <button onClick={create} disabled={!newReview.name.trim()} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm">Schedule Review</button>
     </div>
@@ -182,7 +182,7 @@ export default function AccessReviewDashboard() {
                     <select value={decisions[u.userId]?.decision || 'Approved'} onChange={e => setDecisions(d => ({ ...d, [u.userId]: { ...d[u.userId], decision: e.target.value } }))} className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded">
                       {['Approved', 'Revoked', 'Modified', 'Deferred'].map(d => <option key={d}>{d}</option>)}
                     </select>
-                    <input value={decisions[u.userId]?.reason || ''} onChange={e => setDecisions(d => ({ ...d, [u.userId]: { ...d[u.userId], reason: e.target.value } }))} placeholder="Reason" className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded w-32" />
+                    <input aria-label="Reason" value={decisions[u.userId]?.reason || ''} onChange={e => setDecisions(d => ({ ...d, [u.userId]: { ...d[u.userId], reason: e.target.value } }))} placeholder="Reason" className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded w-32" />
                   </div>
                 ) : (
                   <span className={`text-sm font-medium ${DECISION_COLORS[decisions[u.userId]?.decision || ''] || 'text-gray-400'}`}>

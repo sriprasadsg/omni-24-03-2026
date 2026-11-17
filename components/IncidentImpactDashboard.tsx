@@ -3,6 +3,7 @@ import { IncidentImpactGraph, Alert, SecurityCase } from '../types';
 import { analyzeIncident } from '../services/apiService';
 import { Share2Icon, AlertTriangleIcon, BoxIcon, ShieldCheckIcon, ServerIcon, ArrowLeftIcon, CpuIcon, LoaderIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 
 interface IncidentImpactDashboardProps {
@@ -50,7 +51,7 @@ export const IncidentImpactDashboard: React.FC<IncidentImpactDashboardProps> = (
                         <ul className="space-y-2 max-h-96 overflow-y-auto">
                             {alerts.map(alert => (
                                 <li key={alert.id}
-                                    onClick={() => onAnalyze && onAnalyze('alert', alert.id)}
+                                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => onAnalyze && onAnalyze('alert', alert.id)}
                                     className="p-3 border rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                                 >
                                     <div className="font-medium text-sm">{alert.message}</div>
@@ -64,7 +65,7 @@ export const IncidentImpactDashboard: React.FC<IncidentImpactDashboardProps> = (
                         <ul className="space-y-2 max-h-96 overflow-y-auto">
                             {cases.map((c, idx) => (
                                 <li key={`${c.id}-${idx}`}
-                                    onClick={() => onAnalyze && onAnalyze('case', c.id)}
+                                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => onAnalyze && onAnalyze('case', c.id)}
                                     className="p-3 border rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                                 >
                                     <div className="font-medium text-sm">{c.title}</div>

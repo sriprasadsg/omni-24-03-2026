@@ -87,7 +87,7 @@ export const ApiExtensionsDashboard: React.FC = () => {
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">OSCAL Export</h3>
         <div className="flex gap-2">
-          <input
+          <input aria-label="Framework ID"
             className="px-2 py-2 border rounded text-xs dark:bg-gray-800"
             placeholder="Framework ID (e.g., soc2)"
             value={oscalFw}

@@ -161,7 +161,7 @@ export default function ConnectorsHubDashboard() {
               <label className="text-sm text-slate-300">
                 {selected.auth_type === 'api_key' ? 'API Key' : selected.auth_type === 'oauth' ? 'Client Secret / Token' : 'Webhook URL or Certificate'}
               </label>
-              <input type="password" value={configValue} onChange={e => setConfigValue(e.target.value)}
+              <input aria-label="Enter credential" type="password" value={configValue} onChange={e => setConfigValue(e.target.value)}
                 placeholder="Enter credential..."
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
             </div>

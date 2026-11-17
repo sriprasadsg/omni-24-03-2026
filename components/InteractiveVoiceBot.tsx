@@ -3,6 +3,7 @@ import { MicIcon, XIcon, Volume2Icon, LoaderIcon } from './icons';
 import { AppView, VoiceBotSettings } from '../types';
 import { getChatAssistantResponse } from '../services/apiService';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface InteractiveVoiceBotProps {
     currentUser: any;
@@ -520,7 +521,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
             )}
 
             {!isActive && !isDismissed && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-br-sm shadow-lg p-3 mb-4 border border-gray-200 dark:border-gray-700 animate-bounce pointer-events-auto cursor-pointer" onClick={toggleListening}>
+                <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-br-sm shadow-lg p-3 mb-4 border border-gray-200 dark:border-gray-700 animate-bounce pointer-events-auto cursor-pointer" role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={toggleListening}>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{displayText}</p>
                     {micPermission === 'denied' && (
                         <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -563,7 +564,7 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 {icon}
                 {(botState === 'idle') && (
                     <div
-                        onClick={(e) => { e.stopPropagation(); closeBot(); }}
+                        role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={(e) => { e.stopPropagation(); closeBot(); }}
                         className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     >
                         <XIcon size={12} />

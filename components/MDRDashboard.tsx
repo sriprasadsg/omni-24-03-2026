@@ -417,13 +417,13 @@ export const MDRDashboard: React.FC = () => {
                     <div className="space-y-3">
                         <div>
                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Agent ID</label>
-                            <input value={dispatchAgent} onChange={e => setDispatchAgent(e.target.value)}
+                            <input aria-label="Agent ID" value={dispatchAgent} onChange={e => setDispatchAgent(e.target.value)}
                                 placeholder="e.g. agent-abc123"
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" />
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
-                            <select value={dispatchAction} onChange={e => setDispatchAction(e.target.value)}
+                            <select aria-label="Action" value={dispatchAction} onChange={e => setDispatchAction(e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-violet-500 outline-none">
                                 {Object.entries(ACTION_LABELS).map(([val, label]) => (
                                     <option key={val} value={val}>{label}</option>

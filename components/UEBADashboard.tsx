@@ -20,6 +20,7 @@ import {
     AreaChart, Area
 } from 'recharts';
 import { authFetch, API_BASE } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 interface RiskScore {
     userId: string;
@@ -190,7 +191,7 @@ export function UEBADashboard() {
 
                             <div className="relative mb-4">
                                 <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                                <input
+                                <input aria-label="Search users"
                                     type="text"
                                     placeholder="Search users..."
                                     className="w-full bg-white/50 dark:bg-slate-950/50 border border-gray-200 dark:border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-700 dark:text-slate-300 focus:outline-none focus:border-purple-500/50 transition-colors"
@@ -206,7 +207,7 @@ export function UEBADashboard() {
                                     riskScores.map(user => (
                                         <div
                                             key={user.userId}
-                                            onClick={() => handleUserSelect(user)}
+                                            role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => handleUserSelect(user)}
                                             className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedUser?.userId === user.userId
                                                 ? 'bg-slate-800 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
                                                 : 'bg-white/30 dark:bg-slate-950/30 border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50'

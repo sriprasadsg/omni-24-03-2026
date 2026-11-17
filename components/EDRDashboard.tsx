@@ -275,13 +275,13 @@ export function EDRDashboard({ token }: { token?: string }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>AGENT ID</label>
-                                <input value={responseAgent} onChange={e => setResponseAgent(e.target.value)}
+                                <input aria-label="AGENT ID" value={responseAgent} onChange={e => setResponseAgent(e.target.value)}
                                     placeholder="agent-uuid or hostname"
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>ACTION</label>
-                                <select value={responseAction} onChange={e => setResponseAction(e.target.value)}
+                                <select aria-label="ACTION" value={responseAction} onChange={e => setResponseAction(e.target.value)}
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13 }}>
                                     {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
@@ -343,22 +343,22 @@ export function EDRDashboard({ token }: { token?: string }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>SHA-256 Hash (optional)</label>
-                                <input value={iocHash} onChange={e => setIocHash(e.target.value)} placeholder="abc123..."
+                                <input aria-label="SHA-256 Hash (optional)" value={iocHash} onChange={e => setIocHash(e.target.value)} placeholder="abc123..."
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
                             </div>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Process Name (optional)</label>
-                                <input value={iocProcess} onChange={e => setIocProcess(e.target.value)} placeholder="mimikatz.exe"
+                                <input aria-label="Process Name (optional)" value={iocProcess} onChange={e => setIocProcess(e.target.value)} placeholder="mimikatz.exe"
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Description*</label>
-                                <input value={iocDesc} onChange={e => setIocDesc(e.target.value)} placeholder="Credential dumper — CISA alert AA23-XXX"
+                                <input aria-label="Description" value={iocDesc} onChange={e => setIocDesc(e.target.value)} placeholder="Credential dumper — CISA alert AA23-XXX"
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
                                 <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Severity</label>
-                                <select value={iocSeverity} onChange={e => setIocSeverity(e.target.value)}
+                                <select aria-label="Severity" value={iocSeverity} onChange={e => setIocSeverity(e.target.value)}
                                     style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13 }}>
                                     {Object.keys(SEVERITY_CONFIG).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                                 </select>

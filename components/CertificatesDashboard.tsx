@@ -204,14 +204,14 @@ export const CertificatesDashboard: React.FC = () => {
                             ].map(([field, label, type, placeholder]) => (
                                 <div key={field}>
                                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
-                                    <input type={type as string} value={(form as any)[field]} placeholder={placeholder as string}
+                                    <input aria-label={placeholder as string} type={type as string} value={(form as any)[field]} placeholder={placeholder as string}
                                         onChange={e => setForm(f => ({ ...f, [field as string]: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" />
                                 </div>
                             ))}
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Environment</label>
-                                <select value={form.environment} onChange={e => setForm(f => ({ ...f, environment: e.target.value }))}
+                                <select aria-label="Environment" value={form.environment} onChange={e => setForm(f => ({ ...f, environment: e.target.value }))}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
                                     {['production', 'staging', 'development', 'internal'].map(v => <option key={v}>{v}</option>)}
                                 </select>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { authFetch } from '../services/apiService';
 import { socketService } from '../services/socketService';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface Tactic { id: string; name: string; techniques: Technique[]; }
 interface Technique { id: string; name: string; }
@@ -255,7 +256,7 @@ export default function MitreAttackHeatmap() {
                                 const cell = getCell(tech.id);
                                 return (
                                     <div key={tech.id}
-                                        onClick={() => showDetail(tech.id)}
+                                        role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => showDetail(tech.id)}
                                         title={`${tech.id}: ${tech.name}\n${cell?.alert_count || 0} alerts`}
                                         style={{
                                             background: cell?.color || '#1e293b',

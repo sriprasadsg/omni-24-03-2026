@@ -137,13 +137,13 @@ export default function TrustProfileEditForm({ editForm, saving, onChange, onSav
                 <div className="space-y-2">
                     {editForm.public_documents.map((doc, i) => (
                         <div key={i} className="flex items-center gap-2">
-                            <input
+                            <input aria-label="Name"
                                 className={inputClass}
                                 placeholder="Name"
                                 value={doc.name}
                                 onChange={e => updateDocAt('public_documents', i, 'name', e.target.value)}
                             />
-                            <input
+                            <input aria-label="URL"
                                 className={inputClass}
                                 placeholder="URL"
                                 value={doc.url}
@@ -166,13 +166,13 @@ export default function TrustProfileEditForm({ editForm, saving, onChange, onSav
                 <div className="space-y-2">
                     {editForm.private_documents.map((doc, i) => (
                         <div key={i} className="flex items-center gap-2">
-                            <input
+                            <input aria-label="Name"
                                 className={inputClass}
                                 placeholder="Name"
                                 value={doc.name}
                                 onChange={e => updateDocAt('private_documents', i, 'name', e.target.value)}
                             />
-                            <input
+                            <input aria-label="URL (admin-only reference)"
                                 className={inputClass}
                                 placeholder="URL (admin-only reference)"
                                 value={doc.url}

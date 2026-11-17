@@ -13,6 +13,7 @@ import { PaperclipIcon, ShieldCheckIcon, BinocularsIcon, PlusIcon, UploadIcon, B
 import { useUser } from '../contexts/UserContext';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 interface FrameworkDetailProps {
   framework: ComplianceFramework;
@@ -297,7 +298,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                 <React.Fragment key={control.id}>
                   <tr
                     className={`border-b border-gray-100 dark:border-white/[0.05] cursor-pointer transition-colors ${expanded ? 'bg-primary-500/[0.04]' : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]'}`}
-                    onClick={() => toggleControl(control.id)}
+                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => toggleControl(control.id)}
                   >
                     <td className="px-5 py-3.5 align-top font-mono text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap">{control.id}</td>
                     <td className="px-5 py-3.5 align-top min-w-[260px]">

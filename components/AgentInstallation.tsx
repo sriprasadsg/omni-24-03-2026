@@ -256,7 +256,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Platform Server URL
                                 </label>
-                                <input
+                                <input aria-label="Platform Server URL"
                                     type="text"
                                     value={serverUrl}
                                     onChange={e => setServerUrl(e.target.value.trimEnd())}

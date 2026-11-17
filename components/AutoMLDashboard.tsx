@@ -10,6 +10,7 @@ const apiService = {
     post: (url: string, data?: any) => authFetch(url, { method: 'POST', body: JSON.stringify(data) }).then(r => r.ok ? r.json() : null),
 };
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, Label } from 'recharts';
+import { activateOnKey } from './ui/a11y';
 
 interface Trial {
     trial_id: string;
@@ -140,7 +141,7 @@ export function AutoMLDashboard() {
                             {studies.map(study => (
                                 <div
                                     key={study.id}
-                                    onClick={() => setSelectedStudyId(study.id)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedStudyId(study.id)}
                                     className={`p-3 cursor-pointer transition-colors border-l-2 ${selectedStudyId === study.id ? 'bg-slate-800/50 border-orange-500' : 'hover:bg-slate-800/30 border-transparent'}`}
                                 >
                                     <div className="font-medium text-slate-200">{study.name}</div>

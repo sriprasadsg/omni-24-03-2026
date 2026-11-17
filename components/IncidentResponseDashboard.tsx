@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 const API_BASE = '/api';
 
@@ -261,7 +262,7 @@ export const IncidentResponseDashboard: React.FC = () => {
               {filtered.map((incident, idx) => (
                 <div
                   key={`${incident.id}-${idx}`}
-                  onClick={() => openIncident(incident)}
+                  role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => openIncident(incident)}
                   className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${selected?.id === incident.id ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-500' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -351,7 +352,7 @@ export const IncidentResponseDashboard: React.FC = () => {
                 {steps.map((step, idx) => (
                   <div
                     key={idx}
-                    onClick={() => toggleStep(idx)}
+                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => toggleStep(idx)}
                     className={`flex items-start gap-2 p-2 rounded cursor-pointer transition-colors ${completedSteps.has(idx) ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
                   >
                     <div className={`flex-shrink-0 w-4 h-4 mt-0.5 rounded border-2 flex items-center justify-center ${completedSteps.has(idx) ? 'bg-green-500 border-green-500' : 'border-gray-400 dark:border-gray-500'}`}>
@@ -389,7 +390,7 @@ export const IncidentResponseDashboard: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
-                <input
+                <input aria-label="Title"
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="e.g. Ransomware detected on DESKTOP-01"
@@ -398,7 +399,7 @@ export const IncidentResponseDashboard: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Severity</label>
-                <select
+                <select aria-label="Severity"
                   value={form.severity}
                   onChange={e => setForm(f => ({ ...f, severity: e.target.value as IncidentSeverity }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -408,7 +409,7 @@ export const IncidentResponseDashboard: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <textarea
+                <textarea aria-label="Description"
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   rows={3}

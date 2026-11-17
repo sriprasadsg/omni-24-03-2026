@@ -145,16 +145,16 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
                         <form onSubmit={handleRegister} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Model Name</label>
-                                <input name="name" required className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                <input aria-label="Model Name" name="name" required className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Description</label>
-                                <textarea name="description" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                <textarea aria-label="Description" name="description" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">Framework</label>
-                                    <select name="framework" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <select aria-label="Framework" name="framework" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                         <option>PyTorch</option>
                                         <option>TensorFlow</option>
                                         <option>Scikit-Learn</option>
@@ -163,7 +163,7 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">Type</label>
-                                    <select name="type" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <select aria-label="Type" name="type" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                         <option>LLM</option>
                                         <option>Classification</option>
                                         <option>Regression</option>
@@ -173,7 +173,7 @@ export const AiModelRegistry: React.FC<AiModelRegistryProps> = ({ onEvaluate, on
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Initial Risk Assessment</label>
-                                <select name="riskLevel" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <select aria-label="Initial Risk Assessment" name="riskLevel" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option>Low</option>
                                     <option>Medium</option>
                                     <option>High</option>

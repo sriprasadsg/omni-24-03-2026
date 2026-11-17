@@ -113,7 +113,7 @@ export const LocalRepoManager: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Package Type</label>
-                        <select
+                        <select aria-label="Package Type"
                             value={pkgType}
                             onChange={(e) => setPkgType(e.target.value)}
                             className="w-full border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"

@@ -170,7 +170,7 @@ export default function CloudChecksScanner() {
       <div className="flex flex-wrap gap-3">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search checks…" className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg w-48" />
+          <input aria-label="Search checks" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search checks…" className="pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg w-48" />
         </div>
         <select value={filterProvider} onChange={e => setFilterProvider(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg">
           <option value="">All Providers</option>

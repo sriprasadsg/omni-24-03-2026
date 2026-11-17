@@ -57,7 +57,7 @@ export const TenantBrandingSettings: React.FC<TenantBrandingSettingsProps> = ({ 
                 <div className="p-6 space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Company Name</label>
-                        <input
+                        <input aria-label="Company Name"
                             type="text"
                             value={config.companyName || ''}
                             onChange={(e) => setConfig({ ...config, companyName: e.target.value })}

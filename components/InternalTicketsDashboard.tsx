@@ -28,6 +28,7 @@ import { SparklesIcon } from './icons';
 import { fetchTicketDesk, postTicketComment } from '../services/serviceDesk/ticketApi';
 import type { TicketDeskView } from '../services/serviceDesk/types';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -263,7 +264,7 @@ const TicketModal: React.FC<{
           {templates.length > 0 && (
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Template</label>
-              <select className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
+              <select aria-label="Template" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
                 value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
                 <option value="">None — blank ticket</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -273,14 +274,14 @@ const TicketModal: React.FC<{
 
           <div>
             <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Title *</label>
-            <input className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+            <input aria-label="Title" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
               placeholder="Brief summary of the issue" value={form.title}
               onChange={e => setForm(p => ({...p, title: e.target.value}))} />
           </div>
 
           <div>
             <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Description</label>
-            <textarea rows={4} className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500 resize-none"
+            <textarea aria-label="Description" rows={4} className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500 resize-none"
               placeholder="Detailed description..." value={form.description}
               onChange={e => setForm(p => ({...p, description: e.target.value}))} />
           </div>
@@ -288,14 +289,14 @@ const TicketModal: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Type</label>
-              <select className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
+              <select aria-label="Type" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
                 value={form.type} onChange={e => setForm(p => ({...p, type: e.target.value}))}>
                 {['task','bug','feature','incident','security'].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Priority</label>
-              <select className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
+              <select aria-label="Priority" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm"
                 value={form.priority} onChange={e => setForm(p => ({...p, priority: e.target.value}))}>
                 {['critical','high','medium','low'].map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -306,13 +307,13 @@ const TicketModal: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Assignee (email)</label>
-              <input className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+              <input aria-label="Assignee (email)" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                 placeholder="user@example.com" value={form.assignee}
                 onChange={e => setForm(p => ({...p, assignee: e.target.value}))} />
             </div>
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Team / Group</label>
-              <input className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+              <input aria-label="Team / Group" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                 placeholder="e.g. Security Team" value={form.assignee_group}
                 onChange={e => setForm(p => ({...p, assignee_group: e.target.value}))} />
             </div>
@@ -321,12 +322,12 @@ const TicketModal: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Due Date</label>
-              <input type="datetime-local" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+              <input aria-label="Due Date" type="datetime-local" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                 value={form.due_date} onChange={e => setForm(p => ({...p, due_date: e.target.value}))} />
             </div>
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">SLA Hours (override)</label>
-              <input type="number" min={1} className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+              <input aria-label="SLA Hours (override)" type="number" min={1} className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                 placeholder="Auto from priority" value={form.sla_hours || ''}
                 onChange={e => setForm(p => ({...p, sla_hours: e.target.value ? Number(e.target.value) : undefined}))} />
             </div>
@@ -335,7 +336,7 @@ const TicketModal: React.FC<{
 
           <div>
             <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Tags (comma-separated)</label>
-            <input className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
+            <input aria-label="Tags (comma-separated)" className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
               placeholder="security, urgent, customer-reported" value={form.tags}
               onChange={e => setForm(p => ({...p, tags: e.target.value}))} />
           </div>
@@ -347,7 +348,7 @@ const TicketModal: React.FC<{
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                  <input
+                  <input aria-label="Search by hostname or agent ID"
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg pl-7 pr-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                     placeholder="Search by hostname or agent ID…"
                     value={agentSearch}
@@ -432,7 +433,7 @@ const TicketModal: React.FC<{
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
 const StatCard = ({label,value,color,sub,active,onClick}:{label:string;value:number;color:string;sub?:string;active?:boolean;onClick?:()=>void}) => (
-  <div onClick={onClick} className={`bg-gray-50 dark:bg-slate-800/60 border rounded-xl p-4 flex flex-col gap-1 transition-all cursor-pointer
+  <div tabIndex={0} onKeyDown={activateOnKey} onClick={onClick} className={`bg-gray-50 dark:bg-slate-800/60 border rounded-xl p-4 flex flex-col gap-1 transition-all cursor-pointer
     ${active ? 'border-teal-500/50 bg-teal-100 dark:bg-teal-900/10' : 'border-gray-200 dark:border-slate-700/60 hover:border-gray-300 dark:hover:border-slate-600'}`}>
     <span className="text-xs text-gray-600 dark:text-slate-400">{label}</span>
     <span className={`text-2xl font-bold ${color}`}>{value}</span>
@@ -873,7 +874,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
-              <input className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+              <input aria-label="Search tickets" className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
                 placeholder="Search tickets…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <select className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
@@ -974,7 +975,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                 {tickets.length === 0 ? (
                   <tr><td colSpan={11} className="text-center py-12 text-slate-500">No tickets found.</td></tr>
                 ) : tickets.map(t => (
-                  <tr key={t.id} onClick={() => openTicket(t)}
+                  <tr key={t.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => openTicket(t)}
                     className={`cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/40 ${selected?.id === t.id ? 'bg-gray-50 dark:bg-slate-800/60' : ''}`}>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       {isTicketStaff && (
@@ -1052,7 +1053,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         <div key={t.id}
                           draggable={isTicketStaff}
                           onDragStart={e => { e.dataTransfer.setData('ticketId', t.id); e.dataTransfer.effectAllowed = 'move'; }}
-                          onClick={() => openTicket(t)}
+                          role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => openTicket(t)}
                           className={`bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl p-3 ${isTicketStaff ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:border-teal-600/40 transition-all ${selected?.id===t.id ? 'border-teal-600/50' : ''}`}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[11px] font-mono text-slate-500">{t.ticket_number}</span>
@@ -1279,7 +1280,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                               <ThumbsUp size={11}/> Grant Access
                             </button>
                             <div className="flex-1 flex gap-1">
-                              <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 text-xs text-gray-900 dark:text-white focus:outline-none"
+                              <input aria-label="Deny reason" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 text-xs text-gray-900 dark:text-white focus:outline-none"
                                 placeholder="Deny reason…" value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
                               <button aria-label="Reject" onClick={handleReject} disabled={!rejectReason.trim()} className="px-2 bg-red-700 hover:bg-red-600 text-white text-xs rounded disabled:opacity-40">
                                 <ThumbsDown size={11}/>
@@ -1348,7 +1349,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
+                    <input aria-label="Add watcher email" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
                       placeholder="Add watcher email…" value={watcherEmail}
                       onChange={e => setWatcherEmail(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleAddWatcher(); }} />
@@ -1378,7 +1379,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 rounded-xl p-3 space-y-2">
                     <p className="text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-1"><AlertTriangle size={12}/> Pending Approval</p>
                     {isTicketStaff && (<>
-                    <input className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none"
+                    <input aria-label="Optional comment" className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none"
                       placeholder="Optional comment…" value={approvalComment}
                       onChange={e => setApprovalComment(e.target.value)} />
                     <div className="flex gap-2">
@@ -1386,7 +1387,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         <ThumbsUp size={11}/> Approve
                       </button>
                       <div className="flex-1 flex gap-1">
-                        <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none"
+                        <input aria-label="Rejection reason (required)" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none"
                           placeholder="Rejection reason (required)"
                           value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
                         <button aria-label="Reject" onClick={handleReject} disabled={!rejectReason.trim()}
@@ -1404,7 +1405,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <div className="space-y-1">
                     <p className="text-gray-600 dark:text-slate-400 text-xs">Escalate</p>
                     <div className="flex gap-2">
-                      <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-rose-500"
+                      <input aria-label="Reason (optional)" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-rose-500"
                         placeholder="Reason (optional)…" value={escalateReason}
                         onChange={e => setEscalateReason(e.target.value)} />
                       <button onClick={handleEscalate}
@@ -1420,7 +1421,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <div className="space-y-1">
                     <p className="text-gray-600 dark:text-slate-400 text-xs">Merge into another ticket</p>
                     <div className="flex gap-2">
-                      <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-purple-500"
+                      <input aria-label="Target ticket ID" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-purple-500"
                         placeholder="Target ticket ID (e.g. abc-123)…" value={mergeTargetId}
                         onChange={e => setMergeTargetId(e.target.value)} />
                       <button onClick={handleMerge} disabled={!mergeTargetId.trim()}
@@ -1443,7 +1444,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     </div>
                     {csatRating > 0 && (
                       <>
-                        <input className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white"
+                        <input aria-label="Optional comment" className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white"
                           placeholder="Optional comment…" value={csatComment} onChange={e => setCsatComment(e.target.value)} />
                         <button onClick={handleCsat} className="w-full py-1.5 bg-teal-700 hover:bg-teal-600 text-white text-xs rounded font-medium">
                           Submit Rating
@@ -1592,9 +1593,9 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <span className="text-gray-900 dark:text-white font-semibold">{(selected.total_hours_logged || 0).toFixed(1)}h</span>
                 </div>
                 <div className="flex gap-2">
-                  <input type="number" min={0.25} step={0.25} className="w-24 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
+                  <input aria-label="Hours" type="number" min={0.25} step={0.25} className="w-24 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
                     placeholder="Hours" value={workHours} onChange={e => setWorkHours(e.target.value)} />
-                  <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
+                  <input aria-label="Description" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
                     placeholder="Description…" value={workNote} onChange={e => setWorkNote(e.target.value)} />
                   <button onClick={handleLogWork} disabled={!workHours || Number(workHours) <= 0}
                     className="px-3 bg-teal-600 hover:bg-teal-500 text-white text-sm rounded-lg disabled:opacity-40">
@@ -1625,7 +1626,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             {activeTab === 'links' && (
               <>
                 <div className="flex gap-2">
-                  <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                  <input aria-label="Ticket ID" className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
                     placeholder="Ticket ID (e.g. TKT-0012)…" value={linkId}
                     onChange={e => setLinkId(e.target.value)} />
                   <select className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm text-gray-900 dark:text-white"

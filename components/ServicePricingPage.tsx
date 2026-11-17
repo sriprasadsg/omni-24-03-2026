@@ -277,7 +277,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Service ID *
                                     </label>
-                                    <input
+                                    <input aria-label="Service ID"
                                         type="text"
                                         value={formData.id}
                                         onChange={e => setFormData({ ...formData, id: e.target.value })}
@@ -293,7 +293,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Service Name *
                                     </label>
-                                    <input
+                                    <input aria-label="Service Name"
                                         type="text"
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -307,7 +307,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Category *
                                     </label>
-                                    <select
+                                    <select aria-label="Category"
                                         value={formData.category}
                                         onChange={e => setFormData({ ...formData, category: e.target.value })}
                                         disabled={isFrameworkPrice}
@@ -324,7 +324,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Billing Unit *
                                     </label>
-                                    <select
+                                    <select aria-label="Billing Unit"
                                         value={formData.unit}
                                         onChange={e => setFormData({ ...formData, unit: e.target.value })}
                                         disabled={isFrameworkPrice}
@@ -341,7 +341,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Unit Price ($) *
                                     </label>
-                                    <input
+                                    <input aria-label="Unit Price ($)"
                                         type="number"
                                         step="0.01"
                                         min={minPrice}
@@ -362,7 +362,7 @@ export const ServicePricingPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Description
                                     </label>
-                                    <textarea
+                                    <textarea aria-label="Description"
                                         value={formData.description}
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"

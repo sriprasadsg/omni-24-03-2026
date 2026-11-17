@@ -112,7 +112,7 @@ export default function VendorManagement() {
                 <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between">
                     <div className="relative max-w-sm w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
+                        <input aria-label="Search vendors"
                             type="text"
                             placeholder="Search vendors..."
                             value={searchTerm}

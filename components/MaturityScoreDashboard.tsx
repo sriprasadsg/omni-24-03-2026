@@ -218,8 +218,8 @@ export default function MaturityScoreDashboard() {
                 ))}
               </div>
             </div>
-            <textarea value={editForm.evidence} onChange={e => setEditForm(f => ({ ...f, evidence: e.target.value }))} placeholder="Evidence / justification" rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
-            <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes" rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
+            <textarea aria-label="Evidence / justification" value={editForm.evidence} onChange={e => setEditForm(f => ({ ...f, evidence: e.target.value }))} placeholder="Evidence / justification" rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
+            <textarea aria-label="Notes" value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes" rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditingDomain(null)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900">Cancel</button>
               <button onClick={saveAssessment} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50">

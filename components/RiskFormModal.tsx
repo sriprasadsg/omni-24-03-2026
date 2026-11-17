@@ -53,16 +53,16 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({ isOpen, onClose, o
       <form id="risk-form" onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className={labelCls}>Title</label>
-          <input type="text" required value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className={inputCls} />
+          <input aria-label="Title" type="text" required value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className={inputCls} />
         </div>
         <div>
           <label className={labelCls}>Description</label>
-          <textarea required value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className={`${inputCls} h-24`} />
+          <textarea aria-label="Description" required value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className={`${inputCls} h-24`} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Category</label>
-            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls}>
+            <select aria-label="Category" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls}>
               <option value="Enterprise">Enterprise</option>
               <option value="AI">AI</option>
               <option value="Cyber">Cyber</option>
@@ -72,27 +72,27 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({ isOpen, onClose, o
           </div>
           <div>
             <label className={labelCls}>Owner</label>
-            <input type="text" required value={formData.owner} onChange={e => setFormData({ ...formData, owner: e.target.value })} className={inputCls} />
+            <input aria-label="Owner" type="text" required value={formData.owner} onChange={e => setFormData({ ...formData, owner: e.target.value })} className={inputCls} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Likelihood (1-5)</label>
-            <input type="number" min="1" max="5" value={formData.likelihood} onChange={e => setFormData({ ...formData, likelihood: parseInt(e.target.value) })} className={inputCls} />
+            <input aria-label="Likelihood (1-5)" type="number" min="1" max="5" value={formData.likelihood} onChange={e => setFormData({ ...formData, likelihood: parseInt(e.target.value) })} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Impact (1-5)</label>
-            <input type="number" min="1" max="5" value={formData.impact} onChange={e => setFormData({ ...formData, impact: parseInt(e.target.value) })} className={inputCls} />
+            <input aria-label="Impact (1-5)" type="number" min="1" max="5" value={formData.impact} onChange={e => setFormData({ ...formData, impact: parseInt(e.target.value) })} className={inputCls} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Residual Likelihood (1-5)</label>
-            <input type="number" min="1" max="5" value={formData.residual_likelihood} onChange={e => setFormData({ ...formData, residual_likelihood: parseInt(e.target.value) })} className={inputCls} />
+            <input aria-label="Residual Likelihood (1-5)" type="number" min="1" max="5" value={formData.residual_likelihood} onChange={e => setFormData({ ...formData, residual_likelihood: parseInt(e.target.value) })} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Residual Impact (1-5)</label>
-            <input type="number" min="1" max="5" value={formData.residual_impact} onChange={e => setFormData({ ...formData, residual_impact: parseInt(e.target.value) })} className={inputCls} />
+            <input aria-label="Residual Impact (1-5)" type="number" min="1" max="5" value={formData.residual_impact} onChange={e => setFormData({ ...formData, residual_impact: parseInt(e.target.value) })} className={inputCls} />
           </div>
         </div>
       </form>

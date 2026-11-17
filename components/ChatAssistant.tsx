@@ -283,7 +283,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
 
           <div className="p-4">
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <input
+              <input aria-label="Ask a question or type / for skills"
                 ref={inputRef}
                 type="text"
                 value={input}

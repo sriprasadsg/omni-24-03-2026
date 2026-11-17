@@ -15,6 +15,7 @@ import {
     Cpu,
     BarChart3
 } from 'lucide-react';
+import { activateOnKey } from './ui/a11y';
 
 interface GoalTask {
     task_id: string;
@@ -131,7 +132,7 @@ export const GoalSystemDashboard: React.FC = () => {
                     </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                        <input 
+                        <input aria-label="Search goals" 
                             type="text" 
                             placeholder="Search goals..." 
                             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
@@ -143,7 +144,7 @@ export const GoalSystemDashboard: React.FC = () => {
                     {goals.map(goal => (
                         <div 
                             key={goal.id}
-                            onClick={() => setActiveGoal(goal)}
+                            role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setActiveGoal(goal)}
                             className={`p-4 rounded-xl border cursor-pointer transition-all ${activeGoal?.id === goal.id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-500/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 hover:border-slate-200'}`}
                         >
                             <div className="flex justify-between items-start mb-2">
@@ -294,7 +295,7 @@ export const GoalSystemDashboard: React.FC = () => {
                             <div className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-400 uppercase mb-2">Objective (Natural Language)</label>
-                                    <textarea 
+                                    <textarea aria-label="Objective (Natural Language)" 
                                         value={newGoalObjective}
                                         onChange={(e) => setNewGoalObjective(e.target.value)}
                                         rows={3}
@@ -305,7 +306,7 @@ export const GoalSystemDashboard: React.FC = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-bold text-slate-400 uppercase mb-2">Priority</label>
-                                        <select defaultValue="5" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
+                                        <select aria-label="Priority" defaultValue="5" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
                                             <option value="1">P1 - Critical</option>
                                             <option value="2">P2 - High</option>
                                             <option value="5">P5 - Standard</option>
@@ -313,7 +314,7 @@ export const GoalSystemDashboard: React.FC = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-400 uppercase mb-2">Category</label>
-                                        <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
+                                        <select aria-label="Category" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-slate-900 dark:text-white">
                                             <option value="security">Security</option>
                                             <option value="compliance">Compliance</option>
                                             <option value="cost">Cost Optimization</option>

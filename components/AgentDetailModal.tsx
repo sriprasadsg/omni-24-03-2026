@@ -669,7 +669,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Tenant</label>
-                            <select
+                            <select aria-label="Target Tenant"
                                 value={targetTenantId}
                                 onChange={(e) => setTargetTenantId(e.target.value)}
                                 className="w-full border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-primary-500 focus:border-primary-500"

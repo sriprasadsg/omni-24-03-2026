@@ -3,6 +3,7 @@ import { ShieldCheckIcon, AlertTriangleIcon, UploadIcon } from './icons';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { Modal } from './Modal';
+import { activateOnKey } from './ui/a11y';
 
 const DEPARTMENTS = ['HR', 'Finance', 'Management', 'Legal', 'IT', 'Operations', 'Audit', 'Risk', 'Other'];
 
@@ -113,14 +114,14 @@ export const ControlEvidenceUploadModal = ({
                 <form id="control-evidence-form" onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department / Owner</label>
-                        <select value={department} onChange={e => setDepartment(e.target.value)}
+                        <select aria-label="Department / Owner" value={department} onChange={e => setDepartment(e.target.value)}
                             className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm">
                             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={1000}
+                        <textarea aria-label="Description" value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={1000}
                             placeholder="Briefly describe this evidence (e.g., HR policy document, signed BAA, audit report)"
                             className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none" />
                     </div>
@@ -128,7 +129,7 @@ export const ControlEvidenceUploadModal = ({
                         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
-                        onClick={() => inputRef.current?.click()}
+                        tabIndex={0} onKeyDown={activateOnKey} onClick={() => inputRef.current?.click()}
                         className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'}`}
                     >
                         <input ref={inputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"

@@ -66,7 +66,7 @@ function SettingsSummary({ type, settings }: { type: string; settings: Record<st
 function BrowserForm({ settings, onChange }: { settings: Record<string, unknown>; onChange: (s: Record<string, unknown>) => void }) {
   return (
     <div className="space-y-3">
-      <input value={(settings.homepage as string) || ''} onChange={e => onChange({ ...settings, homepage: e.target.value })}
+      <input aria-label="Homepage URL" value={(settings.homepage as string) || ''} onChange={e => onChange({ ...settings, homepage: e.target.value })}
         placeholder="Homepage URL" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
       <label className="flex items-center gap-2 text-gray-700 dark:text-slate-300 text-sm cursor-pointer">
         <input type="checkbox" checked={!!settings.force_safe_search} onChange={e => onChange({ ...settings, force_safe_search: e.target.checked })} />
@@ -96,13 +96,13 @@ function UsbForm({ settings, onChange }: { settings: Record<string, unknown>; on
 function WifiForm({ settings, onChange }: { settings: Record<string, unknown>; onChange: (s: Record<string, unknown>) => void }) {
   return (
     <div className="space-y-3">
-      <input value={(settings.ssid as string) || ''} onChange={e => onChange({ ...settings, ssid: e.target.value })}
+      <input aria-label="Network SSID" value={(settings.ssid as string) || ''} onChange={e => onChange({ ...settings, ssid: e.target.value })}
         placeholder="Network SSID" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
       <select value={(settings.security_type as string) || 'WPA2'} onChange={e => onChange({ ...settings, security_type: e.target.value })}
         className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm">
         {['Open', 'WEP', 'WPA2', 'WPA3', 'WPA2-Enterprise', 'WPA3-Enterprise'].map(s => <option key={s} value={s}>{s}</option>)}
       </select>
-      <input type="password" value={(settings.passphrase as string) || ''} onChange={e => onChange({ ...settings, passphrase: e.target.value })}
+      <input aria-label="Passphrase (leave empty for EAP)" type="password" value={(settings.passphrase as string) || ''} onChange={e => onChange({ ...settings, passphrase: e.target.value })}
         placeholder="Passphrase (leave empty for EAP)" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
       <label className="flex items-center gap-2 text-gray-700 dark:text-slate-300 text-sm cursor-pointer">
         <input type="checkbox" checked={!!settings.auto_connect} onChange={e => onChange({ ...settings, auto_connect: e.target.checked })} />
@@ -119,7 +119,7 @@ function VpnForm({ settings, onChange }: { settings: Record<string, unknown>; on
         className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm">
         {['IKEv2', 'SSL/TLS', 'L2TP/IPSec', 'PPTP', 'WireGuard'].map(s => <option key={s} value={s}>{s}</option>)}
       </select>
-      <input value={(settings.server_address as string) || ''} onChange={e => onChange({ ...settings, server_address: e.target.value })}
+      <input aria-label="VPN Server Address" value={(settings.server_address as string) || ''} onChange={e => onChange({ ...settings, server_address: e.target.value })}
         placeholder="VPN Server Address" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
       <select value={(settings.auth_type as string) || 'password'} onChange={e => onChange({ ...settings, auth_type: e.target.value })}
         className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm">
@@ -142,7 +142,7 @@ function KioskForm({ settings, onChange }: { settings: Record<string, unknown>; 
         className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm">
         {[['single_app', 'Single App'], ['multi_app', 'Multi-App'], ['browser', 'Browser Kiosk']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      <input value={(settings.auto_launch_app as string) || ''} onChange={e => onChange({ ...settings, auto_launch_app: e.target.value })}
+      <input aria-label="Auto-launch app (bundle ID)" value={(settings.auto_launch_app as string) || ''} onChange={e => onChange({ ...settings, auto_launch_app: e.target.value })}
         placeholder="Auto-launch app (bundle ID)" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
       {[['show_status_bar', 'Show Status Bar'], ['show_navigation_bar', 'Show Navigation Bar'], ['allow_settings', 'Allow Settings Access']].map(([key, label]) => (
         <label key={key} className="flex items-center gap-2 text-gray-700 dark:text-slate-300 text-sm cursor-pointer">
@@ -250,9 +250,9 @@ export default function DeviceConfigProfilesDashboard() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 w-full max-w-lg my-auto">
             <h2 className="text-gray-900 dark:text-white font-bold text-lg mb-4">New Configuration Profile</h2>
             <div className="space-y-4">
-              <input value={newProfile.name} onChange={e => setNewProfile(p => ({ ...p, name: e.target.value }))}
+              <input aria-label="Profile name" value={newProfile.name} onChange={e => setNewProfile(p => ({ ...p, name: e.target.value }))}
                 placeholder="Profile name" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
-              <input value={newProfile.description} onChange={e => setNewProfile(p => ({ ...p, description: e.target.value }))}
+              <input aria-label="Description (optional)" value={newProfile.description} onChange={e => setNewProfile(p => ({ ...p, description: e.target.value }))}
                 placeholder="Description (optional)" className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white text-sm" />
               <div>
                 <label className="text-gray-600 dark:text-slate-400 text-xs block mb-2">Profile Type</label>

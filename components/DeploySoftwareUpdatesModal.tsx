@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ZapIcon, ClockIcon } from './icons';
 import { showToast } from '../utils/toast';
 import { Modal } from './Modal';
+import { activateOnKey } from './ui/a11y';
 
 interface SoftwareItem {
     id: string;
@@ -89,7 +90,7 @@ export const DeploySoftwareUpdatesModal: React.FC<DeploySoftwareUpdatesModalProp
 
             {/* Deployment Options */}
             <div className="mt-4 space-y-2">
-                <div onClick={() => setDeploymentType('Immediate')} className={`p-3 border rounded-lg cursor-pointer ${deploymentType === 'Immediate' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
+                <div tabIndex={0} onKeyDown={activateOnKey} onClick={() => setDeploymentType('Immediate')} className={`p-3 border rounded-lg cursor-pointer ${deploymentType === 'Immediate' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
                     <label className="flex items-center">
                         <input type="radio" name="deploymentType" checked={deploymentType === 'Immediate'} onChange={() => { }} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
                         <div className="ml-3">
@@ -98,7 +99,7 @@ export const DeploySoftwareUpdatesModal: React.FC<DeploySoftwareUpdatesModalProp
                         </div>
                     </label>
                 </div>
-                <div onClick={() => setDeploymentType('Scheduled')} className={`p-3 border rounded-lg cursor-pointer ${deploymentType === 'Scheduled' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
+                <div tabIndex={0} onKeyDown={activateOnKey} onClick={() => setDeploymentType('Scheduled')} className={`p-3 border rounded-lg cursor-pointer ${deploymentType === 'Scheduled' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
                     <label className="flex items-center">
                         <input type="radio" name="deploymentType" checked={deploymentType === 'Scheduled'} onChange={() => { }} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
                         <div className="ml-3">

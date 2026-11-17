@@ -168,7 +168,7 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
                     <div className="w-full max-w-sm space-y-4">
                         <div>
                             <label className="block text-xs text-gray-400 mb-1">Username</label>
-                            <input
+                            <input aria-label="Username"
                                 type="text"
                                 value={username}
                                 onChange={(e) => { setUsername(e.target.value); setCredError(''); }}
@@ -181,7 +181,7 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
                         </div>
                         <div>
                             <label className="block text-xs text-gray-400 mb-1">Password</label>
-                            <input
+                            <input aria-label="Password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => { setPassword(e.target.value); setCredError(''); }}

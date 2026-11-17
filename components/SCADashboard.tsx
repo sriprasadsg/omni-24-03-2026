@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { activateOnKey } from './ui/a11y';
 
 const API = '/api/sca';
 
@@ -186,7 +187,7 @@ export default function SCADashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {agents.map(a => (
             <div key={a.agent_id} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-3 cursor-pointer hover:border-blue-500/50 transition-colors"
-              onClick={() => loadAgentChecks(a)}>
+              role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => loadAgentChecks(a)}>
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-gray-900 dark:text-white">{a.hostname ?? a.agent_id}</span>
                 <span className={`text-lg font-bold ${scoreColor(a.score)}`}>{a.score}%</span>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { RocketIcon, UploadIcon, AlertTriangleIcon } from './icons';
+import { activateOnKey } from './ui/a11y';
 
 interface Props {
     activeTab: 'store' | 'repo' | 'url' | 'history' | 'installed';
@@ -52,7 +53,7 @@ export function SoftwareDeployConfigPanel({
                     <>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Package ID (Winget/Apt)</label>
-                            <input
+                            <input aria-label="Package ID (Winget/Apt)"
                                 type="text"
                                 value={packageId}
                                 onChange={(e) => onPackageIdChange(e.target.value)}
@@ -118,7 +119,7 @@ export function SoftwareDeployConfigPanel({
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Installer URL</label>
-                            <input
+                            <input aria-label="Installer URL"
                                 type="url"
                                 value={installUrl}
                                 onChange={(e) => onInstallUrlChange(e.target.value)}
@@ -131,7 +132,7 @@ export function SoftwareDeployConfigPanel({
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Install Arguments (Optional)</label>
-                            <input
+                            <input aria-label="Install Arguments (Optional)"
                                 type="text"
                                 value={installArgs}
                                 onChange={(e) => onInstallArgsChange(e.target.value)}
@@ -171,7 +172,7 @@ export function SoftwareDeployConfigPanel({
                                 {repoFiles.map(f => (
                                     <div
                                         key={f.filename}
-                                        onClick={() => onPackageIdChange(f.filename)}
+                                        role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => onPackageIdChange(f.filename)}
                                         className={`p-3 rounded border cursor-pointer transition-all ${packageId === f.filename
                                             ? 'bg-purple-500/20 border-purple-500 text-purple-200'
                                             : 'bg-slate-800/50 border-slate-700 hover:border-slate-500'}`}
@@ -188,7 +189,7 @@ export function SoftwareDeployConfigPanel({
 
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Install Arguments (Optional)</label>
-                            <input
+                            <input aria-label="Install Arguments (Optional)"
                                 type="text"
                                 value={installArgs}
                                 onChange={(e) => onInstallArgsChange(e.target.value)}

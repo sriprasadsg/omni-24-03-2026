@@ -174,7 +174,7 @@ export const JobsDashboard: React.FC = () => {
                         <form onSubmit={handleCreateJob}>
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Type</label>
-                                <select
+                                <select aria-label="Job Type"
                                     value={newJobType}
                                     onChange={(e) => setNewJobType(e.target.value)}
                                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -187,7 +187,7 @@ export const JobsDashboard: React.FC = () => {
                             </div>
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Details (JSON)</label>
-                                <textarea
+                                <textarea aria-label="Details (JSON)"
                                     value={newJobDetails}
                                     onChange={(e) => setNewJobDetails(e.target.value)}
                                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm h-32"

@@ -114,7 +114,7 @@ export default function MFASetupWizard({ onClose, onEnabled, required = false }:
                         <p style={{ color: '#64748b', fontSize: 12, marginBottom: 16 }}>
                             Manual key: <code style={{ color: '#22d3ee' }}>{secret}</code>
                         </p>
-                        <input
+                        <input aria-label="Enter 6-digit TOTP code"
                             value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                             placeholder="Enter 6-digit TOTP code" maxLength={6}
                             style={{ width: '100%', padding: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 18, letterSpacing: 8, textAlign: 'center', boxSizing: 'border-box', marginBottom: 12 }}

@@ -5,6 +5,7 @@ import { ThemeContext } from '../contexts/ThemeContext';
 import { fetchAgents, fetchAlerts, fetchAssets, fetchComplianceFrameworks, fetchTenants, fetchKpiSummary } from '../services/apiService';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { ComplianceFrameworkModal } from './ComplianceFrameworkModal';
+import { activateOnKey } from './ui/a11y';
 
 interface CXODashboardProps { }
 
@@ -430,7 +431,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                                 <div
                                     key={i}
                                     className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer transition-all group border border-transparent hover:border-primary-500/30"
-                                    onClick={() => setSelectedFramework(framework)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedFramework(framework)}
                                 >
                                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500/20 to-indigo-500/20 flex items-center justify-center flex-shrink-0">
                                         <ShieldCheckIcon size={18} className="text-primary-500" />

@@ -270,7 +270,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                         <form onSubmit={handleCreate} className="space-y-5">
                             <div>
                                 <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Experiment Name</label>
-                                <input
+                                <input aria-label="Experiment Name"
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     placeholder="e.g. DB Failover Drill"
                                     value={form.name}
@@ -280,7 +280,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Type</label>
-                                <select
+                                <select aria-label="Type"
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     value={form.type}
                                     onChange={e => setForm(f => ({ ...f, type: e.target.value as ChaosExperiment['type'] }))}
@@ -290,7 +290,7 @@ export const ChaosEngineeringDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Target / Blast Radius</label>
-                                <input
+                                <input aria-label="Target / Blast Radius"
                                     className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50"
                                     placeholder="e.g. db-prod-01"
                                     value={form.target}

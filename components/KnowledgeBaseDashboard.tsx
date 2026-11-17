@@ -180,7 +180,7 @@ export default function KnowledgeBaseDashboard() {
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-6">
         <div className="flex gap-3">
-          <input
+          <input aria-label="Search knowledge base (semantic + full-text)"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
@@ -322,25 +322,25 @@ export default function KnowledgeBaseDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Title</label>
-                  <input value={ingestForm.title} onChange={e => setIngestForm(p => ({ ...p, title: e.target.value }))}
+                  <input aria-label="Title" value={ingestForm.title} onChange={e => setIngestForm(p => ({ ...p, title: e.target.value }))}
                     placeholder="e.g. Incident Response Runbook v2"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Source</label>
-                  <input value={ingestForm.source} onChange={e => setIngestForm(p => ({ ...p, source: e.target.value }))}
+                  <input aria-label="Source" value={ingestForm.source} onChange={e => setIngestForm(p => ({ ...p, source: e.target.value }))}
                     placeholder="e.g. confluence, github, manual"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Tags (comma-separated)</label>
-                  <input value={ingestForm.tags} onChange={e => setIngestForm(p => ({ ...p, tags: e.target.value }))}
+                  <input aria-label="Tags (comma-separated)" value={ingestForm.tags} onChange={e => setIngestForm(p => ({ ...p, tags: e.target.value }))}
                     placeholder="runbook, ir, p1-response"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Content *</label>
-                  <textarea value={ingestForm.content} onChange={e => setIngestForm(p => ({ ...p, content: e.target.value }))}
+                  <textarea aria-label="Content" value={ingestForm.content} onChange={e => setIngestForm(p => ({ ...p, content: e.target.value }))}
                     rows={10} placeholder="Paste document content here…"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none font-mono text-xs" />
                 </div>

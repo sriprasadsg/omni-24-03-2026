@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 interface Cluster {
   id: string;
@@ -134,7 +135,7 @@ export default function K8sSecurityDashboard() {
           ) : (
             clusters.map(c => (
               <div key={c.id}
-                onClick={() => setSelectedCluster(c.id === selectedCluster ? null : c.id)}
+                tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedCluster(c.id === selectedCluster ? null : c.id)}
                 className={`bg-white dark:bg-gray-800 rounded-xl p-4 border cursor-pointer transition-colors ${selectedCluster === c.id ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700 hover:border-gray-500'}`}>
                 <div className="flex justify-between items-start mb-2">
                   <div>
@@ -212,27 +213,27 @@ export default function K8sSecurityDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Cluster Name *</label>
-                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  <input aria-label="Cluster Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="e.g. prod-us-east-1"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Provider</label>
-                    <select value={form.provider} onChange={e => setForm(p => ({ ...p, provider: e.target.value }))}
+                    <select aria-label="Provider" value={form.provider} onChange={e => setForm(p => ({ ...p, provider: e.target.value }))}
                       className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                       {PROVIDERS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">K8s Version</label>
-                    <input value={form.k8s_version} onChange={e => setForm(p => ({ ...p, k8s_version: e.target.value }))}
+                    <input aria-label="K8s Version" value={form.k8s_version} onChange={e => setForm(p => ({ ...p, k8s_version: e.target.value }))}
                       className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                   </div>
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Node Count</label>
-                  <input type="number" min={1} value={form.node_count}
+                  <input aria-label="Node Count" type="number" min={1} value={form.node_count}
                     onChange={e => setForm(p => ({ ...p, node_count: Number(e.target.value) }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>

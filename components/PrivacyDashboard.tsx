@@ -372,31 +372,31 @@ export default function PrivacyDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Request Type *</label>
-                  <select value={dsrForm.request_type} onChange={e => setDsrForm(p => ({ ...p, request_type: e.target.value }))}
+                  <select aria-label="Request Type" value={dsrForm.request_type} onChange={e => setDsrForm(p => ({ ...p, request_type: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                     {DSR_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Data Subject Name *</label>
-                  <input value={dsrForm.data_subject_name} onChange={e => setDsrForm(p => ({ ...p, data_subject_name: e.target.value }))}
+                  <input aria-label="Data Subject Name" value={dsrForm.data_subject_name} onChange={e => setDsrForm(p => ({ ...p, data_subject_name: e.target.value }))}
                     placeholder="Full name" className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Email *</label>
-                  <input type="email" value={dsrForm.data_subject_email} onChange={e => setDsrForm(p => ({ ...p, data_subject_email: e.target.value }))}
+                  <input aria-label="Email" type="email" value={dsrForm.data_subject_email} onChange={e => setDsrForm(p => ({ ...p, data_subject_email: e.target.value }))}
                     placeholder="subject@example.com" className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Regulation</label>
-                  <select value={dsrForm.regulation} onChange={e => setDsrForm(p => ({ ...p, regulation: e.target.value }))}
+                  <select aria-label="Regulation" value={dsrForm.regulation} onChange={e => setDsrForm(p => ({ ...p, regulation: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                     {REGULATIONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Description</label>
-                  <textarea value={dsrForm.description} onChange={e => setDsrForm(p => ({ ...p, description: e.target.value }))}
+                  <textarea aria-label="Description" value={dsrForm.description} onChange={e => setDsrForm(p => ({ ...p, description: e.target.value }))}
                     rows={2} placeholder="Optional details about the request"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none" />
                 </div>
@@ -428,20 +428,20 @@ export default function PrivacyDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Description *</label>
-                  <textarea value={breachForm.description} onChange={e => setBreachForm(p => ({ ...p, description: e.target.value }))}
+                  <textarea aria-label="Description" value={breachForm.description} onChange={e => setBreachForm(p => ({ ...p, description: e.target.value }))}
                     rows={3} placeholder="What data was affected? How did the breach occur?"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Risk Level</label>
-                  <select value={breachForm.risk_level} onChange={e => setBreachForm(p => ({ ...p, risk_level: e.target.value }))}
+                  <select aria-label="Risk Level" value={breachForm.risk_level} onChange={e => setBreachForm(p => ({ ...p, risk_level: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                     {['low', 'medium', 'high', 'critical'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Estimated Subjects Affected</label>
-                  <input type="number" min={0} value={breachForm.estimated_subjects_affected}
+                  <input aria-label="Estimated Subjects Affected" type="number" min={0} value={breachForm.estimated_subjects_affected}
                     onChange={e => setBreachForm(p => ({ ...p, estimated_subjects_affected: Number(e.target.value) }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>

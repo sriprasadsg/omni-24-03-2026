@@ -405,7 +405,7 @@ export const SASTDashboard: React.FC = () => {
                         <form onSubmit={handleTriggerScan} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Project Name</label>
-                                <input
+                                <input aria-label="Project Name"
                                     type="text"
                                     value={formData.project_name}
                                     onChange={(e) => setFormData({ ...formData, project_name: e.target.value })}
@@ -415,7 +415,7 @@ export const SASTDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Repository URL</label>
-                                <input
+                                <input aria-label="Repository URL"
                                     type="text"
                                     value={formData.repository_url}
                                     onChange={(e) => setFormData({ ...formData, repository_url: e.target.value })}
@@ -425,7 +425,7 @@ export const SASTDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Branch</label>
-                                <input
+                                <input aria-label="Branch"
                                     type="text"
                                     value={formData.branch}
                                     onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
@@ -434,7 +434,7 @@ export const SASTDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Scan Type</label>
-                                <select
+                                <select aria-label="Scan Type"
                                     value={formData.scan_type}
                                     onChange={(e) => setFormData({ ...formData, scan_type: e.target.value })}
                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"

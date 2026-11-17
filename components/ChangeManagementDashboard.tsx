@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { ChangeManagementWindows } from './patchRollouts/ChangeManagementWindows';
+import { activateOnKey } from './ui/a11y';
 
 interface CabVote {
   voter: string;
@@ -238,7 +239,7 @@ const ChangeManagementDashboard: React.FC = () => {
                 return (
                   <tr
                     key={cr.id}
-                    onClick={() => { setSelected(cr); setActionMsg(null); setVoteReason(''); setSchedStart(''); setSchedEnd(''); }}
+                    tabIndex={0} onKeyDown={activateOnKey} onClick={() => { setSelected(cr); setActionMsg(null); setVoteReason(''); setSchedStart(''); setSchedEnd(''); }}
                     className="border-b border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/40 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{cr.title}</td>
@@ -285,7 +286,7 @@ const ChangeManagementDashboard: React.FC = () => {
                 { key: 'implementation_plan', placeholder: 'Implementation Plan', type: 'text' },
                 { key: 'assignee', placeholder: 'Assignee', type: 'text' },
               ].map(({ key, placeholder }) => (
-                <input
+                <input aria-label={placeholder}
                   key={key}
                   className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                   placeholder={placeholder}
@@ -293,7 +294,7 @@ const ChangeManagementDashboard: React.FC = () => {
                   onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                 />
               ))}
-              <textarea
+              <textarea aria-label="Description"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none h-16"
                 placeholder="Description"
                 value={createForm.description}
@@ -403,7 +404,7 @@ const ChangeManagementDashboard: React.FC = () => {
               {selected.status === 'cab_review' && (
                 <div>
                   <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Cast Vote</p>
-                  <input
+                  <input aria-label="Reason (optional)"
                     className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-2"
                     placeholder="Reason (optional)"
                     value={voteReason}
@@ -435,7 +436,7 @@ const ChangeManagementDashboard: React.FC = () => {
                   <div className="space-y-2">
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Start</label>
-                      <input
+                      <input aria-label="Start"
                         type="datetime-local"
                         className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
                         value={schedStart}
@@ -444,7 +445,7 @@ const ChangeManagementDashboard: React.FC = () => {
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">End</label>
-                      <input
+                      <input aria-label="End"
                         type="datetime-local"
                         className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
                         value={schedEnd}

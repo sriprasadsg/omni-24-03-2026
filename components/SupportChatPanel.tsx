@@ -108,7 +108,7 @@ const NewConvoModal: React.FC<{
                 <div className="space-y-3">
                     <div>
                         <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Subject *</label>
-                        <input
+                        <input aria-label="Subject"
                             className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                             placeholder="Brief description"
                             value={subject} onChange={e => setSubject(e.target.value)}
@@ -116,7 +116,7 @@ const NewConvoModal: React.FC<{
                     </div>
                     <div>
                         <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Message *</label>
-                        <textarea
+                        <textarea aria-label="Message"
                             rows={4}
                             className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500 resize-none"
                             placeholder="Your message…"
@@ -162,7 +162,7 @@ const UserPickerModal: React.FC<{
                     <h2 className="text-gray-900 dark:text-white font-semibold text-base">Select User to Message</h2>
                     <button onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white text-xl leading-none">×</button>
                 </div>
-                <input
+                <input aria-label="Search by name or email"
                     autoFocus
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm mb-3 focus:outline-none focus:border-indigo-500"
                     placeholder="Search by name or email…"

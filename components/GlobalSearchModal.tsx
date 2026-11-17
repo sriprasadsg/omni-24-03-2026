@@ -102,7 +102,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                     {loading
                         ? <CogIcon size={18} className="text-gray-400 mr-3 animate-spin flex-shrink-0" />
                         : <SearchIcon size={18} className="text-gray-400 mr-3 flex-shrink-0" />}
-                    <input
+                    <input aria-label="Search assets, agents, alerts, CVEs"
                         ref={inputRef}
                         type="text"
                         value={query}

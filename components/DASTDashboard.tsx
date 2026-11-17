@@ -59,7 +59,7 @@ export const DASTDashboard: React.FC = () => {
 
             {/* Actions */}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg flex items-center gap-4">
-                <input
+                <input aria-label="Enter target URL"
                     type="text"
                     value={targetUrl}
                     onChange={(e) => setTargetUrl(e.target.value)}

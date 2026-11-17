@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Shield, AlertTriangle, RefreshCw, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 interface ContainerImage {
   id: string;
@@ -119,12 +120,12 @@ export function ContainerScanDashboard() {
         <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line)', display: 'flex', gap: 12, alignItems: 'center' }}>
             <Search size={14} color="#94a3b8" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search images…"
+            <input aria-label="Search images" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search images…"
               style={{ background: 'none', border: 'none', color: 'var(--ink-text)', fontSize: '0.88em', outline: 'none', flex: 1 }} />
           </div>
           {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>Loading…</div> : (
             filteredImages.map(img => (
-              <div key={img.id} onClick={() => setSelected(img === selected ? null : img)}
+              <div key={img.id} role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelected(img === selected ? null : img)}
                 style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === img.id ? 'rgba(8,145,178,.08)' : 'transparent', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>

@@ -271,13 +271,13 @@ export default function CustomFrameworkBuilder() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Framework Name *</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)}
+            <input aria-label="Framework Name" value={newName} onChange={e => setNewName(e.target.value)}
               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
               placeholder="e.g. My Security Policy 2026" />
           </div>
           <div>
             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Description</label>
-            <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)}
+            <textarea aria-label="Description" value={newDesc} onChange={e => setNewDesc(e.target.value)}
               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
               rows={3} placeholder="Describe the purpose of this framework..." />
           </div>
@@ -388,13 +388,13 @@ export default function CustomFrameworkBuilder() {
               {addingControl === domain.id && (
                 <div className="p-4 bg-gray-750 border-b border-gray-200 dark:border-gray-700 space-y-3">
                   <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300">Add Control to {domain.name}</h4>
-                  <input value={controlForm.name} onChange={e => setControlForm(p => ({ ...p, name: e.target.value }))}
+                  <input aria-label="Control name" value={controlForm.name} onChange={e => setControlForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="Control name *" className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-white" />
-                  <textarea value={controlForm.description} onChange={e => setControlForm(p => ({ ...p, description: e.target.value }))}
+                  <textarea aria-label="Description" value={controlForm.description} onChange={e => setControlForm(p => ({ ...p, description: e.target.value }))}
                     placeholder="Description" rows={2} className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-white" />
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Severity</label>
-                    <select value={controlForm.severity} onChange={e => setControlForm(p => ({ ...p, severity: e.target.value }))}
+                    <select aria-label="Severity" value={controlForm.severity} onChange={e => setControlForm(p => ({ ...p, severity: e.target.value }))}
                       className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm text-gray-900 dark:text-white">
                       {['critical', 'high', 'medium', 'low'].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -459,7 +459,7 @@ export default function CustomFrameworkBuilder() {
           {addingDomain ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-600 p-4">
               <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Add Domain</h3>
-              <input value={domainName} onChange={e => setDomainName(e.target.value)}
+              <input aria-label="Domain name" value={domainName} onChange={e => setDomainName(e.target.value)}
                 placeholder="Domain name (e.g. Access Control)" autoFocus
                 className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-gray-900 dark:text-white mb-3" />
               <div className="flex gap-2">

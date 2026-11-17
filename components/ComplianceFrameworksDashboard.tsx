@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, CheckCircle, XCircle, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, Download, Search } from 'lucide-react';
 import { authFetch } from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
+import { activateOnKey } from './ui/a11y';
 
 const API = '/api/frameworks';
 
@@ -313,7 +314,7 @@ export function ComplianceFrameworksDashboard() {
           const color = colorForFramework(fid);
           const isSelected = selected === fid;
           return (
-            <div key={fid} onClick={() => setSelected(fid)} style={{
+            <div key={fid} role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelected(fid)} style={{
               background: isSelected ? `color-mix(in srgb, ${color} 9%, transparent)` : 'rgba(255,255,255,.04)',
               border: `1px solid ${isSelected ? color + '60' : 'var(--ink-line)'}`,
               borderRadius: RADIUS.lg, padding: `${SPACING.xxxl}px ${SPACING.section}px`, cursor: 'pointer', transition: 'all 0.2s',
@@ -390,7 +391,7 @@ export function ComplianceFrameworksDashboard() {
               const gFails = filtered.filter(c => c.status === 'fail').length;
               return (
                 <div key={group}>
-                  <div onClick={() => toggleGroup(group)} style={{
+                  <div role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => toggleGroup(group)} style={{
                     display: 'flex', alignItems: 'center', gap: SPACING.lg, padding: `${SPACING.xl}px ${SPACING.section}px`,
                     background: 'rgba(255,255,255,.02)', borderBottom: '1px solid var(--ink-line-soft)',
                     cursor: 'pointer', userSelect: 'none',

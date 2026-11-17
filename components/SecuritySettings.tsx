@@ -128,7 +128,7 @@ export const SecuritySettings: React.FC = () => {
                             </div>
 
                             <div className="space-y-4">
-                                <input 
+                                <input aria-label="Enter 6-digit code" 
                                     type="text" 
                                     placeholder="Enter 6-digit code" 
                                     maxLength={6}

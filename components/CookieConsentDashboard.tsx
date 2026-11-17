@@ -113,15 +113,15 @@ export default function CookieConsentDashboard() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Banner Title</label>
-                <input value={config.bannerTitle} onChange={e => setConfig({ ...config, bannerTitle: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
+                <input aria-label="Banner Title" value={config.bannerTitle} onChange={e => setConfig({ ...config, bannerTitle: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Privacy Policy URL</label>
-                <input value={config.privacyPolicyUrl} onChange={e => setConfig({ ...config, privacyPolicyUrl: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" placeholder="https://…" />
+                <input aria-label="Privacy Policy URL" value={config.privacyPolicyUrl} onChange={e => setConfig({ ...config, privacyPolicyUrl: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" placeholder="https://…" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Banner Text</label>
-                <textarea value={config.bannerText} onChange={e => setConfig({ ...config, bannerText: e.target.value })} rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
+                <textarea aria-label="Banner Text" value={config.bannerText} onChange={e => setConfig({ ...config, bannerText: e.target.value })} rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg" />
               </div>
             </div>
           </div>

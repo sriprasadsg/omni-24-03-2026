@@ -344,13 +344,13 @@ export default function AdvancedHuntingDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">Name *</label>
-                <input value={saveName} onChange={e => setSaveName(e.target.value)}
+                <input aria-label="Name" value={saveName} onChange={e => setSaveName(e.target.value)}
                   className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-blue-500 focus:outline-none"
                   placeholder="Query name" />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">Description</label>
-                <textarea value={saveDesc} onChange={e => setSaveDesc(e.target.value)}
+                <textarea aria-label="Description" value={saveDesc} onChange={e => setSaveDesc(e.target.value)}
                   className="w-full h-20 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-blue-500 focus:outline-none resize-none"
                   placeholder="Describe what this query detects..." />
               </div>

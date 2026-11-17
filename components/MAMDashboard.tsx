@@ -267,7 +267,7 @@ export default function MAMDashboard() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-lg">
             <h2 className="text-white font-bold text-lg mb-4">New Protection Policy</h2>
             <div className="space-y-4">
-              <input value={newProtection.name} onChange={e => setNewProtection(p => ({ ...p, name: e.target.value }))}
+              <input aria-label="Policy name" value={newProtection.name} onChange={e => setNewProtection(p => ({ ...p, name: e.target.value }))}
                 placeholder="Policy name" className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
               <select value={newProtection.platform} onChange={e => setNewProtection(p => ({ ...p, platform: e.target.value }))}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm">
@@ -302,17 +302,17 @@ export default function MAMDashboard() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-lg">
             <h2 className="text-white font-bold text-lg mb-4">New Config Policy</h2>
             <div className="space-y-4">
-              <input value={newConfig.name} onChange={e => setNewConfig(p => ({ ...p, name: e.target.value }))}
+              <input aria-label="Policy name" value={newConfig.name} onChange={e => setNewConfig(p => ({ ...p, name: e.target.value }))}
                 placeholder="Policy name" className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
-              <input value={newConfig.target_app} onChange={e => setNewConfig(p => ({ ...p, target_app: e.target.value }))}
+              <input aria-label="Target app (bundle ID or name)" value={newConfig.target_app} onChange={e => setNewConfig(p => ({ ...p, target_app: e.target.value }))}
                 placeholder="Target app (bundle ID or name)" className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
               <div className="space-y-2">
                 <label className="text-slate-400 text-xs">Configuration Items</label>
                 {newConfig.config_items.map((item, i) => (
                   <div key={i} className="flex gap-2">
-                    <input value={item.key} onChange={e => setNewConfig(p => ({ ...p, config_items: p.config_items.map((ci, idx) => idx === i ? { ...ci, key: e.target.value } : ci) }))}
+                    <input aria-label="Key" value={item.key} onChange={e => setNewConfig(p => ({ ...p, config_items: p.config_items.map((ci, idx) => idx === i ? { ...ci, key: e.target.value } : ci) }))}
                       placeholder="Key" className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
-                    <input value={item.value} onChange={e => setNewConfig(p => ({ ...p, config_items: p.config_items.map((ci, idx) => idx === i ? { ...ci, value: e.target.value } : ci) }))}
+                    <input aria-label="Value" value={item.value} onChange={e => setNewConfig(p => ({ ...p, config_items: p.config_items.map((ci, idx) => idx === i ? { ...ci, value: e.target.value } : ci) }))}
                       placeholder="Value" className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
                   </div>
                 ))}

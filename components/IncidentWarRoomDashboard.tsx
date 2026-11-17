@@ -3,6 +3,7 @@ import { authFetch } from '../services/apiService';
 import { ShieldAlertIcon, ClockIcon, UsersIcon, MessageSquareIcon, FileTextIcon, ActivityIcon, PlusIcon } from './icons';
 import { showToast } from '../utils/toast';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface Incident {
     id: string;
@@ -216,7 +217,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                         <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 custom-scrollbar">
                             {incidents.map(inc => (
                                 <div key={inc.id}
-                                    onClick={() => { setSelected(inc); loadIncident(inc.id); }}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => { setSelected(inc); loadIncident(inc.id); }}
                                     className={`group p-4 rounded-xl border transition-all cursor-pointer ${
                                         selected?.id === inc.id 
                                         ? 'bg-white dark:bg-slate-800 border-red-500/50 shadow-lg shadow-red-500/5' 
@@ -329,7 +330,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                 </div>
                                             ))}
                                             <div className="flex gap-4 mt-8 bg-white/50 dark:bg-slate-950/50 p-4 rounded-2xl border border-gray-200 dark:border-slate-800">
-                                                <input value={tlEvent} onChange={e => setTlEvent(e.target.value)}
+                                                <input aria-label="Add tactical milestone" value={tlEvent} onChange={e => setTlEvent(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter' && tlEvent.trim()) { addTimelineEvent(selected.id, tlEvent); setTlEvent(''); }}}
                                                     placeholder="Add tactical milestone..."
                                                     className="flex-1 bg-transparent border-none text-sm text-gray-900 dark:text-white placeholder-slate-600 focus:ring-0" />
@@ -372,8 +373,8 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                             <div className="mt-8 bg-white/50 dark:bg-slate-950/50 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 border-dashed">
                                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Assign New Task</p>
                                                 <div className="flex flex-col md:flex-row gap-3">
-                                                    <input placeholder="Task definition..." className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
-                                                    <input placeholder="Assignee" className="md:w-48 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
+                                                    <input aria-label="Task definition" placeholder="Task definition..." className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
+                                                    <input aria-label="Assignee" placeholder="Assignee" className="md:w-48 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-red-500 transition-all" />
                                                     <button className="bg-white text-slate-950 px-6 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">CREATE TASK</button>
                                                 </div>
                                             </div>
@@ -396,7 +397,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                                 ))}
                                             </div>
                                             <div className="relative">
-                                                <input value={chatMsg} onChange={e => setChatMsg(e.target.value)}
+                                                <input aria-label="Operational comms secure" value={chatMsg} onChange={e => setChatMsg(e.target.value)}
                                                     onKeyDown={e => e.key === 'Enter' && sendChat(selected.id)}
                                                     placeholder="Operational comms secure..."
                                                     className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm focus:border-red-500 transition-all pr-32" />
@@ -489,7 +490,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                             <div className="space-y-6">
                                 <div>
                                     <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">Primary Title</label>
-                                    <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                                    <input aria-label="Primary Title" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                                         placeholder="Identify the threat vector..."
                                         className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm text-gray-900 dark:text-white focus:border-red-500 transition-all" />
                                 </div>
@@ -511,7 +512,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block mb-2">Tactical Summary</label>
-                                    <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                                    <textarea aria-label="Tactical Summary" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                                         rows={4} placeholder="Initial assessment, observable IOCs, and affected assets..."
                                         className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm text-gray-900 dark:text-white focus:border-red-500 transition-all resize-none" />
                                 </div>

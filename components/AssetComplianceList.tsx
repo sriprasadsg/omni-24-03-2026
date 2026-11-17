@@ -4,6 +4,7 @@ import { CheckIcon, XIcon, AlertCircleIcon, UploadIcon, FileTextIcon, BrainCircu
 import { EvidenceMarkdownViewer } from './EvidenceMarkdownViewer';
 import { EvidenceReviewPanel } from './EvidenceReviewPanel';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 /** Extends the canonical `AssetComplianceEvidence` shape (types.ts) with the
  * ad-hoc fields the automated/AI-auditor evidence rendering path below also
@@ -146,14 +147,14 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                                     {statusRecord ? (
-                                        <span onClick={() => setShowReasonModal(statusRecord.reason || 'No findings available')} className="text-purple-600 hover:text-purple-900 cursor-pointer">❓</span>
+                                        <span role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setShowReasonModal(statusRecord.reason || 'No findings available')} className="text-purple-600 hover:text-purple-900 cursor-pointer">❓</span>
                                     ) : (
                                         '-'
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                                     {statusRecord ? (
-                                        <span onClick={() => setShowRemediationModal(statusRecord.remediation || 'No suggested actions available')} className="text-blue-600 hover:text-blue-900 cursor-pointer">❔</span>
+                                        <span role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setShowRemediationModal(statusRecord.remediation || 'No suggested actions available')} className="text-blue-600 hover:text-blue-900 cursor-pointer">❔</span>
                                     ) : (
                                         '-'
                                     )}
@@ -267,7 +268,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                                                 <UploadIcon size={18} />
                                             </button>
                                         </div>
-                                        <input
+                                        <input aria-label="Description (optional)"
                                             type="text"
                                             placeholder="Description (optional)"
                                             value={descriptionMap[asset.id] || ''}

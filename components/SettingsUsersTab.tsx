@@ -36,7 +36,7 @@ export function SettingsUsersTab({
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <SearchIcon size={18} className="text-gray-400" />
                         </div>
-                        <input
+                        <input aria-label="Search users, roles, or tenants"
                             type="text"
                             placeholder="Search users, roles, or tenants..."
                             value={searchQuery}

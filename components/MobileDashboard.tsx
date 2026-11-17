@@ -287,7 +287,7 @@ export default function MobileDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Platform</label>
-                <select value={deviceForm.platform} onChange={e => setDeviceForm(p => ({ ...p, platform: e.target.value }))}
+                <select aria-label="Platform" value={deviceForm.platform} onChange={e => setDeviceForm(p => ({ ...p, platform: e.target.value }))}
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
                   {['ios', 'android', 'windows', 'macos'].map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -301,7 +301,7 @@ export default function MobileDashboard() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
-                  <input value={(deviceForm as any)[f.key]} onChange={e => setDeviceForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <input aria-label={f.placeholder} value={(deviceForm as any)[f.key]} onChange={e => setDeviceForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
@@ -326,18 +326,18 @@ export default function MobileDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Policy Name *</label>
-                <input value={policyForm.name} onChange={e => setPolicyForm(p => ({ ...p, name: e.target.value }))}
+                <input aria-label="Policy Name" value={policyForm.name} onChange={e => setPolicyForm(p => ({ ...p, name: e.target.value }))}
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">iOS Min Version</label>
-                  <input value={policyForm.min_os_version_ios} onChange={e => setPolicyForm(p => ({ ...p, min_os_version_ios: e.target.value }))}
+                  <input aria-label="iOS Min Version" value={policyForm.min_os_version_ios} onChange={e => setPolicyForm(p => ({ ...p, min_os_version_ios: e.target.value }))}
                     placeholder="e.g. 16.0" className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Android Min Version</label>
-                  <input value={policyForm.min_os_version_android} onChange={e => setPolicyForm(p => ({ ...p, min_os_version_android: e.target.value }))}
+                  <input aria-label="Android Min Version" value={policyForm.min_os_version_android} onChange={e => setPolicyForm(p => ({ ...p, min_os_version_android: e.target.value }))}
                     placeholder="e.g. 12" className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>

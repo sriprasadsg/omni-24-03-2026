@@ -139,13 +139,13 @@ export function PlaybooksTab() {
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
           <h4 className="text-sm font-medium">{editingId ? 'Edit Playbook' : 'New Playbook'}</h4>
           <div className="flex gap-2">
-            <input
+            <input aria-label="Name"
               className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white flex-1"
               placeholder="Name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-            <input
+            <input aria-label="Finding class (vuln / nscan / fim)"
               className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white flex-1"
               placeholder="Finding class (vuln / nscan / fim)"
               value={form.finding_class}
@@ -154,7 +154,7 @@ export function PlaybooksTab() {
           </div>
           <div>
             <label className="text-xs text-gray-600 dark:text-gray-400">Steps (JSON array of {'{action, params, destructive}'})</label>
-            <textarea
+            <textarea aria-label="Steps (JSON array of {action, params, destructive})"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white mt-1"
               rows={5}
               value={form.steps}
@@ -163,7 +163,7 @@ export function PlaybooksTab() {
           </div>
           <div>
             <label className="text-xs text-gray-600 dark:text-gray-400">Rollback (JSON array of {'{action, params}'}, optional)</label>
-            <textarea
+            <textarea aria-label="Rollback (JSON array of {action, params}, optional)"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white mt-1"
               rows={3}
               value={form.rollback}

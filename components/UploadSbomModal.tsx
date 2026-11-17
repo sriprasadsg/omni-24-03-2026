@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloudIcon, CogIcon } from './icons';
 import { Modal } from './Modal';
+import { activateOnKey } from './ui/a11y';
 
 interface UploadSbomModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ export const UploadSbomModal: React.FC<UploadSbomModalProps> = ({ isOpen, onClos
 
         <div
           className="p-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center cursor-pointer hover:border-primary-500 transition-colors"
-          onClick={() => fileInputRef.current?.click()}
+          tabIndex={0} onKeyDown={activateOnKey} onClick={() => fileInputRef.current?.click()}
         >
           <input
             type="file"

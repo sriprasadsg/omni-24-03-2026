@@ -21,6 +21,7 @@ import * as api from '../services/apiService';
 import { AddIntegrationModal } from './AddIntegrationModal';
 import { IntegrationSettingsModal } from './IntegrationSettingsModal';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 interface Integration {
     id: string;
@@ -204,7 +205,7 @@ export const IntegrationsHub: React.FC = () => {
                     <div className="flex items-center space-x-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                            <input 
+                            <input aria-label="Search" 
                                 type="text" 
                                 placeholder="Search..." 
                                 value={searchQuery}
@@ -275,7 +276,7 @@ export const IntegrationsHub: React.FC = () => {
                     
                     {/* Add Placeholder */}
                     <div 
-                        onClick={() => setIsAddModalOpen(true)}
+                        role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setIsAddModalOpen(true)}
                         className="bg-slate-50 dark:bg-slate-900/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-6 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-300 hover:bg-indigo-50/10 transition-all cursor-pointer group"
                     >
                         <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">

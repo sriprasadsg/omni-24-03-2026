@@ -176,13 +176,13 @@ export default function AndroidEnterpriseDashboard() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-slate-400 text-xs block mb-1">Knox License Key</label>
-                    <input value={knoxForm.license_key} onChange={e => setKnoxForm(f => ({ ...f, license_key: e.target.value }))}
+                    <input aria-label="Knox License Key" value={knoxForm.license_key} onChange={e => setKnoxForm(f => ({ ...f, license_key: e.target.value }))}
                       type="password" placeholder="Enter Knox license key"
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
                   </div>
                   <div>
                     <label className="text-slate-400 text-xs block mb-1">KME Server</label>
-                    <input value={knoxForm.kme_server} onChange={e => setKnoxForm(f => ({ ...f, kme_server: e.target.value }))}
+                    <input aria-label="KME Server" value={knoxForm.kme_server} onChange={e => setKnoxForm(f => ({ ...f, kme_server: e.target.value }))}
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
                   </div>
                   <label className="flex items-center gap-3 text-slate-300 text-sm cursor-pointer">
@@ -225,9 +225,9 @@ export default function AndroidEnterpriseDashboard() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md">
             <h2 className="text-white font-bold text-lg mb-4">New Enrollment Profile</h2>
             <div className="space-y-4">
-              <input value={newProfile.name} onChange={e => setNewProfile(p => ({ ...p, name: e.target.value }))}
+              <input aria-label="Profile name" value={newProfile.name} onChange={e => setNewProfile(p => ({ ...p, name: e.target.value }))}
                 placeholder="Profile name" className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
-              <input value={newProfile.description} onChange={e => setNewProfile(p => ({ ...p, description: e.target.value }))}
+              <input aria-label="Description (optional)" value={newProfile.description} onChange={e => setNewProfile(p => ({ ...p, description: e.target.value }))}
                 placeholder="Description (optional)" className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm" />
               <div>
                 <label className="text-slate-400 text-xs block mb-2">Enrollment Mode</label>

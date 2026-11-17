@@ -357,13 +357,13 @@ export default function ScheduledReportsDashboard() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Report Name *</label>
-                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  <input aria-label="Report Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     placeholder="e.g. Weekly Security Summary"
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Report Type *</label>
-                  <select value={form.report_type} onChange={e => setForm(p => ({ ...p, report_type: e.target.value }))}
+                  <select aria-label="Report Type" value={form.report_type} onChange={e => setForm(p => ({ ...p, report_type: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                     {REPORT_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </select>
@@ -371,7 +371,7 @@ export default function ScheduledReportsDashboard() {
                 {(form.report_type === 'compliance_summary' || form.report_type === 'custom_framework') && (
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Compliance Framework</label>
-                    <select value={form.framework_id} onChange={e => setForm(p => ({ ...p, framework_id: e.target.value }))}
+                    <select aria-label="Compliance Framework" value={form.framework_id} onChange={e => setForm(p => ({ ...p, framework_id: e.target.value }))}
                       className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white">
                       <option value="" disabled>Select framework...</option>
                       {frameworks.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -405,7 +405,7 @@ export default function ScheduledReportsDashboard() {
                 {(form.delivery_channel === 'email') && (
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Recipients (comma-separated)</label>
-                    <input value={form.recipients} onChange={e => setForm(p => ({ ...p, recipients: e.target.value }))}
+                    <input aria-label="Recipients (comma-separated)" value={form.recipients} onChange={e => setForm(p => ({ ...p, recipients: e.target.value }))}
                       placeholder="admin@company.com, security@company.com"
                       className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                   </div>
@@ -413,7 +413,7 @@ export default function ScheduledReportsDashboard() {
                 {(form.delivery_channel === 'webhook' || form.delivery_channel === 'slack' || form.delivery_channel === 'teams') && (
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Webhook URL *</label>
-                    <input value={form.webhook_url} onChange={e => setForm(p => ({ ...p, webhook_url: e.target.value }))}
+                    <input aria-label="Webhook URL" value={form.webhook_url} onChange={e => setForm(p => ({ ...p, webhook_url: e.target.value }))}
                       placeholder="https://..."
                       className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                   </div>

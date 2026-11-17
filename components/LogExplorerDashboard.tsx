@@ -76,7 +76,7 @@ export const LogExplorerDashboard: React.FC = () => {
             <div className="glass p-4 rounded-xl flex items-center gap-4">
                 <div className="relative flex-1">
                     <SearchIcon className="absolute left-3 top-3 text-gray-400 dark:text-white/40" size={18} />
-                    <input
+                    <input aria-label="Search logs using KQL-like syntax"
                         type="text"
                         placeholder="Search logs using KQL-like syntax (e.g. source_ip:10.0.0.1 AND severity:High)..."
                         value={searchQuery}

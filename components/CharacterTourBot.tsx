@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MascotCharacter, BotState, CharacterType } from './MascotCharacter';
 import { XIcon, PlayIcon, PauseIcon } from './icons';
 import { AppView } from '../types';
+import { activateOnKey } from './ui/a11y';
 
 interface TourStep {
     text: string;
@@ -323,7 +324,7 @@ export const CharacterTourBot: React.FC<CharacterTourBotProps> = ({ currentUser:
                         ] as const).map(({ type, color, label, desc }) => (
                             <div
                                 key={type}
-                                onClick={() => selectCharacterAndStart(type)}
+                                role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => selectCharacterAndStart(type)}
                                 className={`flex flex-col items-center justify-center p-4 border-2 border-gray-100 dark:border-gray-700 rounded-xl hover:border-${color}-500 hover:bg-${color}-50 dark:hover:bg-${color}-900/20 cursor-pointer transition-all hover:scale-105 group`}
                             >
                                 <div className="w-24 h-24 mb-4 relative z-0">

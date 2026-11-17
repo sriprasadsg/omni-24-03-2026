@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { FeatureBundle, PlatformFeature, Tenant, TenantFeatures } from '../types';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { API_BASE, authFetch } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 // ── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ const BundleCard: React.FC<{
     onToggle: () => void;
 }> = ({ bundle, selected, onToggle }) => (
     <div
-        onClick={onToggle}
+        role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={onToggle}
         className={`relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 select-none
             ${selected
                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-500/10'
@@ -247,7 +248,7 @@ const BundleManagementDashboard: React.FC = () => {
             {activeTab === 'catalog' ? (
                 /* ── Catalog Tab ──────────────────────────────────────────── */
                 <div className="space-y-4">
-                    <input
+                    <input aria-label="Search features"
                         value={catalogSearch}
                         onChange={e => setCatalogSearch(e.target.value)}
                         placeholder="Search features…"

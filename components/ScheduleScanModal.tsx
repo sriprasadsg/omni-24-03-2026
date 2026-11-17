@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ZapIcon, ClockIcon } from './icons';
 import { showToast } from '../utils/toast';
 import { Modal } from './Modal';
+import { activateOnKey } from './ui/a11y';
 
 interface ScheduleScanModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export const ScheduleScanModal: React.FC<ScheduleScanModalProps> = ({ isOpen, on
             <p className="text-sm text-gray-600 dark:text-gray-300">You are about to initiate a vulnerability scan for <strong className="text-gray-800 dark:text-white">{assetCount}</strong> asset(s).</p>
 
             <div className="mt-4 space-y-2">
-                <div onClick={() => setScanType('Immediate')} className={`p-3 border rounded-lg cursor-pointer ${scanType === 'Immediate' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
+                <div tabIndex={0} onKeyDown={activateOnKey} onClick={() => setScanType('Immediate')} className={`p-3 border rounded-lg cursor-pointer ${scanType === 'Immediate' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
                     <label className="flex items-center">
                         <input type="radio" name="scanType" checked={scanType === 'Immediate'} onChange={() => {}} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
                         <div className="ml-3">
@@ -53,7 +54,7 @@ export const ScheduleScanModal: React.FC<ScheduleScanModalProps> = ({ isOpen, on
                         </div>
                     </label>
                 </div>
-                 <div onClick={() => setScanType('Scheduled')} className={`p-3 border rounded-lg cursor-pointer ${scanType === 'Scheduled' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
+                 <div tabIndex={0} onKeyDown={activateOnKey} onClick={() => setScanType('Scheduled')} className={`p-3 border rounded-lg cursor-pointer ${scanType === 'Scheduled' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/50' : 'border-gray-300 dark:border-gray-600'}`}>
                     <label className="flex items-center">
                         <input type="radio" name="scanType" checked={scanType === 'Scheduled'} onChange={() => {}} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
                         <div className="ml-3">

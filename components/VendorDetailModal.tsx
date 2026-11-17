@@ -168,7 +168,7 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
                             <form onSubmit={handleAddSubprocessor} className="mt-4 p-4 bg-gray-50 dark:bg-[#0b0c0e] rounded-lg border border-gray-200 dark:border-gray-800 space-y-3">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
-                                    <input
+                                    <input aria-label="Name"
                                         type="text"
                                         value={newSubprocessor.name}
                                         onChange={(e) => setNewSubprocessor({...newSubprocessor, name: e.target.value})}
@@ -179,7 +179,7 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
-                                    <input
+                                    <input aria-label="Location"
                                         type="text"
                                         value={newSubprocessor.location}
                                         onChange={(e) => setNewSubprocessor({...newSubprocessor, location: e.target.value})}
@@ -188,7 +188,7 @@ export function VendorDetailModal({ vendor, isOpen, onClose }: VendorDetailModal
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                                    <textarea
+                                    <textarea aria-label="Description"
                                         value={newSubprocessor.description}
                                         onChange={(e) => setNewSubprocessor({...newSubprocessor, description: e.target.value})}
                                         className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"

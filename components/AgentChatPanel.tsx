@@ -114,7 +114,7 @@ const StartChatModal: React.FC<{
                 <div className="space-y-3">
                     <div>
                         <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Subject *</label>
-                        <input
+                        <input aria-label="Subject"
                             autoFocus
                             className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-indigo-500"
                             placeholder="e.g. Scheduled maintenance tonight at 10pm"
@@ -123,7 +123,7 @@ const StartChatModal: React.FC<{
                     </div>
                     <div>
                         <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Initial message *</label>
-                        <textarea
+                        <textarea aria-label="Initial message"
                             rows={4}
                             className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-indigo-500 resize-none"
                             placeholder="This message will appear on the user's screen immediately…"
@@ -357,7 +357,7 @@ const EscalateModal: React.FC<{
 
                 {err && <p className="text-red-600 dark:text-red-400 text-xs mb-3 bg-red-100 dark:bg-red-900/20 px-3 py-2 rounded-lg">{err}</p>}
                 <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Note for Platform Admin (optional)</label>
-                <textarea
+                <textarea aria-label="Note for Platform Admin (optional)"
                     rows={2} autoFocus
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-amber-500 resize-none"
                     placeholder="Describe what you've tried and why this needs escalation…"
@@ -654,7 +654,7 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({ initialAgent, onClose }
                             </div>
                         ) : (
                             <div className="px-5 py-3 border-t border-gray-200 dark:border-slate-800 flex items-end gap-3 bg-white/30 dark:bg-slate-900/30">
-                                <textarea
+                                <textarea aria-label="Type a message to the endpoint user… (Enter to send)"
                                     rows={2}
                                     value={input}
                                     onChange={e => setInput(e.target.value)}

@@ -149,7 +149,7 @@ const TicketWebhooksDashboard: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Add Webhook</h2>
             <div className="space-y-3">
-              <input
+              <input aria-label="Endpoint URL"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Endpoint URL *"
                 value={form.url}
@@ -171,7 +171,7 @@ const TicketWebhooksDashboard: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <input
+              <input aria-label="Secret (optional)"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Secret (optional)"
                 value={form.secret}

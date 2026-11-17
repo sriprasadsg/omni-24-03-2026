@@ -256,7 +256,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                                     </>
                                 ) : (
                                     <>
-                                        <input
+                                        <input aria-label="Enter model name"
                                             type="text"
                                             value={newModelName}
                                             onChange={(e) => setNewModelName(e.target.value)}
@@ -436,13 +436,13 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Name</label>
-                                    <input type="text" placeholder="My Ollama Server" value={newTool.name || ''}
+                                    <input aria-label="Name" type="text" placeholder="My Ollama Server" value={newTool.name || ''}
                                         onChange={e => setNewTool(p => ({ ...p, name: e.target.value }))}
                                         className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Type</label>
-                                    <select value={newTool.type || 'ollama'} onChange={e => setNewTool(p => ({ ...p, type: e.target.value as AiTool['type'] }))}
+                                    <select aria-label="Type" value={newTool.type || 'ollama'} onChange={e => setNewTool(p => ({ ...p, type: e.target.value as AiTool['type'] }))}
                                         className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded">
                                         <option value="ollama">Ollama</option>
                                         <option value="openai_compatible">OpenAI-compatible</option>
@@ -452,20 +452,20 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Endpoint URL</label>
-                                <input type="text" placeholder="http://192.168.1.100:11434" value={newTool.endpoint || ''}
+                                <input aria-label="Endpoint URL" type="text" placeholder="http://192.168.1.100:11434" value={newTool.endpoint || ''}
                                     onChange={e => setNewTool(p => ({ ...p, endpoint: e.target.value }))}
                                     className="w-full px-2 py-1.5 text-xs font-mono bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Model</label>
-                                    <input type="text" placeholder="llama3.2:3b" value={newTool.model || ''}
+                                    <input aria-label="Model" type="text" placeholder="llama3.2:3b" value={newTool.model || ''}
                                         onChange={e => setNewTool(p => ({ ...p, model: e.target.value }))}
                                         className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">API Key (optional)</label>
-                                    <input type="password" placeholder="sk-..." value={newTool.apiKey || ''}
+                                    <input aria-label="API Key (optional)" type="password" placeholder="sk-..." value={newTool.apiKey || ''}
                                         onChange={e => setNewTool(p => ({ ...p, apiKey: e.target.value }))}
                                         className="w-full px-2 py-1.5 text-xs bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded" />
                                 </div>

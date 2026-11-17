@@ -85,7 +85,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
                             Policy Name <span className="text-red-500">*</span>
                         </label>
-                        <input
+                        <input aria-label="Policy Name"
                             type="text"
                             value={name}
                             onChange={e => { setName(e.target.value); setError(''); }}
@@ -99,7 +99,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                         <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
                             Description <span className="text-red-500">*</span>
                         </label>
-                        <textarea
+                        <textarea aria-label="Description"
                             value={description}
                             onChange={e => { setDescription(e.target.value); setError(''); }}
                             rows={2}
@@ -112,7 +112,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Trigger</label>
-                            <select
+                            <select aria-label="Trigger"
                                 value={trigger}
                                 onChange={e => setTrigger(e.target.value as AutomationPolicy['trigger'])}
                                 className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
@@ -122,7 +122,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">Action</label>
-                            <select
+                            <select aria-label="Action"
                                 value={action}
                                 onChange={e => setAction(e.target.value as AutomationPolicy['action'])}
                                 className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
@@ -148,7 +148,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                         <div className="space-y-2">
                             {conditions.map((cond, i) => (
                                 <div key={i} className="flex gap-2 items-center">
-                                    <input
+                                    <input aria-label="Field"
                                         type="text"
                                         value={cond.field}
                                         onChange={e => updateCondition(i, 'field', e.target.value)}
@@ -163,7 +163,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                                         <option value="contains">contains</option>
                                         <option value="equals">equals</option>
                                     </select>
-                                    <input
+                                    <input aria-label="Value"
                                         type="text"
                                         value={cond.value}
                                         onChange={e => updateCondition(i, 'value', e.target.value)}

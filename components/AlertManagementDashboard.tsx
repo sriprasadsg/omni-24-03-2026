@@ -181,7 +181,7 @@ export const AlertManagementDashboard: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-wrap gap-3 items-center">
                 <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden flex-1 min-w-[200px]">
                     <SearchIcon size={16} className="ml-3 text-gray-400 flex-shrink-0" />
-                    <input
+                    <input aria-label="Search alerts"
                         type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}

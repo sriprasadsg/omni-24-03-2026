@@ -386,7 +386,7 @@ export default function AutopilotDashboard() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
-                  <input value={(deviceForm as any)[f.key]} onChange={e => setDeviceForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <input aria-label={f.placeholder} value={(deviceForm as any)[f.key]} onChange={e => setDeviceForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
@@ -411,20 +411,20 @@ export default function AutopilotDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Profile Name *</label>
-                <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
+                <input aria-label="Profile Name" value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. Standard Employee Deployment"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Description</label>
-                <input value={profileForm.description} onChange={e => setProfileForm(p => ({ ...p, description: e.target.value }))}
+                <input aria-label="Description" value={profileForm.description} onChange={e => setProfileForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="Optional description"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Profile Type</label>
-                  <select value={profileForm.profile_type} onChange={e => setProfileForm(p => ({ ...p, profile_type: e.target.value }))}
+                  <select aria-label="Profile Type" value={profileForm.profile_type} onChange={e => setProfileForm(p => ({ ...p, profile_type: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                     <option value="user_driven">User Driven</option>
                     <option value="self_deploying">Self Deploying</option>
@@ -434,7 +434,7 @@ export default function AutopilotDashboard() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Deployment Mode</label>
-                  <select value={profileForm.deployment_mode} onChange={e => setProfileForm(p => ({ ...p, deployment_mode: e.target.value }))}
+                  <select aria-label="Deployment Mode" value={profileForm.deployment_mode} onChange={e => setProfileForm(p => ({ ...p, deployment_mode: e.target.value }))}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                     <option value="azure_ad_join">Azure AD Join</option>
                     <option value="hybrid_azure_ad_join">Hybrid Azure AD Join</option>
@@ -444,13 +444,13 @@ export default function AutopilotDashboard() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Device Name Template</label>
-                <input value={profileForm.apply_device_name_template} onChange={e => setProfileForm(p => ({ ...p, apply_device_name_template: e.target.value }))}
+                <input aria-label="Device Name Template" value={profileForm.apply_device_name_template} onChange={e => setProfileForm(p => ({ ...p, apply_device_name_template: e.target.value }))}
                   placeholder="e.g. CORP-%RAND:4%"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Allowed Group (Azure AD Group)</label>
-                <input value={profileForm.allowed_group} onChange={e => setProfileForm(p => ({ ...p, allowed_group: e.target.value }))}
+                <input aria-label="Allowed Group (Azure AD Group)" value={profileForm.allowed_group} onChange={e => setProfileForm(p => ({ ...p, allowed_group: e.target.value }))}
                   placeholder="e.g. All-Windows-Devices"
                   className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>

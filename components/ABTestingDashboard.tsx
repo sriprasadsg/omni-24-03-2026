@@ -9,6 +9,7 @@ const apiService = {
     post: (url: string, data?: any) => authFetch(url, { method: 'POST', body: JSON.stringify(data) }).then(r => r.ok ? r.json() : null),
 };
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
+import { activateOnKey } from './ui/a11y';
 
 interface Experiment {
     id: string;
@@ -132,7 +133,7 @@ export function ABTestingDashboard() {
                             {experiments.map(exp => (
                                 <div
                                     key={exp.id}
-                                    onClick={() => setSelectedExpId(exp.id)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedExpId(exp.id)}
                                     className={`p-3 cursor-pointer transition-colors border-l-2 ${selectedExpId === exp.id ? 'bg-slate-800/50 border-teal-500' : 'hover:bg-slate-800/30 border-transparent'}`}
                                 >
                                     <div className="font-medium text-slate-200">{exp.name}</div>

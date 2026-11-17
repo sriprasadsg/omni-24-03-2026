@@ -188,7 +188,7 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                             {BUILTIN_FIELDS[selected as BuiltinGateway].map(field => (
                                 <div key={field.key}>
                                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{field.label}</label>
-                                    <input type="password"
+                                    <input aria-label={field.placeholder} type="password"
                                         value={credentials[field.key] || ''}
                                         onChange={e => setCredentials({ ...credentials, [field.key]: e.target.value })}
                                         placeholder={field.placeholder}
@@ -207,7 +207,7 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                                     Gateway Name <span className="text-red-500">*</span>
                                 </label>
-                                <input type="text"
+                                <input aria-label="Gateway Name" type="text"
                                     value={customName}
                                     onChange={e => setCustomName(e.target.value)}
                                     placeholder="e.g. Braintree, Adyen, Mollie"
@@ -219,7 +219,7 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                                     Webhook URL <span className="text-gray-400 font-normal">(optional)</span>
                                 </label>
-                                <input type="url"
+                                <input aria-label="Webhook URL (optional)" type="url"
                                     value={webhookUrl}
                                     onChange={e => setWebhookUrl(e.target.value)}
                                     placeholder="https://yourdomain.com/webhooks/payment"
@@ -240,13 +240,13 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                                 <div className="space-y-2">
                                     {pairs.map((pair, i) => (
                                         <div key={i} className="flex gap-2 items-center">
-                                            <input type="text"
+                                            <input aria-label="Field name" type="text"
                                                 value={pair.key}
                                                 onChange={e => updatePair(i, 'key', e.target.value)}
                                                 placeholder="Field name (e.g. api_key)"
                                                 className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                             />
-                                            <input type="password"
+                                            <input aria-label="Value" type="password"
                                                 value={pair.value}
                                                 onChange={e => updatePair(i, 'value', e.target.value)}
                                                 placeholder="Value"

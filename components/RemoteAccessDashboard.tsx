@@ -4,6 +4,7 @@ import { RemoteDesktop } from './RemoteDesktop';
 import { RemoteTerminal } from './RemoteTerminal';
 import { Agent } from '../types';
 import { authFetch, getRemoteCapabilities, disconnectRemoteSession } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 type AccessMode = 'desktop' | 'terminal';
 type DesktopSubMode = 'view' | 'control';
@@ -279,7 +280,7 @@ export function RemoteAccessDashboard() {
                             return (
                                 <div
                                     key={agent.id}
-                                    onClick={() => isOnline && setSelectedAgent(agent)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => isOnline && setSelectedAgent(agent)}
                                     className={`group flex items-center justify-between p-5 rounded-xl transition-all cursor-pointer ${
                                         isOnline
                                             ? 'bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 hover:border-blue-500/40'

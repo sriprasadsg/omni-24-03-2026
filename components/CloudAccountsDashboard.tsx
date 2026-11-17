@@ -133,8 +133,8 @@ export const CloudAccountsDashboard: React.FC = () => {
 
       {showForm && (
         <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-          <input placeholder="Account name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, account_name: e.target.value})} />
-          <input placeholder="Account ID" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, account_id: e.target.value})} />
+          <input aria-label="Account name" placeholder="Account name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, account_name: e.target.value})} />
+          <input aria-label="Account ID" placeholder="Account ID" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, account_id: e.target.value})} />
           <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, provider: e.target.value})}>
             <option value="">Provider</option><option value="aws">AWS</option><option value="azure">Azure</option><option value="gcp">GCP</option>
           </select>

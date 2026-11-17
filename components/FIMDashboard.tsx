@@ -348,14 +348,14 @@ export default function FIMDashboard() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-600 dark:text-slate-400">Path *</label>
-                <input value={form.path} onChange={e => setForm(p => ({ ...p, path: e.target.value }))}
+                <input aria-label="Path" value={form.path} onChange={e => setForm(p => ({ ...p, path: e.target.value }))}
                   placeholder="/etc/ or C:\Windows\System32\"
                   className="w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-600 dark:text-slate-400">Platform</label>
-                  <select value={form.platform} onChange={e => setForm(p => ({ ...p, platform: e.target.value as Platform }))}
+                  <select aria-label="Platform" value={form.platform} onChange={e => setForm(p => ({ ...p, platform: e.target.value as Platform }))}
                     className="w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                     <option value="linux">Linux</option>
                     <option value="windows">Windows</option>
@@ -364,7 +364,7 @@ export default function FIMDashboard() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-600 dark:text-slate-400">Check Interval (seconds)</label>
-                  <input type="number" value={form.interval} onChange={e => setForm(p => ({ ...p, interval: parseInt(e.target.value) || 300 }))}
+                  <input aria-label="Check Interval (seconds)" type="number" value={form.interval} onChange={e => setForm(p => ({ ...p, interval: parseInt(e.target.value) || 300 }))}
                     min={60} className="w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
@@ -385,7 +385,7 @@ export default function FIMDashboard() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 dark:text-slate-400">Ignore Patterns (comma-separated)</label>
-                <input value={form.ignore} onChange={e => setForm(p => ({ ...p, ignore: e.target.value }))}
+                <input aria-label="Ignore Patterns (comma-separated)" value={form.ignore} onChange={e => setForm(p => ({ ...p, ignore: e.target.value }))}
                   placeholder="*.log, *.tmp, *.swp"
                   className="w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
               </div>

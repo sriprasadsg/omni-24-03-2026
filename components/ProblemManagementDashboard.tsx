@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
+import { activateOnKey } from './ui/a11y';
 
 interface Problem {
   id: string;
@@ -185,7 +186,7 @@ const ProblemManagementDashboard: React.FC = () => {
               {filtered.map(p => (
                 <tr
                   key={p.id}
-                  onClick={() => { setSelected(p); setActionMsg(null); setLinkId(''); setWorkaroundInput(''); }}
+                  tabIndex={0} onKeyDown={activateOnKey} onClick={() => { setSelected(p); setActionMsg(null); setLinkId(''); setWorkaroundInput(''); }}
                   className="border-b border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/40 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{p.title}</td>
@@ -217,13 +218,13 @@ const ProblemManagementDashboard: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl w-full max-w-lg p-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">New Problem</h2>
             <div className="space-y-3">
-              <input
+              <input aria-label="Title"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Title *"
                 value={createForm.title}
                 onChange={e => setCreateForm(f => ({ ...f, title: e.target.value }))}
               />
-              <textarea
+              <textarea aria-label="Description"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none h-20"
                 placeholder="Description"
                 value={createForm.description}
@@ -238,7 +239,7 @@ const ProblemManagementDashboard: React.FC = () => {
                   <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                 ))}
               </select>
-              <input
+              <input aria-label="Assignee"
                 className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Assignee"
                 value={createForm.assignee}
@@ -317,7 +318,7 @@ const ProblemManagementDashboard: React.FC = () => {
               {!selected.known_error && (
                 <div>
                   <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Promote to Known Error</p>
-                  <textarea
+                  <textarea aria-label="Workaround description"
                     className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500 resize-none h-16"
                     placeholder="Workaround description"
                     value={workaroundInput}
@@ -337,7 +338,7 @@ const ProblemManagementDashboard: React.FC = () => {
               <div>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Link Incident</p>
                 <div className="flex gap-2">
-                  <input
+                  <input aria-label="Incident / Ticket ID"
                     className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                     placeholder="Incident / Ticket ID"
                     value={linkId}

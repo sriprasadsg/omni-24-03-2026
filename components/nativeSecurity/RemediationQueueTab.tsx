@@ -126,7 +126,7 @@ export function RemediationQueueTab() {
         >
           <div className="mb-4">
             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Reason (optional):</label>
-            <textarea
+            <textarea aria-label="Reason (optional)"
               className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-gray-900 dark:text-white text-sm"
               rows={3}
               value={denyReason}

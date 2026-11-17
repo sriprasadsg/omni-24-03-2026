@@ -275,7 +275,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                 {showDisableMfa && (
                     <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg space-y-3">
                         <p className="text-sm text-red-700 dark:text-red-300 font-medium">Enter your account password to confirm disabling 2FA:</p>
-                        <input
+                        <input aria-label="Password"
                             type="password"
                             value={disableCode}
                             onChange={e => setDisableCode(e.target.value)}

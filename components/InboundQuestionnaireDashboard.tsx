@@ -137,7 +137,7 @@ export const InboundQuestionnaireDashboard: React.FC = () => {
       {/* Intake form (RAG-01): manual entry + file upload */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800 space-y-2">
         <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">New inbound questionnaire</h3>
-        <input
+        <input aria-label="Title"
           type="text"
           className="w-full text-sm p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
           placeholder="Title (e.g. Acme Corp Vendor Security Questionnaire)"

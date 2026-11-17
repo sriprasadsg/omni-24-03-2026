@@ -89,10 +89,10 @@ export const ProgramsDashboard: React.FC = () => {
 
       {showForm && (
         <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-          <input placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, name: e.target.value})} />
-          <input placeholder="Framework ID (soc2)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, framework_id: e.target.value})} />
-          <input placeholder="Owner" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, owner: e.target.value})} />
-          <input placeholder="Description" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setForm({...form, description: e.target.value})} />
+          <input aria-label="Name" placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, name: e.target.value})} />
+          <input aria-label="Framework ID (soc2)" placeholder="Framework ID (soc2)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, framework_id: e.target.value})} />
+          <input aria-label="Owner" placeholder="Owner" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, owner: e.target.value})} />
+          <input aria-label="Description" placeholder="Description" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setForm({...form, description: e.target.value})} />
           <button onClick={submit} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
         </div>
       )}
@@ -139,7 +139,7 @@ export const ProgramsDashboard: React.FC = () => {
               <h4 className="font-semibold text-sm text-gray-900 dark:text-white">Manage Controls</h4>
               <button onClick={closeControlsModal} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">✕</button>
             </div>
-            <input
+            <input aria-label="Search controls"
               placeholder="Search controls..."
               className="w-full p-1.5 border rounded dark:bg-gray-700 mb-2"
               value={controlSearch}

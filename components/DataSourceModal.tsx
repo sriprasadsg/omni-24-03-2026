@@ -81,17 +81,17 @@ export const DataSourceModal: React.FC<DataSourceModalProps> = ({ isOpen, onClos
       case 'PostgreSQL':
         return (
           <>
-            <input name="host" value={cfg.host || ''} onChange={handleConfigChange} placeholder="Host (e.g., my-db.db.internal)" className="mt-1 block w-full input-style" />
-            <input name="port" type="number" value={cfg.port || ''} onChange={handleConfigChange} placeholder="Port (e.g., 5432)" className="mt-1 block w-full input-style" />
-            <input name="username" value={cfg.username || ''} onChange={handleConfigChange} placeholder="Username" className="mt-1 block w-full input-style" />
-            <input name="databaseName" value={cfg.databaseName || ''} onChange={handleConfigChange} placeholder="Database Name" className="mt-1 block w-full input-style" />
+            <input aria-label="Host" name="host" value={cfg.host || ''} onChange={handleConfigChange} placeholder="Host (e.g., my-db.db.internal)" className="mt-1 block w-full input-style" />
+            <input aria-label="Port" name="port" type="number" value={cfg.port || ''} onChange={handleConfigChange} placeholder="Port (e.g., 5432)" className="mt-1 block w-full input-style" />
+            <input aria-label="Username" name="username" value={cfg.username || ''} onChange={handleConfigChange} placeholder="Username" className="mt-1 block w-full input-style" />
+            <input aria-label="Database Name" name="databaseName" value={cfg.databaseName || ''} onChange={handleConfigChange} placeholder="Database Name" className="mt-1 block w-full input-style" />
           </>
         );
       case 'AWS S3':
         return (
           <>
-            <input name="bucketName" value={cfg.bucketName || ''} onChange={handleConfigChange} placeholder="Bucket Name" className="mt-1 block w-full input-style" />
-            <input name="region" value={cfg.region || ''} onChange={handleConfigChange} placeholder="Region (e.g., us-east-1)" className="mt-1 block w-full input-style" />
+            <input aria-label="Bucket Name" name="bucketName" value={cfg.bucketName || ''} onChange={handleConfigChange} placeholder="Bucket Name" className="mt-1 block w-full input-style" />
+            <input aria-label="Region" name="region" value={cfg.region || ''} onChange={handleConfigChange} placeholder="Region (e.g., us-east-1)" className="mt-1 block w-full input-style" />
           </>
         );
       case 'MongoDB':

@@ -168,7 +168,7 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organization Name <span className="text-red-500">*</span></label>
-                                <input type="text" value={tenantName} onChange={e => setTenantName(e.target.value)}
+                                <input aria-label="Organization Name" type="text" value={tenantName} onChange={e => setTenantName(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleCreateTenant()}
                                     placeholder="Acme Corp" autoFocus
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none" />
@@ -225,13 +225,13 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
                             </p>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                                <input type="text" value={adminName} onChange={e => setAdminName(e.target.value)}
+                                <input aria-label="Full Name" type="text" value={adminName} onChange={e => setAdminName(e.target.value)}
                                     placeholder="Jane Doe" autoFocus
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                                <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+                                <input aria-label="Email" type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
                                     placeholder="admin@acmecorp.com"
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none" />
                             </div>

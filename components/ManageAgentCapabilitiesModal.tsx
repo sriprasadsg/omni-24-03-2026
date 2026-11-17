@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Agent, AgentCapability } from '../types';
 import { CogIcon, BarChart3Icon, ShieldSearchIcon, FileTextIcon, FileShieldIcon, ShieldCheckIcon, ShieldZapIcon, SaveIcon, LightbulbIcon, UsersIcon, ComponentIcon, GitMergeIcon, ActivityIcon, ZapIcon, NetworkIcon, CloudShieldIcon, GlobeIcon, EyeIcon, BotIcon, PackageCheckIcon, BoxIcon, SearchIcon, TestTubeIcon, MonitorIcon, TerminalSquareIcon, DownloadIcon, RefreshCwIcon, WorkflowIcon, RadarIcon, DatabaseIcon, BrainCircuitIcon, SendIcon, ClipboardCheckIcon, HeartHandshakeIcon, HardDriveIcon, BinocularsIcon } from './icons';
 import { Modal } from './Modal';
+import { activateOnKey } from './ui/a11y';
 
 interface ManageAgentCapabilitiesModalProps {
     isOpen: boolean;
@@ -270,7 +271,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                                         return (
                                             <div
                                                 key={cap.id}
-                                                onClick={() => handleToggle(cap.id)}
+                                                tabIndex={0} onKeyDown={activateOnKey} onClick={() => handleToggle(cap.id)}
                                                 className={`p-3 rounded-lg border flex items-center justify-between cursor-pointer transition-all duration-150 ${
                                                     isEnabled
                                                         ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:border-primary-400'

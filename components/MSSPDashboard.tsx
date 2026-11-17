@@ -3,6 +3,7 @@ import {
   Building, Users, AlertTriangle, CheckCircle, XCircle,
   Activity, BarChart2, Globe, ChevronDown, ChevronRight, X
 } from 'lucide-react';
+import { activateOnKey } from './ui/a11y';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
 const authHeaders = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}` });
@@ -230,7 +231,7 @@ export default function MSSPDashboard() {
                 {/* Tenant Card Header */}
                 <div
                   className="p-4 cursor-pointer hover:bg-slate-750 transition-colors"
-                  onClick={() => setExpandedTenant(expandedTenant === tenant.id ? null : tenant.id)}
+                  role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setExpandedTenant(expandedTenant === tenant.id ? null : tenant.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

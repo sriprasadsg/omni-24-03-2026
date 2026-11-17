@@ -25,21 +25,21 @@ export function CreateSecretModal({ formData, onChange, onSubmit, onClose }: Cre
                 <form onSubmit={onSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Name</label>
-                        <input type="text" value={formData.name}
+                        <input aria-label="Name" type="text" value={formData.name}
                             onChange={(e) => onChange({ ...formData, name: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             required />
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Value</label>
-                        <input type="password" value={formData.value}
+                        <input aria-label="Value" type="password" value={formData.value}
                             onChange={(e) => onChange({ ...formData, value: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             required />
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Type</label>
-                        <select value={formData.secret_type}
+                        <select aria-label="Type" value={formData.secret_type}
                             onChange={(e) => onChange({ ...formData, secret_type: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                             <option value="api_key">API Key</option>
@@ -53,7 +53,7 @@ export function CreateSecretModal({ formData, onChange, onSubmit, onClose }: Cre
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description (optional)</label>
-                        <input type="text" value={formData.description}
+                        <input aria-label="Description (optional)" type="text" value={formData.description}
                             onChange={(e) => onChange({ ...formData, description: e.target.value })}
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
                     </div>

@@ -305,13 +305,13 @@ export default function ActiveResponseDashboard() {
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Execute Action Manually</h3>
             <div className="space-y-1">
               <label className="text-xs text-gray-600 dark:text-slate-400">Agent ID</label>
-              <input value={execForm.agent_id} onChange={e => setExecForm(p => ({ ...p, agent_id: e.target.value }))}
+              <input aria-label="Agent ID" value={execForm.agent_id} onChange={e => setExecForm(p => ({ ...p, agent_id: e.target.value }))}
                 placeholder="Agent UUID"
                 className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:border-blue-500" />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-gray-600 dark:text-slate-400">Action</label>
-              <select value={execForm.action} onChange={e => setExecForm(p => ({ ...p, action: e.target.value }))}
+              <select aria-label="Action" value={execForm.action} onChange={e => setExecForm(p => ({ ...p, action: e.target.value }))}
                 className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                 <option value="">Select action…</option>
                 {validActions.map(a => <option key={a} value={a}>{ACTION_LABELS[a] ?? a}</option>)}
@@ -319,7 +319,7 @@ export default function ActiveResponseDashboard() {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-gray-600 dark:text-slate-400">Reason / Notes</label>
-              <input value={execForm.reason} onChange={e => setExecForm(p => ({ ...p, reason: e.target.value }))}
+              <input aria-label="Reason / Notes" value={execForm.reason} onChange={e => setExecForm(p => ({ ...p, reason: e.target.value }))}
                 placeholder="Why are you triggering this action?"
                 className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
             </div>
@@ -346,7 +346,7 @@ export default function ActiveResponseDashboard() {
               ].map(f => (
                 <div key={f.key} className="space-y-1">
                   <label className="text-xs text-gray-600 dark:text-slate-400">{f.label}</label>
-                  <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <input aria-label={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
@@ -354,7 +354,7 @@ export default function ActiveResponseDashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600 dark:text-slate-400">Trigger *</label>
-                  <select value={form.trigger} onChange={e => setForm(p => ({ ...p, trigger: e.target.value }))}
+                  <select aria-label="Trigger" value={form.trigger} onChange={e => setForm(p => ({ ...p, trigger: e.target.value }))}
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                     <option value="">Select trigger…</option>
                     {validTriggers.map(t => <option key={t} value={t}>{TRIGGER_LABELS[t] ?? t}</option>)}
@@ -362,7 +362,7 @@ export default function ActiveResponseDashboard() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600 dark:text-slate-400">Mode *</label>
-                  <select value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value as Mode }))}
+                  <select aria-label="Mode" value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value as Mode }))}
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                     <option value="supervised">Supervised (approval required)</option>
                     <option value="automatic">Automatic (no approval)</option>
@@ -384,13 +384,13 @@ export default function ActiveResponseDashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600 dark:text-slate-400">Trigger Threshold</label>
-                  <input type="number" value={form.threshold} min={1}
+                  <input aria-label="Trigger Threshold" type="number" value={form.threshold} min={1}
                     onChange={e => setForm(p => ({ ...p, threshold: parseInt(e.target.value) || 1 }))}
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-gray-600 dark:text-slate-400">Timeout (seconds)</label>
-                  <input type="number" value={form.timeout} min={10} max={3600}
+                  <input aria-label="Timeout (seconds)" type="number" value={form.timeout} min={10} max={3600}
                     onChange={e => setForm(p => ({ ...p, timeout: parseInt(e.target.value) || 300 }))}
                     className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>

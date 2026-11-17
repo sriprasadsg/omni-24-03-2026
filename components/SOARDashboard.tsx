@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { PlayIcon, CheckCircleIcon, XCircleIcon, ClockIcon, AlertTriangleIcon, ZapIcon } from './icons';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 interface PlaybookExecution {
     id: string;
@@ -256,7 +257,7 @@ export const SOARDashboard: React.FC<SOARDashboardProps> = ({ tenantId }) => {
                             executions.map((execution) => (
                                 <div
                                     key={execution.id}
-                                    onClick={() => setSelectedExecution(execution)}
+                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelectedExecution(execution)}
                                     className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedExecution?.id === execution.id
                                             ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-500 shadow-lg'
                                             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md'

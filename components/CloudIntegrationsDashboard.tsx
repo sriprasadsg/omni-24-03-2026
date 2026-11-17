@@ -256,7 +256,7 @@ export default function CloudIntegrationsDashboard() {
                   <>
                     <div>
                       <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Display Name</label>
-                      <input value={formName} onChange={e => setFormName(e.target.value)}
+                      <input aria-label="Display Name" value={formName} onChange={e => setFormName(e.target.value)}
                         placeholder={selectedProviderInfo.name}
                         className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                     </div>

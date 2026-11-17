@@ -159,7 +159,7 @@ export const EmailSettings: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Host</label>
-                        <input
+                        <input aria-label="SMTP Host"
                             type="text"
                             value={config.smtpHost}
                             onChange={(e) => setConfig({ ...config, smtpHost: e.target.value })}
@@ -169,7 +169,7 @@ export const EmailSettings: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Port</label>
-                        <input
+                        <input aria-label="SMTP Port"
                             type="number"
                             value={config.smtpPort}
                             onChange={(e) => setConfig({ ...config, smtpPort: parseInt(e.target.value) || 587 })}
@@ -180,7 +180,7 @@ export const EmailSettings: React.FC = () => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username / Email</label>
-                    <input
+                    <input aria-label="Username / Email"
                         type="text"
                         value={config.smtpUser}
                         onChange={(e) => setConfig({ ...config, smtpUser: e.target.value })}
@@ -191,7 +191,7 @@ export const EmailSettings: React.FC = () => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password / App Password</label>
-                    <input
+                    <input aria-label="Password / App Password"
                         type="password"
                         value={config.smtpPassword}
                         onChange={(e) => setConfig({ ...config, smtpPassword: e.target.value })}
@@ -204,7 +204,7 @@ export const EmailSettings: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Email</label>
-                        <input
+                        <input aria-label="From Email"
                             type="email"
                             value={config.fromEmail}
                             onChange={(e) => setConfig({ ...config, fromEmail: e.target.value })}
@@ -214,7 +214,7 @@ export const EmailSettings: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Name</label>
-                        <input
+                        <input aria-label="From Name"
                             type="text"
                             value={config.fromName}
                             onChange={(e) => setConfig({ ...config, fromName: e.target.value })}

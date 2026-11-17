@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface BranchSite {
   id: string;
@@ -130,7 +131,7 @@ export default function BranchSitesDashboard() {
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {sites.map(site => (
-              <div key={site.id} onClick={() => setSelected(site)}
+              <div key={site.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelected(site)}
                 className={`bg-white dark:bg-gray-800 rounded-lg p-4 border cursor-pointer hover:border-blue-600 transition-colors ${selected?.id === site.id ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'}`}>
                 <div className="flex justify-between items-start">
                   <div>
@@ -230,7 +231,7 @@ export default function BranchSitesDashboard() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
-                  <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <input aria-label={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>

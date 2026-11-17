@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authFetch } from '../services/apiService';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 // CISSP Domain colors matching backend
 const DOMAIN_COLORS: Record<number, string> = {
@@ -70,7 +71,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
 // ── Domain card ───────────────────────────────────────────────────────────────
 function DomainCard({ domain, onClick }: { domain: Domain; onClick: () => void }) {
     return (
-        <div className="cissp-domain-card" onClick={onClick} style={{ borderLeft: `4px solid ${domain.color}` }}>
+        <div className="cissp-domain-card" role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={onClick} style={{ borderLeft: `4px solid ${domain.color}` }}>
             <div className="domain-card-header">
                 <span className="domain-code" style={{ color: domain.color }}>{domain.code}</span>
                 <span className="domain-weight">{domain.weight}</span>
@@ -305,7 +306,7 @@ export default function CISSPOracle() {
                             ))}
                         </div>
                         <div className="chat-input-row">
-                            <textarea
+                            <textarea aria-label="Ask the CISSP Oracle anything about security"
                                 className="chat-textarea"
                                 value={inputValue}
                                 onChange={e => setInputValue(e.target.value)}

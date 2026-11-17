@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import { activateOnKey } from './ui/a11y';
 
 interface CatalogApp {
   id: string;
@@ -120,7 +121,7 @@ export default function AppCatalogDashboard() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search apps..."
+        <input aria-label="Search apps" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search apps..."
           className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:border-blue-500" />
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
           className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
@@ -142,7 +143,7 @@ export default function AppCatalogDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {apps.length === 0 && <div className="col-span-2 text-center text-gray-500 py-12">No apps found</div>}
             {apps.map(app => (
-              <div key={app.id} onClick={() => setSelected(app)}
+              <div key={app.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelected(app)}
                 className={`bg-white dark:bg-gray-800 rounded-lg p-4 border cursor-pointer hover:border-blue-600 transition-colors ${selected?.id === app.id ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
@@ -227,7 +228,7 @@ export default function AppCatalogDashboard() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
-                  <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  <input aria-label={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>

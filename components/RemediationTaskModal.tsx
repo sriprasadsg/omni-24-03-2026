@@ -173,7 +173,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                 <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                     Control ID
                                 </label>
-                                <input
+                                <input aria-label="Control ID"
                                     type="text"
                                     value={effectiveControlId}
                                     readOnly
@@ -187,7 +187,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                 Title <span className="text-red-500">*</span>
                             </label>
-                            <input
+                            <input aria-label="Title"
                                 type="text"
                                 value={title}
                                 onChange={e => setTitle(e.target.value)}
@@ -221,7 +221,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                     {suggesting ? 'Suggesting...' : 'Suggest steps'}
                                 </button>
                             </div>
-                            <textarea
+                            <textarea aria-label="Describe the remediation steps"
                                 value={description}
                                 onChange={e => setDescription(e.target.value)}
                                 rows={4}
@@ -235,7 +235,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                 Assignee Type
                             </label>
-                            <select
+                            <select aria-label="Assignee Type"
                                 value={assigneeType}
                                 onChange={e => setAssigneeType(e.target.value as 'agent' | 'user')}
                                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -250,7 +250,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                 Assignee
                             </label>
-                            <input
+                            <input aria-label="Assignee"
                                 type="text"
                                 value={assignee}
                                 onChange={e => setAssignee(e.target.value)}
@@ -264,7 +264,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                             <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                 Due Date
                             </label>
-                            <input
+                            <input aria-label="Due Date"
                                 type="date"
                                 value={dueDate}
                                 onChange={e => setDueDate(e.target.value)}
@@ -278,7 +278,7 @@ export const RemediationTaskModal: React.FC<RemediationTaskModalProps> = ({
                                 <label className="block text-sm font-medium dark:text-gray-300 mb-1">
                                     Priority
                                 </label>
-                                <select
+                                <select aria-label="Priority"
                                     value={priority}
                                     onChange={e => setPriority(e.target.value)}
                                     className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"

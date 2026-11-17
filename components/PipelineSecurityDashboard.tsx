@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GitBranch, Shield, XCircle, AlertTriangle, CheckCircle, RefreshCw, Play, Lock } from 'lucide-react';
+import { activateOnKey } from './ui/a11y';
 
 interface PipelineScan {
   id: string;
@@ -120,7 +121,7 @@ export function PipelineSecurityDashboard() {
               {scans.map(scan => {
                 const ss = STATUS_STYLES[scan.status] || STATUS_STYLES.queued;
                 return (
-                  <div key={scan.id} onClick={() => setSelected(scan === selected ? null : scan)}
+                  <div key={scan.id} role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => setSelected(scan === selected ? null : scan)}
                     style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === scan.id ? 'rgba(8,145,178,.08)' : 'transparent' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <GitBranch size={14} color="#94a3b8" />

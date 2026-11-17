@@ -5,6 +5,7 @@ import { UsersIcon, AlertTriangleIcon, CheckIcon } from './icons';
 import { UebaFindingDetailModal } from './UebaFindingDetailModal';
 import { ThreatHunting } from './ThreatHunting';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface ThreatHuntingDashboardProps {
     findings: UebaFinding[];
@@ -87,7 +88,7 @@ export const ThreatHuntingDashboard: React.FC<ThreatHuntingDashboardProps> = ({ 
                                     const user = users.find(u => u.id === finding.userId);
                                     const riskInfo = getRiskInfo(finding.riskScore);
                                     return (
-                                        <tr key={finding.id} onClick={() => setViewingFinding(finding)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
+                                        <tr key={finding.id} tabIndex={0} onKeyDown={activateOnKey} onClick={() => setViewingFinding(finding)} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                                                 <div className="flex items-center">
                                                     {user && <img src={user.avatar} alt={user.name} className="h-8 w-8 rounded-full object-cover mr-3" />}

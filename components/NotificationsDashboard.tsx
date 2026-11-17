@@ -147,11 +147,11 @@ export const NotificationsDashboard: React.FC = () => {
               <button onClick={() => setShowChanForm(!showChanForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">+ Channel</button></div>
             {showChanForm && (
               <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-                <input placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, name: e.target.value})} />
+                <input aria-label="Name" placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, name: e.target.value})} />
                 <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, type: e.target.value as ChannelType | ''})}>
                   <option value="">Type</option><option value="slack">Slack</option><option value="email">Email</option><option value="webhook">Webhook</option>
                 </select>
-                <input placeholder="URL/Email" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setChanForm({
+                <input aria-label="URL/Email" placeholder="URL/Email" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setChanForm({
                   ...chanForm,
                   config: chanForm.type === 'webhook' ? { webhook_url: e.target.value }
                     : chanForm.type === 'email' ? { email: e.target.value }
@@ -173,7 +173,7 @@ export const NotificationsDashboard: React.FC = () => {
                 <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, event_type: e.target.value as EventType | ''})}>
                   <option value="">Event</option><option value="finding_created">Finding Created</option><option value="control_failed">Control Failed</option><option value="evidence_expired">Evidence Expired</option><option value="review_overdue">Review Overdue</option><option value="cert_expiring">Cert Expiring</option>
                 </select>
-                <input placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} />
+                <input aria-label="Channel IDs (comma)" placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} />
                 <button onClick={submitRule} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
               </div>
             )}
@@ -188,7 +188,7 @@ export const NotificationsDashboard: React.FC = () => {
           <div className="flex gap-2 items-end">
             <div className="flex-1">
               <label className="text-xs font-medium block mb-1">Domain to scan</label>
-              <input value={domain} onChange={e => setDomain(e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600" placeholder="example.com" />
+              <input aria-label="Domain to scan" value={domain} onChange={e => setDomain(e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600" placeholder="example.com" />
             </div>
             <button onClick={handleScan} disabled={scanning} className="px-4 py-2 bg-primary-600 text-white text-sm rounded disabled:opacity-50">{scanning ? 'Scanning...' : 'Scan'}</button>
             <button onClick={scheduleDomain} className="px-4 py-2 bg-gray-600 text-white text-sm rounded">Schedule</button>

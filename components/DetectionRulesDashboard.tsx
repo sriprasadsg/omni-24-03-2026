@@ -189,34 +189,34 @@ export default function DetectionRulesDashboard() {
         <div className="max-w-2xl space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Rule Name</label>
-              <input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="e.g. Password Spray Detection" /></div>
+              <input aria-label="Rule Name" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="e.g. Password Spray Detection" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Severity</label>
-              <select value={form.severity || 'medium'} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm">
+              <select aria-label="Severity" value={form.severity || 'medium'} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm">
                 {['critical','high','medium','low','informational'].map(s => <option key={s} value={s}>{s}</option>)}
               </select></div>
           </div>
           <div><label className="block text-xs text-slate-400 mb-1">Description</label>
-            <textarea value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm h-20" /></div>
+            <textarea aria-label="Description" value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm h-20" /></div>
           <div className="grid grid-cols-3 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Rule Type</label>
-              <select value={form.rule_type || 'query'} onChange={e => setForm(f => ({ ...f, rule_type: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm">
+              <select aria-label="Rule Type" value={form.rule_type || 'query'} onChange={e => setForm(f => ({ ...f, rule_type: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm">
                 {['query','threshold','anomaly'].map(t => <option key={t} value={t}>{t}</option>)}
               </select></div>
             <div><label className="block text-xs text-slate-400 mb-1">Time Window (min)</label>
-              <input type="number" value={form.time_window_minutes || 60} onChange={e => setForm(f => ({ ...f, time_window_minutes: +e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" /></div>
+              <input aria-label="Time Window (min)" type="number" value={form.time_window_minutes || 60} onChange={e => setForm(f => ({ ...f, time_window_minutes: +e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Threshold Count</label>
-              <input type="number" value={form.threshold_count || 1} onChange={e => setForm(f => ({ ...f, threshold_count: +e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" /></div>
+              <input aria-label="Threshold Count" type="number" value={form.threshold_count || 1} onChange={e => setForm(f => ({ ...f, threshold_count: +e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" /></div>
           </div>
           <div>
             <div className="flex items-center justify-between mb-2"><label className="text-xs text-slate-400">Conditions</label>
               <button onClick={addCondition} className="text-xs text-blue-400 flex items-center gap-1"><Plus size={12} />Add</button></div>
             {(form.conditions || []).map((c, i) => (
               <div key={i} className="flex gap-2 mb-2">
-                <input value={c.field} onChange={e => updateCondition(i, 'field', e.target.value)} placeholder="Field" className="flex-1 bg-slate-700 rounded px-3 py-1.5 text-sm" />
+                <input aria-label="Field" value={c.field} onChange={e => updateCondition(i, 'field', e.target.value)} placeholder="Field" className="flex-1 bg-slate-700 rounded px-3 py-1.5 text-sm" />
                 <select value={c.operator} onChange={e => updateCondition(i, 'operator', e.target.value)} className="bg-slate-700 rounded px-3 py-1.5 text-sm">
                   {['equals','contains','greater_than','less_than','regex'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
-                <input value={c.value} onChange={e => updateCondition(i, 'value', e.target.value)} placeholder="Value" className="flex-1 bg-slate-700 rounded px-3 py-1.5 text-sm" />
+                <input aria-label="Value" value={c.value} onChange={e => updateCondition(i, 'value', e.target.value)} placeholder="Value" className="flex-1 bg-slate-700 rounded px-3 py-1.5 text-sm" />
                 <button aria-label="Remove condition" onClick={() => removeCondition(i)} className="text-red-400"><Trash2 size={14} /></button>
               </div>
             ))}
@@ -231,9 +231,9 @@ export default function DetectionRulesDashboard() {
             ))}</div></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">MITRE Techniques (comma-separated)</label>
-              <input value={form.mitre_techniques || ''} onChange={e => setForm(f => ({ ...f, mitre_techniques: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="T1110, T1078" /></div>
+              <input aria-label="MITRE Techniques (comma-separated)" value={form.mitre_techniques || ''} onChange={e => setForm(f => ({ ...f, mitre_techniques: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="T1110, T1078" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Tags (comma-separated)</label>
-              <input value={form.tags || ''} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="identity, brute-force" /></div>
+              <input aria-label="Tags (comma-separated)" value={form.tags || ''} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="identity, brute-force" /></div>
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={save} className="px-6 py-2 bg-orange-600 rounded-lg hover:bg-orange-700 text-sm font-medium">

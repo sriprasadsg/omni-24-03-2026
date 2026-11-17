@@ -42,7 +42,7 @@ export const CSPMFindingsList: React.FC<CSPMFindingsListProps> = ({ findings, on
     <div>
       <div className="p-4 flex flex-col md:flex-row gap-4">
         <div className="flex-grow">
-          <input
+          <input aria-label="Search findings"
             type="text"
             placeholder="Search findings..."
             value={searchTerm}

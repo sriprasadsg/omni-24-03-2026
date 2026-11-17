@@ -176,7 +176,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({ isOpen, onClos
                         <form onSubmit={handleSubmitComment} className="flex items-start space-x-3">
                             <img src={currentUser?.avatar} alt={currentUser?.name} className="h-8 w-8 rounded-full object-cover" />
                             <div className="flex-1">
-                                <textarea
+                                <textarea aria-label="Add a comment"
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                     placeholder="Add a comment..."

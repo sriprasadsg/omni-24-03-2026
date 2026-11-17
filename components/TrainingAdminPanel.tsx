@@ -92,9 +92,9 @@ export default function TrainingAdminPanel() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className={card}>
                     <h3 className="font-semibold text-gray-900 dark:text-white">Create module</h3>
-                    <input className={input} placeholder="Title" value={form.title}
+                    <input aria-label="Title" className={input} placeholder="Title" value={form.title}
                         onChange={e => setForm({ ...form, title: e.target.value })} />
-                    <textarea className={input} placeholder="Description" rows={2} value={form.description}
+                    <textarea aria-label="Description" className={input} placeholder="Description" rows={2} value={form.description}
                         onChange={e => setForm({ ...form, description: e.target.value })} />
                     <input className={input} placeholder="Training material URL (video, slides, document)" value={form.content_url}
                         onChange={e => setForm({ ...form, content_url: e.target.value })} />
@@ -112,11 +112,11 @@ export default function TrainingAdminPanel() {
                                     <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
                                 </button>
                             </div>
-                            <input className={input} placeholder="Question" value={q.question}
+                            <input aria-label="Question" className={input} placeholder="Question" value={q.question}
                                 onChange={e => setQuestion(i, { question: e.target.value })} />
                             <textarea className={input} rows={3} placeholder="Options, one per line" value={q.options}
                                 onChange={e => setQuestion(i, { options: e.target.value })} />
-                            <input className={input} placeholder="Correct answer (must match an option)" value={q.correct_answer}
+                            <input aria-label="Correct answer (must match an option)" className={input} placeholder="Correct answer (must match an option)" value={q.correct_answer}
                                 onChange={e => setQuestion(i, { correct_answer: e.target.value })} />
                         </div>
                     ))}
@@ -138,7 +138,7 @@ export default function TrainingAdminPanel() {
                         <option value="">Select a module…</option>
                         {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
                     </select>
-                    <input className={input} type="email" placeholder="User email" value={assign.user_email}
+                    <input aria-label="User email" className={input} type="email" placeholder="User email" value={assign.user_email}
                         onChange={e => setAssign({ ...assign, user_email: e.target.value })} />
                     <button onClick={assignModule} disabled={!assign.module_id || !assign.user_email.trim()}
                         className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white flex items-center gap-1">

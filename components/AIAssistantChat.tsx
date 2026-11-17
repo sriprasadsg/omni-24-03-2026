@@ -169,7 +169,7 @@ export const AIAssistantChat: React.FC = () => {
         })}
       </div>
       <div className="p-3 border-t border-gray-200 dark:border-slate-700 flex gap-2">
-        <input
+        <input aria-label="Ask about your compliance posture"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => {

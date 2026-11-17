@@ -85,15 +85,15 @@ export const PrivacyLegalDashboard: React.FC = () => {
           </div>
           {showTiaForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-              <input placeholder="Transfer name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, transfer_name: e.target.value})} />
-              <input placeholder="Source country" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, source_country: e.target.value})} />
-              <input placeholder="Destination country" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, destination_country: e.target.value})} />
-              <input placeholder="Legal basis" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, legal_basis: e.target.value})} />
+              <input aria-label="Transfer name" placeholder="Transfer name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, transfer_name: e.target.value})} />
+              <input aria-label="Source country" placeholder="Source country" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, source_country: e.target.value})} />
+              <input aria-label="Destination country" placeholder="Destination country" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, destination_country: e.target.value})} />
+              <input aria-label="Legal basis" placeholder="Legal basis" className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, legal_basis: e.target.value})} />
               <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setTiaForm({...tiaForm, risk_level: e.target.value})}>
                 <option value="">Risk level</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
               </select>
-              <input placeholder="Data categories (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, data_categories: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
-              <input placeholder="Safeguards" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, safeguards: e.target.value})} />
+              <input aria-label="Data categories (comma-separated)" placeholder="Data categories (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, data_categories: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
+              <input aria-label="Safeguards" placeholder="Safeguards" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, safeguards: e.target.value})} />
               <button onClick={submitTia} className="px-2 py-1 bg-primary-600 text-white rounded">Create</button>
             </div>
           )}
@@ -116,10 +116,10 @@ export const PrivacyLegalDashboard: React.FC = () => {
           </div>
           {showLiaForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-              <input placeholder="Purpose" className="p-1 border rounded dark:bg-gray-700" onChange={e => setLiaForm({...liaForm, purpose: e.target.value})} />
-              <input placeholder="Data subjects" className="p-1 border rounded dark:bg-gray-700" onChange={e => setLiaForm({...liaForm, data_subjects: e.target.value})} />
-              <textarea placeholder="Necessity test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, necessity_test: e.target.value})} />
-              <textarea placeholder="Balancing test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, balancing_test: e.target.value})} />
+              <input aria-label="Purpose" placeholder="Purpose" className="p-1 border rounded dark:bg-gray-700" onChange={e => setLiaForm({...liaForm, purpose: e.target.value})} />
+              <input aria-label="Data subjects" placeholder="Data subjects" className="p-1 border rounded dark:bg-gray-700" onChange={e => setLiaForm({...liaForm, data_subjects: e.target.value})} />
+              <textarea aria-label="Necessity test" placeholder="Necessity test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, necessity_test: e.target.value})} />
+              <textarea aria-label="Balancing test" placeholder="Balancing test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, balancing_test: e.target.value})} />
               <button onClick={submitLia} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
             </div>
           )}
@@ -141,10 +141,10 @@ export const PrivacyLegalDashboard: React.FC = () => {
           </div>
           {showNoticeForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-              <input placeholder="Title" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, title: e.target.value})} />
-              <input placeholder="Effective date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, effective_date: e.target.value})} />
-              <input placeholder="Applies to" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, applies_to: e.target.value})} />
-              <textarea placeholder="Content (HTML)" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={3} onChange={e => setNoticeForm({...noticeForm, content_html: e.target.value})} />
+              <input aria-label="Title" placeholder="Title" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, title: e.target.value})} />
+              <input aria-label="Effective date" placeholder="Effective date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, effective_date: e.target.value})} />
+              <input aria-label="Applies to" placeholder="Applies to" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, applies_to: e.target.value})} />
+              <textarea aria-label="Content (HTML)" placeholder="Content (HTML)" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={3} onChange={e => setNoticeForm({...noticeForm, content_html: e.target.value})} />
               <button onClick={submitNotice} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
             </div>
           )}
@@ -172,15 +172,15 @@ export const PrivacyLegalDashboard: React.FC = () => {
           </div>
           {showContractForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-              <input placeholder="Vendor name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, vendor_name: e.target.value})} />
+              <input aria-label="Vendor name" placeholder="Vendor name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, vendor_name: e.target.value})} />
               <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, type: e.target.value})}>
                 <option value="">Type</option><option value="DPA">DPA</option><option value="MSA">MSA</option><option value="NDA">NDA</option><option value="SCC">SCC</option>
               </select>
               <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, status: e.target.value})}>
                 <option value="">Status</option><option value="draft">Draft</option><option value="review">Review</option><option value="signed">Signed</option><option value="expired">Expired</option>
               </select>
-              <input placeholder="Expiry date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, expiry_date: e.target.value})} />
-              <input placeholder="Parties (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setContractForm({...contractForm, parties: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
+              <input aria-label="Expiry date" placeholder="Expiry date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, expiry_date: e.target.value})} />
+              <input aria-label="Parties (comma-separated)" placeholder="Parties (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setContractForm({...contractForm, parties: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
               <button onClick={submitContract} className="px-2 py-1 bg-primary-600 text-white rounded">Create</button>
             </div>
           )}

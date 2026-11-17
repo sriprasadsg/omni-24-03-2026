@@ -264,7 +264,7 @@ export const CodeReviewGraphDashboard: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Code Entity Search</h2>
         <div className="flex gap-2 mb-3">
-          <input
+          <input aria-label="Search for functions, classes, files"
             type="text"
             className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-400 outline-none"
             placeholder="Search for functions, classes, files…"

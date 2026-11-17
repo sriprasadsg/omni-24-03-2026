@@ -126,7 +126,7 @@ const SimulationDashboard: React.FC = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Action Type</label>
-                                <select value={actionType} onChange={e => setActionType(e.target.value)}
+                                <select aria-label="Action Type" value={actionType} onChange={e => setActionType(e.target.value)}
                                     className="w-full p-2.5 border border-slate-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="patch">Software Patch</option>
                                     <option value="config_change">Configuration Change</option>
@@ -136,7 +136,7 @@ const SimulationDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Change Details</label>
-                                <textarea value={details} onChange={e => setDetails(e.target.value)}
+                                <textarea aria-label="Change Details" value={details} onChange={e => setDetails(e.target.value)}
                                     className="w-full p-3 border border-slate-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none h-32 bg-white dark:bg-gray-700 dark:text-white"
                                     placeholder={actionType === 'patch' ? 'e.g., Deploy KB2026-Security-Fix to all Windows Servers'
                                         : actionType === 'firewall_rule' ? 'e.g., Allow traffic on port 443 from corporate network'

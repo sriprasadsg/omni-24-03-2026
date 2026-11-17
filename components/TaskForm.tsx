@@ -23,7 +23,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onAdd }) => {
   return (
     <form onSubmit={handleSubmit} className="mb-6">
       <div className="flex flex-col gap-3">
-        <input
+        <input aria-label="What needs to be done?"
           type="text"
           className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
           placeholder="What needs to be done?"

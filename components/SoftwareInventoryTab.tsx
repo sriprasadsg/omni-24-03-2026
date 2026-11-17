@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { SearchIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, RefreshCwIcon, AlertTriangleIcon, CheckIcon, XIcon } from './icons';
 import { Glyph } from './ui/Glyph';
+import { activateOnKey } from './ui/a11y';
 
 interface AgentEntry {
     agent_id: string;
@@ -89,7 +90,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
             <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="relative flex-1 max-w-sm">
                     <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input
+                    <input aria-label="Search software"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Search software..."
@@ -152,7 +153,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                     <React.Fragment key={entry.name}>
                                         <tr
                                             className="border-b border-gray-200 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer"
-                                            onClick={() => toggleExpand(entry.name)}
+                                            tabIndex={0} onKeyDown={activateOnKey} onClick={() => toggleExpand(entry.name)}
                                         >
                                             <td className="px-4 py-3 text-slate-500">
                                                 {isExpanded
@@ -210,7 +211,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                                             return (
                                                                 <div
                                                                     key={agent.agent_id}
-                                                                    onClick={() => toggleAgentSelection(entry.name, agent.agent_id)}
+                                                                    role="button" tabIndex={0} onKeyDown={activateOnKey} onClick={() => toggleAgentSelection(entry.name, agent.agent_id)}
                                                                     className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${isSel ? 'bg-red-500/10 border border-red-500/30' : 'bg-gray-50 dark:bg-slate-800/60 border border-transparent hover:border-gray-300 dark:hover:border-slate-600'}`}
                                                                 >
                                                                     <div className="flex items-center gap-2.5">
