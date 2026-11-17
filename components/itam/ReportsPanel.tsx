@@ -207,6 +207,8 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       if (epoch !== tenantEpoch.current) return;
       showToast('Report deleted.', 'success');
       if (shown?.kind === 'custom' && shown.key === target.id) setShown(null);
+      // A run of this report still in flight would land after the delete and show it (IN-07).
+      if (pending?.kind === 'custom' && pending.key === target.id) { runSeq.current += 1; setPending(null); }
       setDeleteTarget(null);
       loadSavedReports();
     } catch (e: any) {
