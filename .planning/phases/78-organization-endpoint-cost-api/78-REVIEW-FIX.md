@@ -23,7 +23,7 @@ status: all_fixed
 
 ## Fixed Issues
 
-### WR-06: Salvage above cost made the cost API disagree with the per-asset Finance route
+### WR-06: Salvage above cost now makes the cost API disagree with the per-asset Finance route for the same asset (parity broken, no test)
 
 **Status:** fixed: requires human verification (logic change: which assets are valued)
 **Commit:** 8fcc59a69 (shared with IN-12)
@@ -33,7 +33,7 @@ status: all_fixed
 - Parity tests: `test_itam_cost_parity.py` gets a `model-hi` model (salvage 150000) and an `N-SALVAGE` asset (cost 100000), so the KPI tile, report, summary and list all carry it. New `test_salvage_above_cost_route_and_row_agree` compares the route and the list row for `N-SALVAGE` and for `N-NOMODEL`. Per the review's own golden row, the old route returned a book value above cost for this asset, so the new test fails against the pre-fix route.
 - The IN-03 golden rows in `test_itam_cost_service.py` now expect the new code.
 
-### IN-12: The reason code reused for salvage above cost told the user to fix something that is not wrong
+### IN-12: The reason code reused for salvage above cost tells the user to fix something that is not wrong
 
 **Status:** fixed
 **Commit:** 8fcc59a69 (shared with WR-06)
@@ -43,28 +43,28 @@ status: all_fixed
 - The Asset value report's Reason column prints the raw code for every reason (`itam_reporting_prebuilt.py`, `_dash(c["reason"])`), and no frontend code maps those cells. I left that as is, so the new code appears raw there like its siblings. Say so if you want the report cells turned into sentences; that would be a separate change.
 - `FinancePanel.test.tsx` has a new table test for all three codes plus an unknown code (4 rows).
 
-### IN-13: The existence check accepted partner organizations
+### IN-13: The existence check accepts any `tenants` row, including partner organizations
 
 **Status:** fixed
 **Commit:** 7f2f77728
 **Files modified:** `backend/itam_tenant_scope.py`, `backend/tests/test_itam_custom_report_tenant.py`
 **Applied fix:** the lookup is now `tenants.find_one({"id": tenant_id, "type": {"$ne": "partner"}}, {"_id": 1})`, as in `plan_service.py`, with the module docstring updated. New test `test_owner_header_for_a_partner_organization_is_400_like_an_unknown_tenant` inserts a `type: "partner"` tenant row and checks all 7 report routes plus a cost route return the same 400 and `UNKNOWN_TENANT_DETAIL`, and that nothing is written to `itam_reports` or `itam_report_exports`. I confirmed it fails with the filter removed, then restored the filter.
 
-### IN-11: The "Unknown tenant" 400 was not a blocked state on the frontend
+### IN-11: The new "Unknown tenant" 400 is not treated as a blocked state on the frontend
 
 **Status:** fixed
 **Commit:** 7bdc6603f
 **Files modified:** `components/itam/ItamKpiPanel.tsx`, `src/__tests__/ITAMKpiPanel.test.tsx`, `src/__tests__/ITAMReportsPanelTenantRule.test.tsx`
 **Applied fix:** `SELECT_TENANT_RE` is now `/^(Select a tenant|Unknown tenant)/i`. Its only two users are `ItamKpiPanel.tsx` (the KPI panel's rejected state) and `ReportsPanel.tsx` (`takeTenantRejection`), so both surfaces get the same blocked state with no further change. The backend message text is unchanged. The blocked-state copy still says "Select a tenant ...", which reads correctly for a deleted or stale tenant. New tests: KPI panel shows the Select block and not the failure tiles for an "Unknown tenant" rejection; Reports tab disables Run Report and Create Custom Report, shows the note, raises no toast and never renders the server text.
 
-### WR-05: A stale preview or save failure was re-thrown to the builder toast
+### WR-05: A stale preview or save failure is re-thrown to the builder toast, rendering the server's "Select a tenant" text for the wrong tenant
 
 **Status:** fixed
 **Commit:** 5e1e13a4c
 **Files modified:** `components/itam/ReportsPanel.tsx`, `src/__tests__/ITAMReportsPanelTenantRule.test.tsx`
 **Applied fix:** a module-level `isTenantRejection(err)` matcher (also used by `takeTenantRejection`). In `handlePreviewCustom` and `handleSaveCustom`, a tenant-rejection error is always swallowed: a current one (`seq` or `epoch` unchanged) goes through `takeTenantRejection`, a stale one is dropped silently; every other error re-throws as before and reaches the builder's toast. Two new tests hold a preview and a save, switch tenant, reject the held call with the 400, and assert no toast, no blocked note and an enabled Run Report. Both failed against the pre-fix code (run before the fix, 2 failed, 31 passed) and pass after.
 
-### IN-10: `handleDeleteConfirm` read `pending` and `shown` from the render-time closure
+### IN-10: `handleDeleteConfirm` reads `pending` and `shown` from the render-time closure
 
 **Status:** fixed
 **Commit:** 042b9a814
