@@ -273,14 +273,41 @@ class TestPossibleDuplicates:
         assert _flagged(await _rows(monkeypatch, mongo_db)) == {}
 
     @pytest.mark.asyncio
-    async def test_duplicates_scoped_to_rows_in_scope(self, mongo_db, monkeypatch):
+    async def test_markers_are_stable_when_the_twin_is_retired(self, mongo_db, monkeypatch):
+        # WR-03: markers span every asset of the tenant, so list (both scopes), detail and summary agree.
         await mongo_db.assets.insert_many([
-            _asset("tenant-a", "AGX", hardware_key="serial:ABC123"),
-            _asset("tenant-a", "OLD", serial="abc123", status="disposed", cost=100, date=PURCHASE),
+            _asset("tenant-a", "AGX", hardware_key="serial:ABC123", status="retired", cost=100, date=PURCHASE),
+            _asset("tenant-a", "MAN", serial="abc123", cost=200, date=PURCHASE),
         ])
-        assert _flagged(await _rows(monkeypatch, mongo_db)) == {}
-        both = _flagged(await _rows(monkeypatch, mongo_db, includeDisposed="true"))
-        assert set(both) == {"AGX", "OLD"}
+        default_rows = await _rows(monkeypatch, mongo_db)
+        all_rows = await _rows(monkeypatch, mongo_db, includeDisposed="true")
+        assert [r["assetId"] for r in default_rows] == ["MAN"]
+        man_default = default_rows[0]
+        man_all = [r for r in all_rows if r["assetId"] == "MAN"][0]
+        assert man_default["possibleDuplicateOf"] == ["AGX"] and "possibleDuplicate" in man_default["flags"]
+        assert man_default == man_all
+        detail = (await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/MAN")).json()
+        detail.pop("computedAt")
+        assert detail == man_default
+        retired_detail = (await _get(monkeypatch, mongo_db, url=f"{LIST_URL}/AGX")).json()
+        assert retired_detail["possibleDuplicateOf"] == ["MAN"] and "possibleDuplicate" in retired_detail["flags"]
+        # A pair with one in-scope member counts once under either scope.
+        for params, flagged in (({}, 1), ({"includeDisposed": "true"}, 2)):
+            coverage = (await _get(monkeypatch, mongo_db, params, url=SUMMARY_URL)).json()["coverage"]
+            assert coverage["possibleDuplicatePairs"] == 1, params
+            assert coverage["flags"]["possibleDuplicate"] == flagged, params
+
+    @pytest.mark.asyncio
+    async def test_pair_of_two_out_of_scope_assets_is_not_counted_by_default(self, mongo_db, monkeypatch):
+        await mongo_db.assets.insert_many([
+            _asset("tenant-a", "AGX", hardware_key="serial:ABC123", status="disposed"),
+            _asset("tenant-a", "OLD", serial="abc123", status="retired"),
+        ])
+        assert await _rows(monkeypatch, mongo_db) == []
+        default = (await _get(monkeypatch, mongo_db, url=SUMMARY_URL)).json()["coverage"]
+        assert default["possibleDuplicatePairs"] == 0
+        both = (await _get(monkeypatch, mongo_db, {"includeDisposed": "true"}, url=SUMMARY_URL)).json()["coverage"]
+        assert both["possibleDuplicatePairs"] == 1
 
 
 class TestDetail:

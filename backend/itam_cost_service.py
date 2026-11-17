@@ -252,7 +252,11 @@ def summarize_cost_rows(
     include_inactive: bool,
     excluded_by_lifecycle: int,
 ) -> Dict[str, Any]:
-    """The tenant summary over the in-scope rows. valued plus the reason counts equals total."""
+    """The tenant summary over the in-scope rows. valued plus the reason counts equals total.
+
+    possibleDuplicatePairs counts each pair once when at least one of its two assets is an in-scope
+    row (a row names its twin even when the twin is disposed or retired and not in the rows).
+    """
     reasons = {code: 0 for code in REASON_CODES}
     flags = {FLAG_FUTURE_PURCHASE_DATE: 0, FLAG_POSSIBLE_DUPLICATE: 0}
     pairs = set()
@@ -293,6 +297,8 @@ async def compute_tenant_costs(
     """Cost rows (D-08 order) and the summary for one tenant, from two collection reads and one clock read.
 
     with_agents adds one more read (agents by assetId) and an `agent` field on every in-scope row.
+    Duplicate markers are computed over all of the tenant's assets, active or not, and only then
+    filtered to the in-scope rows, so a row carries the same markers under either scope.
     """
     require_tenant(tenant_id)
     now = now if now is not None else utc_now()
@@ -304,8 +310,9 @@ async def compute_tenant_costs(
     else:
         in_scope = [r for r in all_rows if r["lifecycleStatus"] not in INACTIVE_STATUSES]
         hidden = len(all_rows) - len(in_scope)
-    in_scope_ids = {r["assetId"] for r in in_scope}
-    marks = mark_possible_duplicates(a for a in assets if a.get("id") in in_scope_ids)
+    # Markers are computed over every asset of the tenant, then applied to the in-scope rows, so a
+    # row shows the same markers whatever the scope: an active asset still names a retired twin.
+    marks = mark_possible_duplicates(assets)
     for row in in_scope:
         row["possibleDuplicateOf"] = marks.get(row["assetId"], [])
         if row["possibleDuplicateOf"]:
@@ -329,7 +336,9 @@ async def compute_asset_cost_detail(
     """One asset's row (disposed and retired included) plus computedAt, or None when the tenant has no such asset.
 
     The whole tenant set is computed so the duplicate markers and the agent equal the list row's
-    (A-78-12). asset_id is only compared in Python, never placed in a query.
+    (A-78-12): markers span every asset of the tenant under either scope, so the list row (with or
+    without includeDisposed) and this row always agree. asset_id is only compared in Python, never
+    placed in a query.
     """
     result = await compute_tenant_costs(db, tenant_id, include_inactive=True, with_agents=True, now=now)
     for row in result["rows"]:
