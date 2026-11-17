@@ -73,6 +73,10 @@ vi.mock('../../services/apiService', () => ({
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import ITAMConsole from '../../components/itam/ITAMConsole';
+import { ITAM_KPI_COPY } from '../../components/itam/ItamKpiPanel';
+import { showToast } from '../../utils/toast';
+import { evaluateViewAccess } from '../../utils/viewAccess';
+import type { Permission, User } from '../../types';
 
 describe('ITAMConsole', () => {
   beforeEach(() => {
@@ -401,6 +405,52 @@ describe('ITAMConsole', () => {
       expect(await screen.findByText('Laptop 2')).toBeInTheDocument();
       expect(runItamPrebuiltReport).toHaveBeenLastCalledWith('asset_value', 1, 50, 't-2');
       expect(screen.queryByText('Laptop 1')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('platform tiers on the ITAM console (Phase 78 plan 15)', () => {
+    const NOTE = ITAM_KPI_COPY.reportsSelectTenantNote;
+
+    async function openReports(ui: React.ReactElement) {
+      const view = render(ui);
+      fireEvent.click(screen.getByText('Reports'));
+      await screen.findByText('Pre-built Reports');
+      return view;
+    }
+
+    it('a Platform Support user with no tenant gets the Select a tenant state with no request or toast', async () => {
+      vi.mocked(showToast).mockClear();
+      fetchItamPrebuiltReports.mockResolvedValue([{ key: 'asset_value', title: 'Asset Value', description: 'Book value per asset' }]);
+      await openReports(<ITAMConsole isPlatformView />);
+      expect(screen.getByRole('heading', { name: ITAM_KPI_COPY.selectTenantHeading })).toBeInTheDocument();
+      const run = await screen.findByRole('button', { name: 'Run Report' });
+      expect(run).toBeDisabled();
+      expect(screen.getByText(NOTE)).toBeInTheDocument();
+      expect(screen.getByText(ITAM_KPI_COPY.customReportsSelectTenantNote)).toBeInTheDocument();
+      fireEvent.click(run);
+      expect(fetchItamKpis).not.toHaveBeenCalled();
+      expect(runItamPrebuiltReport).not.toHaveBeenCalled();
+      expect(listItamCustomReports).not.toHaveBeenCalled();
+      expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('a platform user with a selected tenant still sends the KPI request', async () => {
+      await openReports(<ITAMConsole isPlatformView tenantId="t-1" />);
+      await waitFor(() => expect(fetchItamKpis).toHaveBeenCalledWith('t-1'));
+    });
+
+    it('Platform Billing is refused the ITAM screen by the view gate while Platform Support is allowed', () => {
+      const billingPermissions = [
+        'manage:pending_agents', 'manage:tenant_license', 'view:audit_log', 'view:platform_alerts',
+        'view:platform_cost', 'view:profile', 'view:tenants',
+      ];
+      const billing = { role: 'platform_billing', tenantId: 'platform-admin' } as unknown as User;
+      const support = { role: 'platform_support', tenantId: 'platform-admin' } as unknown as User;
+      const billingAccess = evaluateViewAccess('itam', billing, (p: Permission) => billingPermissions.includes(p));
+      expect(billingAccess.allowed).toBe(false);
+      expect(billingAccess).toMatchObject({ reason: 'role' });
+      const supportAccess = evaluateViewAccess('itam', support, (p: Permission) => ['view:itam', 'view:tenants'].includes(p));
+      expect(supportAccess.allowed).toBe(true);
     });
   });
 });
