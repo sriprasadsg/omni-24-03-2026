@@ -56,16 +56,21 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     fetchItamPrebuiltReports().then(setReports).catch(() => setReports([]));
   }, []);
 
+  // Only the latest saved-list load may write the list, so a response for a tenant that was
+  // switched away from cannot show that tenant's definitions in the new one (T-78-36).
+  const listSeq = useRef(0);
   const loadSavedReports = useCallback(async () => {
+    const seq = ++listSeq.current;
     setSavedLoading(true);
     try {
-      setSavedReports(await listItamCustomReports());
+      const list = await listItamCustomReports(tenantId);
+      if (seq === listSeq.current) setSavedReports(list);
     } catch (e: any) {
-      showToast(e?.message || 'Failed to load saved reports', 'error');
+      if (seq === listSeq.current) showToast(e?.message || 'Failed to load saved reports', 'error');
     } finally {
-      setSavedLoading(false);
+      if (seq === listSeq.current) setSavedLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => { loadSavedReports(); }, [loadSavedReports]);
 
@@ -86,6 +91,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setExportingFormat(null);
     setPending(null);
     setShown(null);
+    // The saved list and any open delete belong to the tenant that was switched away from.
+    setSavedReports([]);
+    setDeleteTarget(null);
   }, [tenantId]);
 
   const runPrebuilt = useCallback(async (key: string, targetPage = 1) => {
@@ -140,7 +148,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     const seq = ++runSeq.current;
     setPending(null);
     try {
-      const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE);
+      const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE, tenantId);
       if (seq !== runSeq.current) return;
       setShown({ kind: null, key: null, page: targetPage, data: r });
     } finally {
@@ -150,9 +158,13 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
 
   async function handleSaveCustom(definition: ItamCustomReportDefinition) {
     setBuilderBusy(true);
+    // A save finishing after a tenant switch must not act in the new tenant (T-78-37).
+    const epoch = tenantEpoch.current;
     try {
-      const saved = await saveItamCustomReport(definition);
+      const saved = await saveItamCustomReport(definition, tenantId);
+      if (epoch !== tenantEpoch.current) return;
       await loadSavedReports();
+      if (epoch !== tenantEpoch.current) return;
       showToast('Report saved.', 'success');
       await runSavedCustom(saved.id, 1);
     } finally {
@@ -163,13 +175,16 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     const target = deleteTarget;
+    const epoch = tenantEpoch.current;
     try {
       await deleteItamCustomReport(target.id, tenantId);
+      if (epoch !== tenantEpoch.current) return;
       showToast('Report deleted.', 'success');
       if (shown?.kind === 'custom' && shown.key === target.id) setShown(null);
       setDeleteTarget(null);
       loadSavedReports();
     } catch (e: any) {
+      if (epoch !== tenantEpoch.current) return;
       showToast(e?.message || "Couldn't delete report.", 'error');
       setDeleteTarget(null);
     }

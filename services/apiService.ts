@@ -6042,18 +6042,19 @@ export const fetchItamReportFields = async (): Promise<ItamReportField[]> => {
     return res.json();
 };
 
-export const saveItamCustomReport = async (definition: ItamCustomReportDefinition): Promise<ItamSavedCustomReport> => {
+export const saveItamCustomReport = async (definition: ItamCustomReportDefinition, tenantId?: string | null): Promise<ItamSavedCustomReport> => {
     const res = await authFetch(`${API_BASE}/itam/reports/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(definition),
+        tenantId: tenantId || undefined,
     });
     if (!res.ok) return itamThrow(res, "Couldn't save report. Give it a name and try again.");
     return res.json();
 };
 
-export const listItamCustomReports = async (): Promise<ItamSavedCustomReport[]> => {
-    const res = await authFetch(`${API_BASE}/itam/reports/custom`);
+export const listItamCustomReports = async (tenantId?: string | null): Promise<ItamSavedCustomReport[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom`, { tenantId: tenantId || undefined });
     if (!res.ok) return itamThrow(res, 'Failed to load saved reports');
     return res.json();
 };
@@ -6070,6 +6071,7 @@ export const previewItamCustomReport = async (
     definition: ItamCustomReportDefinition,
     page = 1,
     pageSize = 50,
+    tenantId?: string | null,
 ): Promise<ItamReportRunResult> => {
     const res = await authFetch(
         `${API_BASE}/itam/reports/custom/preview?page=${page}&page_size=${pageSize}`,
@@ -6077,6 +6079,7 @@ export const previewItamCustomReport = async (
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(definition),
+            tenantId: tenantId || undefined,
         },
     );
     if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
