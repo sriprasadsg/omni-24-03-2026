@@ -1,8 +1,8 @@
 ---
 phase: 78-organization-endpoint-cost-api
-verified: 2026-11-17T01:20:00Z
-status: gaps_found
-score: 5/6 must-haves verified
+verified: 2026-11-17T05:35:00Z
+status: human_needed
+score: 6/6 must-haves verified
 covered_files:
   - .planning/phases/78-organization-endpoint-cost-api/78-01-PLAN.md
   - .planning/phases/78-organization-endpoint-cost-api/78-01-SUMMARY.md
@@ -24,6 +24,8 @@ covered_files:
   - .planning/phases/78-organization-endpoint-cost-api/78-09-SUMMARY.md
   - .planning/phases/78-organization-endpoint-cost-api/78-10-PLAN.md
   - .planning/phases/78-organization-endpoint-cost-api/78-10-SUMMARY.md
+  - .planning/phases/78-organization-endpoint-cost-api/78-11-PLAN.md
+  - .planning/phases/78-organization-endpoint-cost-api/78-11-SUMMARY.md
   - backend/itam_cost_endpoints.py
   - backend/itam_cost_service.py
   - backend/itam_kpi_endpoints.py
@@ -34,32 +36,48 @@ covered_files:
   - backend/itam_tenant_scope.py
   - components/itam/ItamKpiPanel.tsx
   - components/itam/ReportsPanel.tsx
-covered_digest: "v3:sha256:a5178f1c9288f65cdf9eb4f7836b52a1769b441c1b8218e5a91b7b0fd647781b"
+  - src/__tests__/ITAMConsole.test.tsx
+  - src/__tests__/ITAMReportsPanelStaleResponse.test.tsx
+covered_digest: "v3:sha256:ac144127dac0efb47fe448f07a7bf83752ae4c46c6ec924acecf8df3ab8b3a70"
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "78-06 / UI-SPEC R3: after the Owner switches tenant, ReportsPanel renders no result table, title or export buttons from the previous tenant (T-78-15 recorded closed)"
-    status: failed
-    reason: "runPrebuilt awaits runItamPrebuiltReport(..., tenantId) and then calls setResult(r) unconditionally. The tenant-change effect clears result/activeKind/activeKey/page but not running, and cannot cancel an in-flight request. A response issued for tenant A that returns after the switch to tenant B is written into state and rendered (the block renders on (running || result), title from result.title, table from result.rows) under tenant B. Export is hidden only because canExport needs activeKind. No test covers a response that arrives after a switch. Confirmed on committed HEAD (git show HEAD:components/itam/ReportsPanel.tsx has no sequence/cancel guard). This is the same defect as 78-REVIEW WR-01."
-    artifacts:
-      - path: "components/itam/ReportsPanel.tsx"
-        issue: "runPrebuilt (lines ~92-107) and runSavedCustom have no stale-response guard; tenant-change effect (~81-90) does not reset running"
-    missing:
-      - "Request sequence counter (useRef) bumped in the tenant-change effect; runPrebuilt/runSavedCustom drop a response whose seq is not current and only clear running for the current seq"
-      - "Reset running in the tenant-change effect; require activeKind && activeKey for the result block"
-      - "ITAMConsole test: resolve a pre-built run for tenant A after rerendering with tenant B and assert no title/rows render"
+re_verification:
+  previous_status: gaps_found
+  previous_score: 5/6
+  gaps_closed:
+    - "78-06 / UI-SPEC R3: ReportsPanel renders no result from the previous tenant after a switch, including a response that arrives after the switch (WR-01, closed by gap plan 78-11)"
+  gaps_remaining: []
+  regressions: []
+human_verification:
+  - test: "After the user deploys (backend restart + UI publish), a Platform Owner opens ITAM with a tenant selected, then with none selected."
+    expected: "KPI tile shows 'Not tracked' for a tenant with no cost data and a dollar value otherwise, 'Valued X of Y', the Select-a-tenant state when no tenant is chosen, and the Reports tab Run buttons are disabled with the note until a tenant is selected; switching tenants mid-run leaves no previous-tenant table."
+    why_human: "Live rendering on the deployed UI. The deploy (backend restart, UI publish, git push) has not happened and belongs to the user. This is the Manual-Only row in 78-VALIDATION.md; no code gap is implied."
 ---
 
 # Phase 78: Organization & Endpoint Cost API Verification Report
 
 **Phase Goal:** A tenant user with ITAM view access can read the organization's total asset cost and each endpoint's cost, computed by the same function that feeds the ITAM KPI tile, and can never see another tenant's numbers.
-**Verified:** 2026-11-17T01:20:00Z
-**Status:** gaps_found
-**Re-verification:** No, initial verification
+**Verified:** 2026-11-17T05:35:00Z
+**Status:** human_needed
+**Re-verification:** Yes, after gap closure (plan 78-11)
 
 ## Verdict in one paragraph
 
-The server-side goal is achieved and independently re-proven: all five ROADMAP success criteria and all five requirement IDs (COST-01, 02, 03, 06, 07) hold in the code, the 14-suite phase command passes (310 passed, 0 skipped, re-run by this verifier: 82 s) and the two frontend suites pass (50). One plan-level UI truth fails (78-06 R3: ReportsPanel can render a stale previous-tenant report after a tenant switch, WR-01). It is Owner-only and a presentation race, not an authorization leak, so it does not touch the roadmap contract, but it is a falsified must-have and a claim the security register marks closed, hence gaps_found with one narrow gap. WR-02 is judged out of scope (see below).
+The one gap from the previous report is closed and every truth now holds in committed HEAD. ReportsPanel has a request-sequence guard (`runSeq`) on all three async writers, the tenant-change effect bumps it and resets `running`, and the result block is gated on `resultIsCurrent`. I confirmed it by reading HEAD source, by running the guard's tests (4 frontend suites, 85 passed), and by re-running the full backend phase command (14 suites, 310 passed, 0 failed). The server-side goal was already verified and the backend files are unchanged since (diff `edbb1bb46..HEAD` touches no backend file; the phase backend files are clean in the working tree). The status is `human_needed` rather than `passed` only because one post-deploy live check remains, which is a user action. There is no code gap and no blocker.
+
+## Re-verification: the closed gap
+
+Previous gap: a pre-built run for tenant A that resolves after the Owner switches to tenant B was written into state and rendered under tenant B.
+
+Evidence on committed HEAD (`git show HEAD:components/itam/ReportsPanel.tsx`):
+
+- `runSeq = useRef(0)`; the tenant-change effect does `runSeq.current += 1; setRunning(false); setShowingPreview(false); setResult(null); setActiveKind(null); setActiveKey(null); setPage(1)`.
+- `runPrebuilt`, `runSavedCustom` and `handlePreviewCustom` each take `const seq = ++runSeq.current`, drop a response or a failure when `seq !== runSeq.current` (no result write, no toast), and only clear `running` for the current seq.
+- `runPrebuilt` still calls `runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId)`; prebuilt export still passes `tenantId`; saved custom runs, preview and custom export send no tenant argument (PROH-78-08 respected, no custom-report tenant handling was changed).
+- Render gate: `(running || result) && resultIsCurrent`, with `resultIsCurrent = Boolean(activeKind && activeKey) || showingPreview`.
+- Tests: `ITAMConsole.test.tsx` "a pre-built run for the previous tenant that resolves after the switch renders nothing" (holds the request, rerenders with tenant B, resolves, asserts no row, no title, no Export button, then a fresh run under B shows only B's rows with `tenantId` `t-2`). `ITAMReportsPanelStaleResponse.test.tsx` adds 7 tests: stale saved custom run, switch to no tenant mid-run, out-of-order runs, late failure with no toast, preview still renders and offers no export, stale preview after switch, same-tenant rerender keeps the result. Run by this verifier: `npx vitest run` on ITAMConsole, ITAMReportsPanelStaleResponse, ITAMReportsPanel and ITAMKpiPanel suites: 4 files, 85 tests passed.
+
+Judgement on assumption A-78-19 (render gate is `activeKind && activeKey || showingPreview`, not the literal `activeKind && activeKey` from the previous report): accepted. The literal gate would have hidden every unsaved builder preview (Phase 72 D-02 deliberately sets both to null), a regression. The widened gate is safe for the gap's intent: `showingPreview` is reset in the tenant-change effect and on every run start, and is only set after the seq check passes, so a previous-tenant preview can never satisfy it. The gap's intent (no previous-tenant title, rows or export controls after a switch) is met, and a test pins both the preview rendering and its stale-drop.
 
 ## Goal Achievement
 
@@ -67,52 +85,43 @@ The server-side goal is achieved and independently re-proven: all five ROADMAP s
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | `GET /api/itam/costs/summary` returns purchase total + book value total + coverage; no-cost assets are null, never 0 | VERIFIED | `itam_cost_endpoints.get_cost_summary` -> `compute_tenant_costs` -> `summarize_cost_rows`; `_total()` returns `{cents: None, hasData: False}` when no contributor; `compute_asset_cost` sets `bookValueCents=None` plus exactly one reason; coverage has total/priced/valued/reasons/flags. Tests: `test_itam_cost_endpoints.py` (summary tracer on real Mongo, empty tenant), `test_itam_cost_service.py` (13-row golden table, one-reason invariant) pass. |
-| 2 | `/costs/assets` (paginated) and `/costs/assets/{id}` return per-asset purchase cost and book value, agent endpoints included via `agents.assetId` | VERIFIED | `list_cost_assets` computes whole tenant set, sorts (D-08), then `paginate()`; `load_agents_by_asset` queries `{"tenantId", "assetId": {"$in": ids}}`, never hostname or the asset's own agentStatus; detail route returns the row or the same 404 for unknown and foreign ids. `test_itam_cost_assets.py` (25) passes. |
-| 3 | KPI tile, Asset value report and cost summary show identical figures for the same tenant, enforced by a parity test over a shared per-asset computation + golden table | VERIFIED | All three call `itam_cost_service.compute_asset_cost` (grep: `itam_reporting_kpis.py:88`, `itam_reporting_prebuilt.py:132`, `itam_cost_service.compute_tenant_costs`); custom builder Book Value also routed through it (`itam_reporting_filters.py:279`); depreciation stays `itam_finance_service.compute_book_value` (unchanged). `test_itam_cost_parity.py` (7 tests, real Mongo, fixed clock: KPI = report = summary = list, row-for-row, per-asset book-value route) passes. Note: the tile shares the per-asset function with the cost routes, not `compute_tenant_costs` itself; that matches the goal wording ("same function") and CONTEXT D-04. |
-| 4 | Disposed/retired excluded from current book value by default, counted in historical purchase totals only with an explicit filter, same rule in KPI and cost view | VERIFIED | `INACTIVE_STATUSES` is the one set used by `compute_tenant_costs` (default drop; `includeDisposed=true` keeps them with `bookValueCents=None`, reason disposed/retired), by the KPI (`itam_reporting_kpis.py` filters `in_scope`) and by the report (`itam_reporting_prebuilt.py`). `test_itam_kpi_cost_rules.py` (11), `test_itam_report_cost_rules.py` (16), `test_lifecycle_rule_across_surfaces` pass. Minor: IN-02, the report's pre-filter does not normalise a malformed (list/dict) status the way `compute_asset_cost` does (report 500 on that one bad document). Data-quality edge, not a rule violation. |
-| 5 | Every cost route: 403 without `view:itam`, 400 for platform-admin/no tenant, two-tenant isolation test proves A never sees B | VERIFIED | Every cost route depends on the imported `_require_itam_viewer` and calls `resolve_itam_tenant` first (400 for empty/platform-admin before any DB read; header honoured only for session + Owner tier); loaders `require_tenant` and carry explicit `tenantId` filters, so the wrapper's platform-admin skip cannot blend; no `$lookup`, no cache decorator (grep clean). `test_itam_cost_isolation.py` (29 tests through the real TenantMiddleware and real tokens: A never sees B on summary, list, detail, KPI, report run/export; foreign detail id 404 identical to unknown; header spoof by tenant admin ignored; viewer without view:itam 403; Billing 403; Support 400/403; 10x8 concurrent-request rounds) passes. API-key scope narrowing covered in `test_catalogue_slice_assets.py` (8) with the router mounted behind `ITAM_API_KEY_GUARD` (`catalogue_mounts_assets.py:56`) and registered in `router_registry.py:121`. |
-| 6 | 78-06 (D-14 amended, UI-SPEC R3): after a tenant switch, ReportsPanel shows no result table/title/export from the previous tenant | FAILED | Synchronous reset exists and is tested, but an in-flight run for tenant A resolves after the switch and `setResult(r)` renders it under tenant B (no guard; see gap in frontmatter). The KPI tile (the primary D-14 deliverable) does have the guard (`cancelled` flag, `ItamKpiPanel.tsx:100-121`) and is fine. |
+| 1 | `GET /api/itam/costs/summary` returns purchase total + book value total + coverage; no-cost assets are null, never 0 | VERIFIED (regression check) | Backend unchanged since the prior verification; `test_itam_cost_endpoints.py` and `test_itam_cost_service.py` in the 310-pass re-run. |
+| 2 | `/costs/assets` (paginated) and `/costs/assets/{id}` return per-asset purchase cost and book value, agent endpoints included via `agents.assetId` | VERIFIED (regression check) | `test_itam_cost_assets.py` passes in the re-run. |
+| 3 | KPI tile, Asset value report and cost summary show identical figures for the same tenant, enforced by a parity test over a shared per-asset computation | VERIFIED (regression check) | `test_itam_cost_parity.py` passes in the re-run; `compute_asset_cost` remains the single per-asset function used by the KPI, report, custom builder and cost routes. |
+| 4 | Disposed/retired excluded from current book value by default, counted in historical purchase totals only with an explicit filter, same rule in KPI and cost view | VERIFIED (regression check) | `test_itam_kpi_cost_rules.py`, `test_itam_report_cost_rules.py` pass in the re-run. |
+| 5 | Every cost route: 403 without `view:itam`, 400 for platform-admin/no tenant, two-tenant isolation test proves A never sees B | VERIFIED (regression check) | `test_itam_cost_isolation.py` (through the real middleware) and `test_catalogue_slice_assets.py` pass in the re-run. |
+| 6 | 78-06 (D-14 amended, UI-SPEC R3): after a tenant switch, ReportsPanel shows no result table/title/export from the previous tenant, including a response that arrives after the switch | VERIFIED | See "Re-verification: the closed gap". Guard present on HEAD, behavioural test passes (a named test that holds a request across the switch, so presence is not the only evidence). |
 
-**Score:** 5/6 truths verified (0 present-but-behavior-unverified)
+**Score:** 6/6 truths verified (0 present-but-behavior-unverified)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `backend/itam_cost_service.py` (338 lines) | One shared computation, loaders, duplicate marks, summary | VERIFIED | Substantive, wired from routes, KPI, report, custom builder; money in integer cents; imports no web framework symbol |
-| `backend/itam_cost_endpoints.py` | 3 routes under `/api/itam/costs` | VERIFIED | Registered in `router_registry.py`, mounted behind API-key guard; generic 500 detail |
-| `backend/itam_tenant_scope.py` | Shared resolver (D-13) | VERIFIED | Used by cost, KPI and pre-built report run/export routes; writes ambient tenant back |
-| `backend/itam_kpi_endpoints.py`, `itam_reporting_kpis.py`, `itam_reporting_prebuilt.py`, `itam_reporting_filters.py` | Rewired onto shared computation | VERIFIED | grep confirms calls to `compute_asset_cost`; no remaining inline `compute_book_value` loop in them |
-| `components/itam/ItamKpiPanel.tsx` | Not tracked / Valued X of Y / tenant follow / Select-a-tenant | VERIFIED | Stale-response guard present; vitest 50 pass |
-| `components/itam/ReportsPanel.tsx` | Tenant threaded, disabled Run, reset on switch | PARTIAL | Threaded and reset on switch, but no stale-response guard (gap) |
+| `backend/itam_cost_service.py` | One shared computation, loaders, summary | VERIFIED | Unchanged, wired from routes, KPI, report, custom builder |
+| `backend/itam_cost_endpoints.py` | 3 routes under `/api/itam/costs` | VERIFIED | Unchanged |
+| `backend/itam_tenant_scope.py` | Shared resolver (D-13) | VERIFIED | Unchanged |
+| KPI / report backend modules | Rewired onto shared computation | VERIFIED | Unchanged |
+| `components/itam/ItamKpiPanel.tsx` | Not tracked / Valued X of Y / tenant follow, stale guard | VERIFIED | Suite passes |
+| `components/itam/ReportsPanel.tsx` | Tenant threaded, disabled Run, reset on switch, stale-response guard | VERIFIED | Was PARTIAL; now guarded (above) |
+| `src/__tests__/ITAMReportsPanelStaleResponse.test.tsx` | Guard tests | VERIFIED | 7 tests, pass |
 
 ### Key Link Verification
 
 | From | To | Via | Status |
 |------|----|-----|--------|
-| cost routes | `_require_itam_viewer` | import from `itam_asset_endpoints` (not copied) | WIRED |
-| cost / KPI / report run+export routes | `resolve_itam_tenant` | first statement of each body | WIRED |
-| KPI, report, custom builder Book Value, cost routes | `compute_asset_cost` | direct call | WIRED |
-| `compute_asset_cost` | `compute_book_value` | unchanged finance function | WIRED |
-| agent join | `agents.assetId` | `$in` over assetIds, tenant-filtered | WIRED |
-| ITAMConsole / App | ItamKpiPanel / ReportsPanel | tenantId, needsTenant props | WIRED |
-
-### Data-Flow Trace (Level 4)
-
-| Artifact | Data | Source | Real data | Status |
-|----------|------|--------|-----------|--------|
-| cost summary / list | rows, totals | one projected `assets` find + `asset_models` `$in` + `agents` `$in`, Python loop | Yes (real-Mongo tests) | FLOWING |
-| KPI tile | totalBookValueCents | same per-asset function over tenant assets | Yes | FLOWING |
-| Asset value report | Book Value column | same | Yes | FLOWING |
+| tenant-change effect | `runSeq` | `runSeq.current += 1` | WIRED |
+| `runPrebuilt` | `runItamPrebuiltReport` | `(key, targetPage, PAGE_SIZE, tenantId)` kept verbatim | WIRED |
+| result block | `resultIsCurrent` | `(running \|\| result) && resultIsCurrent` | WIRED |
+| cost / KPI / report routes | `resolve_itam_tenant`, `_require_itam_viewer`, `compute_asset_cost` | unchanged, re-proven by tests | WIRED |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Phase command, 14 suites | `backend/venv/bin/python -m pytest <14 files> -q -p no:cacheprovider -rs` | 310 passed, 0 skipped, 82.18 s | PASS |
-| Frontend suites | `npx vitest run src/__tests__/ITAMKpiPanel.test.tsx src/__tests__/ITAMConsole.test.tsx` | 50 passed | PASS |
-| Stale-response test for ReportsPanel | grep `stale/race/in-flight` in ITAMConsole.test.tsx | none exist | MISSING (this is the gap) |
+| Backend phase command (14 suites) | `backend/venv/bin/python -m pytest <14 files> -q -p no:cacheprovider -rs` | 310 passed, 0 skipped, 102 s | PASS |
+| Frontend guard + console + KPI suites | `npx vitest run src/__tests__/ITAMConsole.test.tsx ITAMReportsPanelStaleResponse.test.tsx ITAMReportsPanel.test.tsx ITAMKpiPanel.test.tsx` | 4 files, 85 passed | PASS |
+| Orchestrator gates (not re-run by me) | `npm run build`; `npx vitest run src/__tests__` | exit 0; 135 files / 2,242 tests passed (reported) | accepted as reported |
 
 ### Probe Execution
 
@@ -122,44 +131,43 @@ Step 7c: SKIPPED (the phase declares no probe scripts).
 
 | Requirement | Source Plans | Description | Status | Evidence |
 |-------------|--------------|-------------|--------|----------|
-| COST-01 | 78-01, 78-04, 78-05, 78-08, 78-09, 78-10 | Same per-asset computation as the KPI tile, parity-tested | SATISFIED | SC3 evidence; REQUIREMENTS.md marks Complete |
-| COST-02 | 78-01, 78-02, 78-09, 78-10 | Org summary with coverage, null never 0 | SATISFIED | SC1 evidence |
-| COST-03 | 78-03, 78-10 | Per-asset cost list + detail, agents via `agents.assetId` | SATISFIED | SC2 evidence (WR-03 is a marker inconsistency in an edge case, not a figure error) |
-| COST-06 | 78-04, 78-05, 78-08, 78-09, 78-10 | Disposed/retired rule across KPI and cost view | SATISFIED | SC4 evidence |
-| COST-07 | 78-01, 78-06, 78-07, 78-08, 78-10 | Explicit tenant, no `$lookup`/cache, two-tenant isolation test | SATISFIED on the server (SC5). The related UI reset (plan 78-06, listed under COST-07) has the gap above. | |
+| COST-01 | 78-01, 78-04, 78-05, 78-08, 78-09, 78-10 | Same per-asset computation as the KPI tile, parity-tested | SATISFIED | Truth 3 |
+| COST-02 | 78-01, 78-02, 78-09, 78-10 | Org summary with coverage, null never 0 | SATISFIED | Truth 1 |
+| COST-03 | 78-03, 78-10 | Per-asset cost list + detail via `agents.assetId` | SATISFIED | Truth 2 |
+| COST-06 | 78-04, 78-05, 78-08, 78-09, 78-10 | Disposed/retired rule across KPI and cost view | SATISFIED | Truth 4 |
+| COST-07 | 78-01, 78-06, 78-07, 78-08, 78-10, 78-11 | Explicit tenant, no `$lookup`/cache, two-tenant isolation test; UI reset now guarded | SATISFIED | Truths 5 and 6 |
 
-All five IDs appear in plan frontmatter and in REQUIREMENTS.md traceability (Phase 78, Complete). No orphaned requirement: REQUIREMENTS.md maps no other ID to Phase 78 (COST-04/05 are Phase 79, COST-08 Phase 80).
+All five IDs appear in plan frontmatter and in REQUIREMENTS.md. No orphaned requirement (COST-04/05 are Phase 79, COST-08 Phase 80). REQUIREMENTS.md currently shows all five as "Gaps Found" / Pending after the earlier revert; flipping them back to Complete is the orchestrator's completion step, not edited here.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| (phase files) | - | TBD/FIXME/XXX/TODO/HACK scan | none | clean |
-| `components/itam/ReportsPanel.tsx` | ~92-107, ~126-140 | unguarded async `setResult` | Blocker (the gap) | stale previous-tenant report can render |
-| `backend/itam_reporting_prebuilt.py` | 128-134 | `not in INACTIVE_STATUSES` on an unnormalised status | Info (IN-02) | one malformed doc 500s the report |
-| `backend/itam_cost_service.py` | 130-141 | salvage > cost gives book value > cost | Info (IN-03) | no reason code; Phase 59 formula deliberately unclamped |
+| phase files | - | TBD/FIXME/XXX scan on ReportsPanel and the new test file | none | clean |
+| `components/itam/ReportsPanel.tsx` | 102-118, 220-223 | WR-04: `result` and `activeKind/activeKey` written at different times; a failed run B after success A shows A's rows under B's export target | Warning | Within one tenant only: a tenant switch clears all three, so this is not a cross-tenant leak and does not falsify any must-have. Real wrong-export-target defect, worth a follow-up. |
+| `components/itam/ReportsPanel.tsx` | 205-218 | IN-05: an export started before a switch still downloads and keeps `exportingFormat` set | Info | User-initiated, Owner-only, not a rendered result; PROH-78-07 is about rendered title/rows/controls. |
+| `components/itam/ITAMConsole.tsx` | 81-82 | IN-04 (still open): `needsTenant` keyed to Super Admin role name only | Info | Other platform tiers fall through to a toast |
+| `backend/itam_reporting_prebuilt.py` | 128-134 | IN-02: unnormalised malformed status | Info | One bad document 500s the report |
 
-### The two review warnings, decided explicitly
+### Review items carried (none blocks the goal)
 
-**WR-01 (ReportsPanel stale response): INSIDE the phase, counted as the gap above.** It falsifies plan 78-06's "UI partial" truth and UI-SPEC R3, which the user approved into scope when D-14 was amended 2026-11-16, and it makes T-78-15 ("closed") overstated. It is not an authorization breach: only the Platform Owner can switch tenant, and that role is entitled to see tenant A's data; the harm is tenant-A figures shown under tenant-B's label. It does not affect any ROADMAP success criterion, so the server-side goal stands. Fix is about 10 lines plus one test. Gating this on the UI is a judgement call; if the user prefers, they can accept it as an override (the "this looks intentional" test does not apply, since no alternative implementation exists).
+- WR-02 (custom report routes keep `current_user.tenant_id`): still outside the phase (A-78-17, A-78-21); awaits the user's accept-risk or follow-up decision. 78-SECURITY.md has no accepted-risk row for it; recommend recording one.
+- WR-03, IN-01, IN-03: unchanged, documentation/contract cleanups.
+- WR-04 and IN-05 are new from the incremental review of 78-11; both are outside the roadmap contract and outside the tenant-leak truth as shown above. Recommend a small follow-up gap or backlog item for WR-04 (store the shown result with its identity).
 
-**WR-02 (custom report routes still use `current_user.tenant_id`): OUTSIDE the phase, not a gap.**
-- Requirements and SCs name cost routes, the KPI and the Asset value report. CONTEXT D-13 lists exactly "the cost routes, the KPI route and the Asset value report run/export routes". Custom reports are none of those.
-- Plan 78-05 states it as a locked assumption (A-78-17): custom report routes keep their current tenant handling, "flagged for the user as a follow-up candidate". 78-05-SUMMARY repeats it.
-- The goal's subject is "a tenant user". A tenant user is still isolated on custom reports by the tenant wrapper (their own tenant id), so tenant A never sees tenant B there. The blending only arises for a Platform Owner session whose own tenant is `platform-admin`; that behaviour pre-dates the phase (the phase only swapped which function computes the Book Value column).
-- Open item to carry, WARNING not a blocker: 78-SECURITY.md has no accepted-risk row for it (the review asked for one), so the Owner view currently differs between surfaces (cost/KPI/pre-built = 400 without tenant, custom = blended). Recommend either an AR-78-0x entry or a follow-up task; Phase 80 (Costs tab) does not cover it, so it is not deferred.
+### Human Verification Required
 
-WR-03 (detail vs list duplicate markers when the partner is disposed/retired) and IN-01, IN-03, IN-04: confirmed as described, none contradicts a success criterion or a requirement; WARNING-level documentation/contract cleanups. IN-01 (bogus `X-Tenant-ID` from an Owner accepted, empty 200 figures, export record under a nonexistent tenant) is Owner-only and exposes no real tenant data.
+#### 1. Live check on the deployed build
 
-### Human Verification (not counted in status, since gaps_found takes precedence)
-
-1. Live ITAM KPI tile check from 78-VALIDATION.md Manual-Only: the live deploy (backend restart, UI publish) has not happened. After deploy, an Owner opens ITAM with a tenant selected and confirms "Not tracked" vs a dollar value, "Valued X of Y", and the Select-a-tenant state; this belongs to the user.
+**Test:** After the user restarts the backend and publishes the UI, open ITAM as a Platform Owner with a tenant selected and again with none; start a pre-built report and switch tenant while it loads.
+**Expected:** KPI tile shows "Not tracked" vs a dollar value, "Valued X of Y", the Select-a-tenant state; Reports Run buttons disabled with the note when no tenant; after a mid-run switch no previous-tenant title, rows or export buttons appear.
+**Why human:** Needs the deployed system; deploy and publish are the user's actions. The automated evidence above already covers the code paths.
 
 ### Gaps Summary
 
-One gap, narrow: add a request-sequence guard to `ReportsPanel` (`runPrebuilt`, `runSavedCustom`), reset `running` on tenant change, and add the stale-response test. Everything on the server, which carries the goal and all five requirements, is verified by code reading and by a re-run of the phase test command. WR-02 should be recorded as an accepted gap or a follow-up in 78-SECURITY.md, not planned into this phase.
+None. Gap plan 78-11 closed the only gap. The phase goal and all five requirements are verified in code and by tests; the only open item is the user-owned post-deploy live check.
 
 ---
 
-_Verified: 2026-11-17T01:20:00Z_
+_Verified: 2026-11-17T05:35:00Z_
 _Verifier: Claude (gsd-verifier)_
