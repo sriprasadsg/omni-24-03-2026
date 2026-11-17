@@ -54,6 +54,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   const [running, setRunning] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
   const [page, setPage] = useState(1);
+  // True while the shown result is the current unsaved builder preview (Phase 72 D-02),
+  // which renders with activeKind and activeKey both null.
+  const [showingPreview, setShowingPreview] = useState(false);
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderBusy, setBuilderBusy] = useState(false);
@@ -89,6 +92,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     previousTenantId.current = tenantId;
     runSeq.current += 1;
     setRunning(false);
+    setShowingPreview(false);
     setResult(null);
     setActiveKind(null);
     setActiveKey(null);
@@ -99,6 +103,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setActiveKind('prebuilt');
     setActiveKey(key);
     setRunning(true);
+    setShowingPreview(false);
     const seq = ++runSeq.current;
     try {
       const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId);
@@ -124,14 +129,18 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setActiveKind('custom');
     setActiveKey(reportId);
     setRunning(true);
+    setShowingPreview(false);
+    const seq = ++runSeq.current;
     try {
       const r = await runItamCustomReport(reportId, targetPage, PAGE_SIZE);
+      if (seq !== runSeq.current) return;
       setResult(r);
       setPage(targetPage);
     } catch (e: any) {
+      if (seq !== runSeq.current) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      setRunning(false);
+      if (seq === runSeq.current) setRunning(false);
     }
   }, []);
 
@@ -146,12 +155,17 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   // its result becomes exportable in the same shared preview table.
   async function handlePreviewCustom(definition: ItamCustomReportDefinition, targetPage: number) {
     setBuilderBusy(true);
+    // The preview supersedes any in-flight run, whose response is now dropped.
+    const seq = ++runSeq.current;
+    setRunning(false);
     try {
       const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE);
+      if (seq !== runSeq.current) return;
       setActiveKind(null);
       setActiveKey(null);
       setResult(r);
       setPage(targetPage);
+      setShowingPreview(true);
     } finally {
       setBuilderBusy(false);
     }
@@ -204,6 +218,9 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   }
 
   const canExport = Boolean(activeKind && activeKey);
+  // The shown result belongs to the current request: a run is active, or it is the
+  // current unsaved builder preview (which carries no activeKind or activeKey).
+  const resultIsCurrent = Boolean(activeKind && activeKey) || showingPreview;
 
   return (
     <div>
@@ -302,7 +319,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
         </div>
       </div>
 
-      {(running || result) && (
+      {(running || result) && resultIsCurrent && (
         <div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{result?.title || activeKey || ''}</h3>
