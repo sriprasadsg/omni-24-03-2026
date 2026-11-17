@@ -1,31 +1,28 @@
 ---
-status: testing
+status: complete
 phase: 78-organization-endpoint-cost-api
 source: [78-VERIFICATION.md]
 started: 2026-11-17T05:32:00Z
-updated: 2026-11-17T08:40:00Z
+updated: 2026-11-17T11:26:07.269Z
 ---
 
 ## Current Test
 
-number: 1
-name: After the user deploys gap round 2 (backend restart for 78-12, UI publish for 78-13..15, push), a Platform Owner opens ITAM with a tenant selected, then with none; a Platform Support user opens ITAM with none.
-expected: |
-  Owner with a tenant: KPI tile shows 'Not tracked' or a dollar value and 'Valued X of Y'; Reports tab runs, previews, saves, exports and deletes act on that tenant only, and the saved list shows only that tenant's definitions. Owner with no tenant: Select-a-tenant block, every pre-built Run disabled with the pre-built note, custom section disabled with the custom note, no request and no error toast. Support with no tenant: same no-tenant state. Switching tenant mid-run or mid-export leaves no previous-tenant table, list, download or toast. After a failed run the earlier report keeps its title, rows, export target and pages.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 1. After the user deploys gap round 2 (backend restart for 78-12, UI publish for 78-13..15, push), a Platform Owner opens ITAM with a tenant selected, then with none; a Platform Support user opens ITAM with none.
 expected: Owner with a tenant: KPI tile shows 'Not tracked' or a dollar value and 'Valued X of Y'; Reports tab runs, previews, saves, exports and deletes act on that tenant only, and the saved list shows only that tenant's definitions. Owner with no tenant: Select-a-tenant block, every pre-built Run disabled with the pre-built note, custom section disabled with the custom note, no request and no error toast. Support with no tenant: same no-tenant state. Switching tenant mid-run or mid-export leaves no previous-tenant table, list, download or toast. After a failed run the earlier report keeps its title, rows, export target and pages.
-result: [pending]
+result: pass
+note: "User typed pass on 2026-11-17 after the 11:02 deploy (UI index-B6_i-liT.js, backend restarted, pushed 0b614aedb). nginx log since 11:02 (one client) shows the new bundle loaded 3x and only GETs, all 200: /api/itam/kpis, /api/itam/reports, /api/itam/reports/custom, /api/itam/settings, catalog and license lists, /api/assets/asset-EILT0197/book-value; no 400. Not exercised live: report run, preview, save, export, delete; tenant switch mid-run or mid-export; Platform Support with no tenant (no Support account exists on this server). Those rest on the automated suites (backend 410 passed, vitest 139). User chose to record pass with this note."
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
