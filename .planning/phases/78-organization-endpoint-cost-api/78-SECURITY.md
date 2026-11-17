@@ -53,7 +53,7 @@ created: "2026-11-17"
 | T-78-12 | Information Disclosure | Licence/warranty/overdue reads after an Owner header override | high | mitigate | Resolver's `set_tenant_id` re-aligns the wrapper; mutation run with it disabled failed `test_owner_header_scopes_every_kpi` (78-04) | closed |
 | T-78-13 | Information Disclosure | Pre-built run/export for a Super Admin (blended across tenants) | high | mitigate | `resolve_itam_tenant` first in `run_prebuilt_report` and `export_prebuilt_report` (`itam_reporting_endpoints.py:70, 112`); 400 tests prove no database read; export spy records the resolved tenant (78-05) | closed |
 | T-78-14 | Information Disclosure | Download of an export file | low | accept | Existing control unchanged (download route untouched by the phase diff `fd4e00f24..HEAD`): tenant ownership check on `itam_report_exports`, Super Admin bypass as before; exports now record the resolved tenant. See AR-78-02 | closed |
-| T-78-15 | Information Disclosure | ReportsPanel after a tenant switch | medium | mitigate | Ref-guarded reset of result/activeKind/activeKey/page on `tenantId` change in `components/itam/ReportsPanel.tsx`; rerender tests for another tenant and for none (78-06) | closed |
+| T-78-15 | Information Disclosure | ReportsPanel after a tenant switch | medium | mitigate | Ref-guarded reset of result/activeKind/activeKey/page on `tenantId` change in `components/itam/ReportsPanel.tsx`; rerender tests for another tenant and for none (78-06). INCOMPLETE (78-VERIFICATION.md gap, 78-REVIEW WR-01): `runPrebuilt` has no stale-response guard and the reset does not clear `running`, so a run issued for tenant A that resolves after the switch renders under tenant B; no test covers it. Owner-only, so data is mislabelled rather than an authorization breach | open — below high threshold (non-blocking) |
 | T-78-16 | Information Disclosure | Pre-built run without a tenant | low | mitigate | Run buttons disabled with `needsTenant` (`ReportsPanel.tsx`); server resolver 400s regardless (78-05) | closed |
 | T-78-17 | Tampering | Isolation test touching live data or leaving files | medium | mitigate | `mongo_db` throwaway database in `test_itam_cost_isolation.py`; export files deleted in `finally` and an autouse fixture; `backend/static/reports` git status unchanged (78-07) | closed |
 | T-78-18 | Information Disclosure | Tenant context leaking between concurrent requests | high | mitigate | `asyncio.gather` rounds (10 x 8 requests) through the real middleware assert exact per-tenant totals (78-07) | closed |
@@ -89,6 +89,7 @@ created: "2026-11-17"
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-17 | 27 | 27 | 0 | secure-phase (orchestrator, L1 grep depth; plan-time register, auditor skipped per short-circuit rule) |
+| 2026-11-17 | 27 | 26 | 0 (1 open below the high threshold: T-78-15) | orchestrator, after gsd-verifier found the ReportsPanel stale-response gap; also noted: 78-REVIEW WR-02 (custom report routes keep today's tenant handling per A-78-17, so a Platform Owner's custom report can blend tenants) has no accepted-risk row yet and awaits the user's call |
 
 ---
 
@@ -99,4 +100,4 @@ created: "2026-11-17"
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-17
+**Approval:** verified 2026-11-17 (threats_open 0 at the high threshold; T-78-15, medium, reopened the same day after verification and tracked by the gap-closure plan)
