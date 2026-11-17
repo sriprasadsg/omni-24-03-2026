@@ -26,6 +26,7 @@ from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
 from authentication_service import get_current_user as real_get_current_user
 from itam_finance_service import compute_book_value
+from itam_tenant_scope import UNKNOWN_TENANT_DETAIL
 
 FIXED_NOW = datetime(2026, 11, 16, 12, 0, 0, tzinfo=timezone.utc)
 A1_PURCHASE = (FIXED_NOW - timedelta(days=400)).isoformat()
@@ -56,6 +57,8 @@ def _asset(tenant, asset_id, *, status, cost, purchase_date, model_id, name=None
 
 
 async def _seed(db):
+    # An Owner's X-Tenant-ID must name an existing tenant (IN-01).
+    await db.tenants.insert_many([{"id": "tenant-a", "name": "Tenant A"}, {"id": "tenant-b", "name": "Tenant B"}])
     await db.asset_models.insert_many([
         {"tenantId": "tenant-a", "id": "model-ok", "usefulLifeYears": 3, "salvageValueCents": 10000},
         {"tenantId": "tenant-b", "id": "model-b", "usefulLifeYears": 4, "salvageValueCents": 0},
@@ -171,6 +174,17 @@ class TestTenantResolver:
         assert body["purchaseTotal"]["cents"] == 1110000
 
     @pytest.mark.asyncio
+    async def test_owner_header_for_an_unknown_tenant_is_400(self, mongo_db, monkeypatch):
+        await _seed(mongo_db)
+        app = _app(monkeypatch, mongo_db)
+        async with _client(app, _owner()) as ac:
+            for url in (URL, "/api/itam/costs/assets", "/api/itam/costs/assets/A1"):
+                r = await ac.get(url, headers={"X-Tenant-ID": "tenant-typo"})
+                assert r.status_code == 400, url
+                assert r.json()["detail"] == UNKNOWN_TENANT_DETAIL
+                assert "tenant-typo" not in r.text
+
+    @pytest.mark.asyncio
     async def test_owner_header_platform_admin_is_400(self, monkeypatch):
         app = _app(monkeypatch)
         async with _client(app, _owner()) as ac:
@@ -213,7 +227,13 @@ class TestTenantResolver:
     @pytest.mark.asyncio
     async def test_resolver_sets_ambient_tenant(self, monkeypatch):
         app = _app(monkeypatch)
-        monkeypatch.setattr(itam_cost_endpoints, "get_database", lambda: object())
+
+        class _Tenants:
+            @staticmethod
+            async def find_one(*args, **kwargs):
+                return {"id": "tenant-b"}
+
+        monkeypatch.setattr(itam_cost_endpoints, "get_database", lambda: type("Db", (), {"tenants": _Tenants})())
         seen = {}
 
         async def _spy(db, tenant_id, **kwargs):

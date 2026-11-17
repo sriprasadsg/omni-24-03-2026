@@ -36,6 +36,7 @@ from authentication_service import get_current_user as real_get_current_user
 from itam_cost_service import compute_asset_cost
 from itam_reporting_filters import run_custom_report
 from itam_reporting_prebuilt import _cents_to_dollars
+from itam_tenant_scope import UNKNOWN_TENANT_DETAIL
 
 FIXED_NOW = datetime(2026, 11, 16, 12, 0, 0, tzinfo=timezone.utc)
 PURCHASE = (FIXED_NOW - timedelta(days=400)).isoformat()
@@ -232,7 +233,8 @@ class TestPrebuiltTenantResolution:
                 assert r.status_code == 400, key
 
     @pytest.mark.asyncio
-    async def test_prebuilt_run_owner_header_uses_that_tenant(self, reporting_app, monkeypatch):
+    async def test_prebuilt_run_owner_header_uses_that_tenant(self, mock_db, reporting_app, monkeypatch):
+        mock_db.tenants.find_one = AsyncMock(return_value={"id": "tenant-b"})  # an Owner header must name a real tenant
         seen = {}
 
         async def _spy(db, kind, key, tenant_id, definition=None, limit=None):
@@ -248,7 +250,20 @@ class TestPrebuiltTenantResolution:
         assert seen == {"tenant_id": "tenant-b", "ambient": "tenant-b"}
 
     @pytest.mark.asyncio
-    async def test_prebuilt_export_records_resolved_tenant(self, reporting_app, monkeypatch):
+    async def test_prebuilt_owner_header_for_an_unknown_tenant_is_400(self, mock_db, reporting_app):
+        # IN-01: no figure and no export record for a tenant that does not exist (the tenants lookup finds nothing).
+        mock_db.tenants.find_one = AsyncMock(return_value=None)
+        async with _client(reporting_app, _owner()) as ac:
+            run = await ac.post(RUN, headers={"X-Tenant-ID": "tenant-typo"})
+            export = await ac.post(EXPORT + "?format=csv", headers={"X-Tenant-ID": "tenant-typo"})
+        for r in (run, export):
+            assert r.status_code == 400
+            assert r.json()["detail"] == UNKNOWN_TENANT_DETAIL
+        mock_db.assets.find.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prebuilt_export_records_resolved_tenant(self, mock_db, reporting_app, monkeypatch):
+        mock_db.tenants.find_one = AsyncMock(return_value={"id": "tenant-b"})  # an Owner header must name a real tenant
         generate = AsyncMock(return_value={"filename": "f.csv", "rowCount": 0})
         monkeypatch.setattr(reporting_service_module.itam_reporting_service, "generate", generate)
         async with _client(reporting_app, _owner()) as ac:

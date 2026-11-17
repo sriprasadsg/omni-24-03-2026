@@ -35,7 +35,7 @@ async def get_cost_summary(
     Disposed and retired assets are left out unless includeDisposed is true (D-01..D-03). A total
     with no contributing asset is {cents: null, hasData: false}, never 0 (D-10).
     """
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
         result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed)
@@ -61,7 +61,7 @@ async def list_cost_assets(
     Book value is not stored, so the whole tenant set is computed, sorted (D-08) and then paged;
     no total depends on the page. agentOnly keeps only assets an agent document names.
     """
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
         result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed, with_agents=True)
@@ -91,7 +91,7 @@ async def get_cost_asset(
 ):
     """One asset's cost row, disposed and retired included. An unknown id and another organization's
     id both get the same 404 body, so the route is no existence oracle."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
         detail = await compute_asset_cost_detail(db, tenant_id, asset_id)

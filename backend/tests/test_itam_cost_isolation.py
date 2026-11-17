@@ -123,6 +123,7 @@ def _reports_dir_untouched():
 async def two_tenants(mongo_db):
     for tenant in TENANTS:
         d = DATA[tenant]
+        await mongo_db.tenants.insert_one({"id": tenant, "name": f"Tenant {tenant}"})  # an Owner header must name a real tenant
         await mongo_db.asset_models.insert_one(
             {"tenantId": tenant, "id": "model-std", "usefulLifeYears": d["life"], "salvageValueCents": d["salvage"]})
         ids = _ids(tenant)

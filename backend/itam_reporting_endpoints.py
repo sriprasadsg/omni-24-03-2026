@@ -73,7 +73,7 @@ async def run_prebuilt_report(
     The report covers exactly one tenant (D-13): a platform session without a
     chosen tenant gets 400 before any database read.
     """
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
         report = await build_report_rows(db, "prebuilt", report_key, tenant_id, limit=None)
@@ -115,7 +115,7 @@ async def export_prebuilt_report(
     distinct from a 404 unknown report key raised further down inside
     itam_reporting_service.generate. The tenant is resolved first (D-13), so
     the export file and its record belong to the one tenant the report covers."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     if format not in RENDERERS:
         raise HTTPException(
             status_code=400,
@@ -233,7 +233,7 @@ async def create_custom_report(
     appear in the list with distinct ids. The definition is stored under the
     one tenant the request resolves to (D-13, A-78-22), so an Owner's save
     lands in the tenant the Owner chose and a session without one gets 400."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     doc = {
@@ -258,7 +258,7 @@ async def list_custom_reports(
     """Lists the tenant's saved definitions, newest first — visible to and
     re-runnable by any user in the tenant with builder access, not only
     their creator (D-04). Only the resolved tenant's definitions (D-13)."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     docs = await db.itam_reports.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=None)
     docs.sort(key=lambda d: d.get("createdAt") or "", reverse=True)
@@ -277,7 +277,7 @@ async def preview_custom_report(
     is already validated against the closed field/operator vocabulary by
     CustomReportDefinition/FilterCondition before this handler runs. The
     rows cover exactly one tenant (D-13)."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     report = await build_report_rows(
         db, "custom", "preview", tenant_id, definition=payload.model_dump(), limit=None,
@@ -291,7 +291,7 @@ async def get_custom_report(
     request: Request,
     current_user: TokenData = Depends(_require_itam_viewer),
 ):
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     doc = await db.itam_reports.find_one({"tenantId": tenant_id, "id": report_id}, {"_id": 0})
     if not doc:
@@ -305,7 +305,7 @@ async def delete_custom_report(
     request: Request,
     current_user: TokenData = Depends(_require_itam_admin),
 ):
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     result = await db.itam_reports.delete_one({"tenantId": tenant_id, "id": report_id})
     if getattr(result, "deleted_count", 0) == 0:
@@ -324,7 +324,7 @@ async def run_saved_custom_report(
     — the same answer an unknown id would ever produce, not a crash or a
     stale result. The report covers exactly one tenant (D-13): a platform
     session without a chosen tenant gets 400 before any database read."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     doc = await db.itam_reports.find_one({"tenantId": tenant_id, "id": report_id}, {"_id": 0})
     if not doc:
@@ -352,7 +352,7 @@ async def export_custom_report(
     format registered once is available to both (D-14/D-20). The tenant is
     resolved first (D-13), so the file and its record belong to the one
     tenant the report covers."""
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     if format not in RENDERERS:
         raise HTTPException(
             status_code=400,

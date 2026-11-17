@@ -40,7 +40,7 @@ async def get_itam_kpis(request: Request, current_user: TokenData = Depends(_req
     detail rather than leaking internals (T-72-10), matching the existing
     itam_reporting_endpoints.py error-handling convention.
     """
-    tenant_id = resolve_itam_tenant(request, current_user)
+    tenant_id = await resolve_itam_tenant(request, current_user, get_database)
 
     db = get_database()
     try:

@@ -40,6 +40,7 @@ import rbac_utils
 from authentication_service import create_access_token
 from itam_finance_service import compute_book_value
 from itam_reporting_filters import list_report_fields
+from itam_tenant_scope import UNKNOWN_TENANT_DETAIL
 from tenant_middleware import TenantMiddleware
 
 FIXED_NOW = datetime(2026, 11, 16, 12, 0, 0, tzinfo=timezone.utc)
@@ -125,6 +126,7 @@ def _reports_dir_untouched():
 async def seeded(mongo_db):
     for tenant in TENANTS:
         d = DATA[tenant]
+        await mongo_db.tenants.insert_one({"id": tenant, "name": f"Tenant {tenant}"})  # an Owner header must name a real tenant
         await mongo_db.asset_models.insert_one(
             {"tenantId": tenant, "id": "model-std", "usefulLifeYears": d["life"], "salvageValueCents": d["salvage"]})
         await mongo_db.assets.insert_many([
@@ -292,6 +294,23 @@ class TestOwnerChoosesTenant:
         for tenant in TENANTS:  # the refused delete and save left both definitions as they were
             names = [d["name"] async for d in seeded.itam_reports.find({"tenantId": tenant})]
             assert names == [_def_name(tenant)]
+
+    @pytest.mark.asyncio
+    async def test_owner_header_for_an_unknown_tenant_is_400_on_read_and_write_routes(self, client, seeded):
+        # IN-01: a typo must not read empty figures or write a report or export under a tenant that does not exist.
+        owner = token("Super Admin", "platform-admin")
+        exports_before = await seeded.itam_report_exports.count_documents({})
+        for route in ROUTES:
+            result = await call(client, route, owner, header="no-such-tenant")
+            assert result.status_code == 400, route
+            assert result.json()["detail"] == UNKNOWN_TENANT_DETAIL, route
+            assert_no_figure(result)
+        assert await seeded.itam_reports.count_documents({"tenantId": "no-such-tenant"}) == 0
+        assert await seeded.itam_reports.count_documents({}) == len(TENANTS)
+        assert await seeded.itam_report_exports.count_documents({}) == exports_before
+        # the cost routes share the resolver
+        cost = await client.get("/api/itam/costs/summary", headers=_headers(owner, "no-such-tenant"))
+        assert cost.status_code == 400 and cost.json()["detail"] == UNKNOWN_TENANT_DETAIL
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("tenant", TENANTS)

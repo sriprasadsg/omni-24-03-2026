@@ -38,6 +38,7 @@ from api_key_auth import get_current_user_or_api_key
 from authentication_service import get_current_user as real_get_current_user
 from itam_cost_service import compute_asset_cost, compute_tenant_costs
 from itam_reporting_kpis import compute_itam_kpis
+from itam_tenant_scope import UNKNOWN_TENANT_DETAIL
 
 FIXED_NOW = datetime(2026, 11, 16, 12, 0, 0, tzinfo=timezone.utc)
 PURCHASE = (FIXED_NOW - timedelta(days=400)).isoformat()
@@ -242,6 +243,7 @@ class TestTenantScoping:
     @pytest.mark.asyncio
     async def test_owner_header_scopes_every_kpi(self, mongo_db, monkeypatch):
         past = (FIXED_NOW - timedelta(days=3)).isoformat(timespec="milliseconds")
+        await mongo_db.tenants.insert_many([{"id": "tenant-a", "name": "Tenant A"}, {"id": "tenant-b", "name": "Tenant B"}])
         await mongo_db.asset_models.insert_many([
             {"tenantId": "tenant-a", **MODEL},
             {"tenantId": "tenant-b", "id": "model-1", "usefulLifeYears": 4, "salvageValueCents": 0},
@@ -278,6 +280,14 @@ class TestTenantScoping:
         assert body["overdue"]["overdueCheckinCount"] == 0
         assert body["warrantyExpirations"]["hasData"] is False
         assert "tenant-a" not in r.text
+
+    @pytest.mark.asyncio
+    async def test_owner_header_for_an_unknown_tenant_is_400(self, mongo_db, monkeypatch):
+        app = _app(monkeypatch, mongo_db)
+        async with _client(app, _owner()) as ac:
+            r = await ac.get(URL, headers={"X-Tenant-ID": "tenant-typo"})
+        assert r.status_code == 400
+        assert r.json()["detail"] == UNKNOWN_TENANT_DETAIL
 
     @pytest.mark.asyncio
     async def test_tenant_user_reads_own_tenant_only(self, mongo_db, monkeypatch):
