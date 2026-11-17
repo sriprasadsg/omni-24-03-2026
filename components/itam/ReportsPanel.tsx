@@ -114,7 +114,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setPending({ kind: 'custom', key: reportId });
     const seq = ++runSeq.current;
     try {
-      const r = await runItamCustomReport(reportId, targetPage, PAGE_SIZE);
+      const r = await runItamCustomReport(reportId, targetPage, PAGE_SIZE, tenantId);
       if (seq !== runSeq.current) return;
       setShown({ kind: 'custom', key: reportId, page: targetPage, data: r });
     } catch (e: any) {
@@ -123,7 +123,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     } finally {
       if (seq === runSeq.current) setPending(null);
     }
-  }, []);
+  }, [tenantId]);
 
   function runActivePage(targetPage: number) {
     if (shown?.kind === 'prebuilt' && shown.key) runPrebuilt(shown.key, targetPage);
@@ -164,7 +164,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     if (!deleteTarget) return;
     const target = deleteTarget;
     try {
-      await deleteItamCustomReport(target.id);
+      await deleteItamCustomReport(target.id, tenantId);
       showToast('Report deleted.', 'success');
       if (shown?.kind === 'custom' && shown.key === target.id) setShown(null);
       setDeleteTarget(null);
@@ -182,9 +182,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     const epoch = tenantEpoch.current;
     setExportingFormat(format);
     try {
-      const generated = kind === 'prebuilt'
-        ? await generateItamReport(kind, key, format, tenantId)
-        : await generateItamReport(kind, key, format);
+      const generated = await generateItamReport(kind, key, format, tenantId);
       if (epoch !== tenantEpoch.current) return;
       await downloadItamReport(generated.filename);
     } catch (e: any) {

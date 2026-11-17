@@ -6058,9 +6058,10 @@ export const listItamCustomReports = async (): Promise<ItamSavedCustomReport[]> 
     return res.json();
 };
 
-export const deleteItamCustomReport = async (reportId: string): Promise<void> => {
+export const deleteItamCustomReport = async (reportId: string, tenantId?: string | null): Promise<void> => {
     const res = await authFetch(`${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}`, {
         method: 'DELETE',
+        tenantId: tenantId || undefined,
     });
     if (!res.ok) return itamThrow(res, "Couldn't delete report.");
 };
@@ -6082,10 +6083,10 @@ export const previewItamCustomReport = async (
     return res.json();
 };
 
-export const runItamCustomReport = async (reportId: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+export const runItamCustomReport = async (reportId: string, page = 1, pageSize = 50, tenantId?: string | null): Promise<ItamReportRunResult> => {
     const res = await authFetch(
         `${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}/run?page=${page}&page_size=${pageSize}`,
-        { method: 'POST' },
+        { method: 'POST', tenantId: tenantId || undefined },
     );
     if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
     return res.json();
