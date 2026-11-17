@@ -288,3 +288,45 @@ describe('topologyRows', () => {
         expect(fresh.map(z => z.zone)).toEqual(['Internal LAN', 'Internet', 'Perimeter']);
     });
 });
+
+// The same endpoint reaching the internet through its provider (backend _provider / isp_node).
+function ispTopology(rateAt: string, isp: Record<string, unknown>) {
+    const topo = endpointTopology(rateAt);
+    topo.elements.nodes.push({ data: { zone: 'Internet', role: 'ISP', kind: 'isp', icon: 'isp', type: 'Internet provider', ...isp } } as any);
+    const ispId = isp.id as string;
+    topo.elements.edges = topo.elements.edges.filter(e => e.data.id !== 'e1');
+    topo.elements.edges.push({ data: { id: 'e-isp-1', source: 'internet', target: ispId, kind: 'uplink' } } as any,
+        { data: { id: 'e-isp-2', source: ispId, target: 'gw-192.168.0.1', kind: 'uplink' } } as any);
+    return topo;
+}
+
+describe('internet provider', () => {
+    const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+    const named = { id: 'isp-as24560', label: 'Bharti Airtel Ltd.\n(AS24560)', ip: '103.174.161.211', status: 'Up', ispKnown: true,
+        details: { isp: 'Bharti Airtel Ltd.', asn: 24560, publicIp: '103.174.161.211', location: 'Chennai, India', reportedBy: 'EILT0197' } };
+
+    it('sits between the Internet and the gateway and is listed as an ISP', () => {
+        const rows = topologyRows(withLiveTraffic(buildTopologyElements(ispTopology(at(20_000), named)), {}));
+        expect(rows.find(r => r.id === 'isp-as24560')).toMatchObject({ name: 'Bharti Airtel Ltd.', group: 'ISP', role: 'ISP', via: 'Internet', status: 'Up', ip: '103.174.161.211' });
+        expect(rows.find(r => r.id === 'gw-192.168.0.1')?.via).toBe('Bharti Airtel Ltd.');
+        expect(topologyStats(buildTopologyElements(ispTopology(at(20_000), named)))).toMatchObject({ devices: 1 }); // the gateway only
+        expect(deviceFacts(named.details)).toEqual([
+            { label: 'Provider', value: 'Bharti Airtel Ltd.' }, { label: 'AS number', value: 'AS24560' },
+            { label: 'Public IP', value: '103.174.161.211' }, { label: 'Location', value: 'Chennai, India' }, { label: 'Reported by', value: 'EILT0197' },
+        ]);
+    });
+
+    it('says why a provider is not named, without claiming it is up', async () => {
+        const unnamed = { id: 'isp-ip-103.174.161.211', label: 'ISP not identified\n(103.174.161.211)', ip: '103.174.161.211', status: 'Unknown', ispKnown: false,
+            details: { publicIp: '103.174.161.211', reportedBy: 'EILT0197' } };
+        authFetch.mockImplementation(async (url: string) => url.includes('/traffic') ? ok(emptyTraffic) : ok(ispTopology(at(20_000), unnamed)));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        fireEvent.click(within(table).getByRole('button', { name: 'ISP not identified' }));
+        const panel = await screen.findByRole('complementary', { name: 'Details for ISP not identified' });
+        expect(panel.textContent).toContain('GeoLite2-ASN');
+        expect(panel.textContent).toContain('103.174.161.211');
+        expect(within(panel).queryByText('Up')).toBeNull();
+        expect(panel.textContent).not.toContain('VLAN');
+    });
+});

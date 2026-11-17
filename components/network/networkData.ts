@@ -145,9 +145,10 @@ export const rankBy = <T,>(items: T[], keyOf: (item: T) => string, limit = 8): R
 /** Same id the backend gives zone parents (Python str.replace swaps every space). */
 export const zoneId = (zone: string) => `zone-${zone.replace(/ /g, '-')}`;
 
-// Nodes that are not machines on the network: the Internet, the placeholder gateway, remote hosts.
+// Nodes that are not machines on the network: the Internet, the placeholder gateway, internet
+// providers and remote hosts.
 const SYNTHETIC_NODES = new Set(['internet', 'virtual-gateway']);
-const NOT_DEVICES = new Set(['internet', 'placeholder', 'remote']);
+const NOT_DEVICES = new Set(['internet', 'placeholder', 'isp', 'remote']);
 
 /**
  * Cytoscape elements from GET /api/network-devices/topology. Every zone a node belongs to gets a
@@ -256,12 +257,17 @@ export const deviceFacts = (details: any): { label: string; value: string }[] =>
     const known = (v: unknown) => v !== undefined && v !== null && v !== '' && v !== 'Unknown';
     const facts: { label: string; value: string }[] = [];
     const add = (label: string, v: unknown) => { if (known(v)) facts.push({ label, value: String(v) }); };
+    add('Provider', details.isp);
+    if (known(details.asn)) facts.push({ label: 'AS number', value: `AS${details.asn}` });
     add('MAC address', details.macAddress);
     add('Vendor', details.vendor);
     add('Model', details.model);
     add('OS', details.osVersion);
     add('Subnet', details.subnet);
     add('Public IP', details.publicIp);
+    add('Location', details.location);
+    add('Network type', details.networkType);
+    add('Reported by', details.reportedBy);
     add('Agent version', details.agentVersion);
     add('Found in', details.source);
     if (Array.isArray(details.openPorts) && details.openPorts.length) {

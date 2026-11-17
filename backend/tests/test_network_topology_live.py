@@ -112,7 +112,7 @@ def test_endpoint_hangs_off_the_gateway_from_its_neighbour_table_with_its_live_r
     assert endpoint["kind"] == "agent" and endpoint["status"] == "Up" and endpoint["ip"] == "192.168.0.105"
     assert endpoint["metrics"]["sentBps"] == 41_000.0 and endpoint["metrics"]["bytesRecv"] == 974_811_266
     assert nodes["gw-192.168.0.1"]["details"]["macAddress"] == "60-32-b1-08-ba-d6"
-    assert ("internet", "gw-192.168.0.1") in edges
+    assert ("isp-ip-103.174.161.211", "gw-192.168.0.1") in edges  # via its provider, see the ISP tests
     uplink = edges[("gw-192.168.0.1", "agent-a-win")]
     assert uplink["kind"] == "uplink" and uplink["recvBps"] == 178_000.0
     assert ("gw-192.168.0.1", "nb-192.168.0.42") in edges  # a LAN neighbour
@@ -157,7 +157,7 @@ def test_scanned_devices_carry_no_invented_metrics_and_agents_replace_their_devi
     assert "dev-pc" not in nodes and nodes["agent-a-win"]["details"]["openPorts"] == [445]
     assert "metrics" not in nodes["dev-nas"] and "metrics" not in nodes["internet"]
     assert ("dev-gw", "agent-a-win") in edges and "gw-192.168.0.1" not in nodes
-    assert ("internet", "dev-gw") in edges
+    assert ("isp-ip-103.174.161.211", "dev-gw") in edges and ("internet", "dev-gw") not in edges
 
 
 def test_hidden_agents_and_empty_tenant():
@@ -165,3 +165,39 @@ def test_hidden_agents_and_empty_tenant():
     shows just the Internet; fails_when=dead agents or a stray placeholder appear; no_claim=-"""
     nodes, _ = _graph([], [_windows_agent(status="Uninstalled")])
     assert list(nodes) == ["internet"]
+
+
+# ── internet provider ───────────────────────────────────────────────────────
+
+def test_provider_named_by_the_asn_lookup_sits_between_internet_and_gateway():
+    """protects=an endpoint's ISP (geo.asn from the server's ASN lookup) is one node per AS between
+    the Internet and the endpoint's gateway, with its public addresses and the endpoints that report
+    it; fails_when=the gateway still links straight to the Internet, endpoints on one ISP get one node
+    each, or the name is invented; no_claim=the MaxMind ASN data names the right provider"""
+    airtel = {"asn": {"number": 24560, "org": "Bharti Airtel Ltd."}, "city": "Chennai", "country": "India"}
+    second = _windows_agent(id="a-two", hostname="FIN-WS-22", ipAddress="192.168.0.131", publicIp="103.174.161.212", geo=airtel)
+    nodes, edges = _graph([], [_windows_agent(geo=airtel), second])
+    isp = nodes["isp-as24560"]
+    assert isp["label"] == "Bharti Airtel Ltd.\n(AS24560)" and isp["kind"] == "isp" and isp["ispKnown"] is True
+    assert isp["zone"] == "Internet" and isp["status"] == "Up"
+    assert isp["details"] == {"isp": "Bharti Airtel Ltd.", "asn": 24560, "location": "Chennai, India",
+                              "publicIp": "103.174.161.211, 103.174.161.212", "reportedBy": "EILT0197, FIN-WS-22"}
+    assert [n for n in nodes if n.startswith("isp-")] == ["isp-as24560"]
+    assert ("internet", "isp-as24560") in edges and ("isp-as24560", "gw-192.168.0.1") in edges
+    assert ("internet", "gw-192.168.0.1") not in edges
+
+
+def test_unnamed_provider_shows_the_public_address_and_no_address_means_no_provider():
+    """protects=without an ASN match the hop still shows, as "ISP not identified" with the public
+    address; an endpoint that reported no public address keeps a direct gateway link and an offline
+    one leaves the provider's status unknown; fails_when=a provider name is made up or a provider
+    node appears with nothing behind it; no_claim=-"""
+    nodes, edges = _graph([], [_windows_agent(geo={"asn": None}, lastSeen=_at(900))])
+    isp = nodes["isp-ip-103.174.161.211"]
+    assert isp["label"] == "ISP not identified\n(103.174.161.211)" and isp["ispKnown"] is False
+    assert isp["status"] == "Unknown" and isp["ip"] == "103.174.161.211"
+    assert "isp" not in isp["details"] and isp["details"]["publicIp"] == "103.174.161.211"
+
+    nodes, edges = _graph([], [_linux_agent()])
+    assert not any(n.startswith("isp-") for n in nodes)
+    assert ("internet", "virtual-gateway") in edges

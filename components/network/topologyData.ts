@@ -2,9 +2,9 @@
 // node table). Pure, so the shapes GET /api/network-devices/topology really sends can be tested.
 import { isDown, isFreshRate } from './networkData';
 
-export type NodeStatus = 'Live' | 'Idle' | 'Not measured' | 'Up' | 'Down' | 'Connected';
-export type NodeGroup = 'Endpoints' | 'Gateways' | 'Devices' | 'Remote';
-export const NODE_GROUPS: NodeGroup[] = ['Endpoints', 'Gateways', 'Devices', 'Remote'];
+export type NodeStatus = 'Live' | 'Idle' | 'Not measured' | 'Up' | 'Down' | 'Connected' | 'Unknown';
+export type NodeGroup = 'Endpoints' | 'Gateways' | 'ISP' | 'Devices' | 'Remote';
+export const NODE_GROUPS: NodeGroup[] = ['Endpoints', 'Gateways', 'ISP', 'Devices', 'Remote'];
 
 export interface TopologyRow {
     id: string;
@@ -35,21 +35,26 @@ export const nodeGroup = (d: any): NodeGroup | null => {
     if (d?.kind === 'internet') return null;
     if (d?.kind === 'agent') return 'Endpoints';
     if (d?.kind === 'remote') return 'Remote';
+    if (d?.kind === 'isp') return 'ISP';
     if (d?.kind === 'gateway' || d?.kind === 'placeholder' || d?.role === 'Gateway') return 'Gateways';
     return 'Devices';
 };
 
-/** Internet and the placeholder gateway are drawn by the map itself, so they have no status. */
+/**
+ * Internet and the placeholder gateway are drawn by the map itself, so they have no status. A provider
+ * is Up while an online endpoint reaches the platform through it; nothing else is known about it.
+ */
 export const nodeStatus = (d: any, now: number = Date.now()): NodeStatus | null => {
     if (d?.kind === 'internet' || d?.kind === 'placeholder') return null;
     if (d?.kind === 'remote') return 'Connected';
+    if (d?.kind === 'isp') return d.status === 'Up' ? 'Up' : 'Unknown';
     if (isDown(d?.status)) return 'Down';
     if (d?.kind !== 'agent') return 'Up';
     if (!isFreshRate(d.metrics, now)) return 'Not measured';
     return d.metrics.sentBps + d.metrics.recvBps > 0 ? 'Live' : 'Idle';
 };
 
-const GROUP_RANK: Record<string, number> = { Endpoints: 0, Gateways: 1, Devices: 2, Remote: 3 };
+const GROUP_RANK: Record<string, number> = { Endpoints: 0, Gateways: 1, ISP: 2, Devices: 3, Remote: 4 };
 
 /** One row per node on the map, the busiest first, then endpoints, gateways, devices and remote hosts. */
 export const topologyRows = (elements: any[], now: number = Date.now()): TopologyRow[] => {
@@ -82,7 +87,7 @@ export const topologyRows = (elements: any[], now: number = Date.now()): Topolog
     });
     const load = (r: TopologyRow) => (r.sentBps == null ? -1 : r.sentBps + (r.recvBps ?? 0));
     return rows.sort((a, b) => load(b) - load(a)
-        || (GROUP_RANK[a.group ?? ''] ?? 4) - (GROUP_RANK[b.group ?? ''] ?? 4)
+        || (GROUP_RANK[a.group ?? ''] ?? 5) - (GROUP_RANK[b.group ?? ''] ?? 5)
         || a.name.localeCompare(b.name));
 };
 

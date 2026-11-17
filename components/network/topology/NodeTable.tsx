@@ -15,6 +15,7 @@ const STATUS_STYLE: Record<NodeStatus, { dot: string; text: string }> = {
     Up: { dot: 'bg-green-500', text: 'text-green-700 dark:text-green-400' },
     Idle: { dot: 'bg-gray-400', text: 'text-gray-600 dark:text-gray-300' },
     Connected: { dot: 'bg-[#2a78d6] dark:bg-[#3987e5]', text: 'text-gray-700 dark:text-gray-300' },
+    Unknown: { dot: 'bg-gray-400', text: 'text-gray-600 dark:text-gray-300' },
     'Not measured': { dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
     Down: { dot: 'bg-red-500', text: 'text-red-700 dark:text-red-300' },
 };

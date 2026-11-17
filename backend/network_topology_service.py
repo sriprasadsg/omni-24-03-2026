@@ -20,6 +20,7 @@ AGENT_PROJECTION = {
     "meta.metrics_collection.network.bytes_sent": 1, "meta.metrics_collection.network.bytes_recv": 1,
     "meta.network_discovery": 1, "meta.web_monitor.web_connections": 1, "meta.device_type": 1,
     "meta.mac_address": 1, "meta.os_full_name": 1,
+    "geo.asn": 1, "geo.city": 1, "geo.country": 1, "geo.vpn_heuristic": 1,
 }
 
 
@@ -63,6 +64,27 @@ def _neighbour_entries(discovery: Any) -> List[Dict[str, Any]]:
 
 def _known(value: Any) -> bool:
     return value not in (None, "", "Unknown")
+
+
+def _provider(agent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The internet provider an agent reaches the internet through: its public (WAN) address and,
+    when the server's ASN lookup named it (agent_asn_service, geo.asn), the network's name and AS
+    number. None when the agent reported no public address and no provider is known."""
+    geo = agent.get("geo") if isinstance(agent.get("geo"), dict) else {}
+    asn = geo.get("asn") if isinstance(geo.get("asn"), dict) else {}
+    org, number = asn.get("org"), asn.get("number")
+    public_ip = agent.get("publicIp") if _known(agent.get("publicIp")) else None
+    if not _known(org) and not public_ip:
+        return None
+    if _known(org):
+        isp_id = f"isp-as{number}" if number else f"isp-{org}"
+        label = f"{org}\n(AS{number})" if number else org
+    else:
+        isp_id, label = f"isp-ip-{public_ip}", f"ISP not identified\n({public_ip})"
+    place = ", ".join(str(v) for v in (geo.get("city"), geo.get("country")) if _known(v))
+    return {"id": isp_id, "label": label, "known": _known(org), "org": org if _known(org) else None,
+            "number": number, "publicIp": public_ip, "location": place or None,
+            "vpn": geo.get("vpn_heuristic") is True}
 
 
 def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
@@ -160,6 +182,35 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
     # 3. Agent endpoints, the gateway and neighbours in their neighbour (ARP) tables, and their
     #    latest outbound web connections.
     neighbour_count = 0
+    isp_nodes: Dict[str, Dict[str, Any]] = {}
+    gateway_isps: Dict[str, set] = {}
+
+    def isp_node(agent: Dict[str, Any], hostname: str, online: bool) -> Optional[str]:
+        provider = _provider(agent)
+        if provider is None:
+            return None
+        data = isp_nodes.get(provider["id"])
+        if data is None:
+            data = {"id": provider["id"], "label": provider["label"], "ip": provider["publicIp"], "type": "Internet provider",
+                    "zone": "Internet", "role": "ISP", "status": "Unknown", "icon": "isp", "kind": "isp",
+                    "ispKnown": provider["known"], "details": {}}
+            add_node(data)
+            isp_nodes[provider["id"]] = data
+        details = data["details"]
+        for key, value in (("isp", provider["org"]), ("asn", provider["number"]), ("location", provider["location"])):
+            if _known(value):
+                details.setdefault(key, value)
+        if provider["vpn"]:
+            details["networkType"] = "VPN or hosting range (heuristic)"
+        for key, value in (("publicIp", provider["publicIp"]), ("reportedBy", hostname)):
+            listed = details.get(key, "").split(", ") if details.get(key) else []
+            if _known(value) and value not in listed:
+                details[key] = ", ".join(listed + [value])
+        if not data["ip"] and provider["publicIp"]:
+            data["ip"] = provider["publicIp"]
+        if online:
+            data["status"] = "Up"  # an online endpoint reaches the platform through it
+        return provider["id"]
     for agent in live_agents:
         ip = agent.get("ipAddress")
         addr = _addr(ip)
@@ -217,6 +268,9 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         else:
             gateway_id = virtual_gateway()
         add_edge(gateway_id, node_id, kind="uplink", **{k: metrics[k] for k in ("sentBps", "recvBps") if k in metrics})
+        provider_id = isp_node(agent, hostname, online)
+        if provider_id:
+            gateway_isps.setdefault(gateway_id, set()).add(provider_id)
 
         for entry in entries:
             if neighbour_count >= MAX_NEIGHBOURS:
@@ -262,6 +316,16 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
                           "role": "Remote host", "status": "Up", "icon": "globe", "kind": "remote"})
             add_edge(node_id, remote_id, kind="flow", connections=info["count"], ports=sorted(info["ports"]),
                      processes=sorted(info["processes"])[:5], seenAt=agent.get("lastSeen"))
+
+    # 4. The provider sits between a gateway and the internet: Internet -> ISP -> gateway.
+    for gateway_id, provider_ids in gateway_isps.items():
+        direct = f"edge-internet-{gateway_id}"
+        if direct in edge_ids:
+            edge_ids.discard(direct)
+            edges[:] = [e for e in edges if e["data"]["id"] != direct]
+        for provider_id in sorted(provider_ids):
+            add_edge("internet", provider_id, kind="uplink")
+            add_edge(provider_id, gateway_id, kind="uplink")
 
     # VLAN host lists for the details panel.
     for v_node in [n for n in nodes if n["data"].get("isVlan")]:

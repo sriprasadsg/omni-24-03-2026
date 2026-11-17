@@ -21,7 +21,7 @@ const ROLE_HEX: Record<'light' | 'dark', Record<RoleGroup, string>> = {
 export const LINK_LEGEND = { live: 'border-[#0891B2] dark:border-[#22D3EE]', connection: 'border-[#2a78d6] dark:border-[#3987e5]' };
 
 export const ROLE_LEGEND: { group: RoleGroup; label: string; swatch: string }[] = [
-    { group: 'internet', label: 'Internet', swatch: 'border-[#2a78d6] dark:border-[#3987e5]' },
+    { group: 'internet', label: 'Internet / ISP', swatch: 'border-[#2a78d6] dark:border-[#3987e5]' },
     { group: 'perimeter', label: 'Perimeter', swatch: 'border-[#eb6834] dark:border-[#d95926]' },
     { group: 'server', label: 'Server', swatch: 'border-[#1baf7a] dark:border-[#199e70]' },
     { group: 'device', label: 'Other device', swatch: 'border-[#637089] dark:border-[#8F9BB0]' },
@@ -30,7 +30,7 @@ export const ROLE_LEGEND: { group: RoleGroup; label: string; swatch: string }[] 
 const CRITICAL = '#d03b3b';
 export const FLOW_COLORS = { allowed: { light: '#0891B2', dark: '#22D3EE' }, blocked: CRITICAL };
 
-// Lucide shapes (cloud, shield, server, layers, printer, monitor) as Cytoscape background images.
+// Lucide shapes (cloud, shield, server, layers, printer, monitor, globe, radio tower) as Cytoscape background images.
 const ICON_SVG: Record<string, string> = {
     cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
     shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
@@ -39,6 +39,7 @@ const ICON_SVG: Record<string, string> = {
     printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
     monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/>',
+    isp: '<path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/>',
 };
 
 export const iconUri = (icon: string | undefined, color: string) => {

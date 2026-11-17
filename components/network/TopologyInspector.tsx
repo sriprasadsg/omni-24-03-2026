@@ -1,18 +1,21 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Cloud, Shield, Server, Layers, Printer, Monitor, Globe, CircleCheck, CircleX, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, Cloud, Shield, Server, Layers, Printer, Monitor, Globe, RadioTower, CircleCheck, CircleX, ArrowUp, ArrowDown } from 'lucide-react';
 import { deviceFacts, formatAgo, formatBytes, formatRate, isDown, isFreshRate } from './networkData';
 
 export interface Neighbour { id: string; label: string; ip?: string; status?: string }
 export interface Connection { id: string; label: string; ports: number[]; processes: string[]; connections: number }
 
-const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer, globe: Globe };
+const ICONS: Record<string, React.ElementType> = { cloud: Cloud, shield: Shield, server: Server, layers: Layers, printer: Printer, globe: Globe, isp: RadioTower };
 
 // Nodes that are not machines the platform found; say what they are.
 const KIND_NOTES: Record<string, string> = {
     internet: 'The internet edge.',
     placeholder: 'A placeholder: no gateway is known for these endpoints yet (none in their neighbour tables or among scanned devices).',
     remote: 'A remote host an endpoint had an open connection to in its last report.',
+    isp: 'The internet provider of the endpoints behind this gateway, named from the public address they report.',
 };
+
+const UNNAMED_ISP = 'No provider is known for this public address yet. The server names it from MaxMind\'s GeoLite2-ASN database when that is installed and the tenant tracks agent locations.';
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
     <div className="flex justify-between gap-4 py-1.5 text-[13px]">
@@ -60,7 +63,7 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; c
     const Icon = ICONS[node.icon] || Monitor;
     const [title] = String(node.label || node.id).split('\n');
     const facts = deviceFacts(node.details);
-    const note = KIND_NOTES[node.kind];
+    const note = node.kind === 'isp' && !node.ispKnown ? UNNAMED_ISP : KIND_NOTES[node.kind];
     const down = isDown(node.status);
 
     return (
@@ -80,7 +83,7 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; c
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
-                {node.status && (
+                {node.status && node.status !== 'Unknown' && (
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${down
                         ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
                         : 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300'}`}>
@@ -95,7 +98,7 @@ export const TopologyInspector: React.FC<{ node: any; neighbours: Neighbour[]; c
                     {node.zone && <Field label="Zone">{node.zone}</Field>}
                     {node.role && <Field label="Role">{node.role}</Field>}
                     {node.type && node.type !== 'Unknown' && <Field label="Type">{node.type}</Field>}
-                    <Field label="VLAN">{node.vlanId ? <span className="font-mono">{node.vlanId}</span> : 'Untagged'}</Field>
+                    {!['internet', 'isp', 'remote'].includes(node.kind) && <Field label="VLAN">{node.vlanId ? <span className="font-mono">{node.vlanId}</span> : 'Untagged'}</Field>}
                     {facts.map(f => <Field key={f.label} label={f.label}>{f.value}</Field>)}
                 </dl>
 
