@@ -87,6 +87,12 @@ def _is_future(purchase_date: Any, now: datetime) -> bool:
     return parsed > now
 
 
+def normalize_lifecycle_status(raw_status: Any) -> str:
+    """The stored lifecycleStatus as a string: any non-string or empty value (a list or dict would
+    not even hash) reads as the default. Every cost, KPI and report population filter uses this."""
+    return raw_status if isinstance(raw_status, str) and raw_status else DEFAULT_LIFECYCLE_STATUS.value
+
+
 def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
     """One asset's cost row. Pure; never raises for any document shape.
 
@@ -95,9 +101,7 @@ def compute_asset_cost(asset: Dict[str, Any], model_doc: Optional[Dict[str, Any]
     """
     raw_cost = asset.get("purchaseCostCents")
     raw_date = asset.get("purchaseDate")
-    raw_status = asset.get("lifecycleStatus")
-    # A stored status of any non-string type (a list or dict would not even hash) reads as the default.
-    status_value = raw_status if isinstance(raw_status, str) and raw_status else DEFAULT_LIFECYCLE_STATUS.value
+    status_value = normalize_lifecycle_status(asset.get("lifecycleStatus"))
     row: Dict[str, Any] = {
         "assetId": asset.get("id"),
         "assetTag": asset.get("assetTag"),

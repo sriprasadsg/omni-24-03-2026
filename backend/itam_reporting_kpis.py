@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import itam_cost_service
-from itam_cost_service import INACTIVE_STATUSES, compute_asset_cost, load_models_by_id
+from itam_cost_service import INACTIVE_STATUSES, compute_asset_cost, load_models_by_id, normalize_lifecycle_status
 from itam_finance_service import (
     WARRANTY_STATUS_ACTIVE,
     WARRANTY_STATUS_EXPIRED,
@@ -33,7 +33,7 @@ from itam_finance_service import (
     get_warranty_alert_window,
 )
 from itam_lifecycle_endpoints import _audit_cutoff_iso, _overdue_query
-from itam_models import DEFAULT_LIFECYCLE_STATUS, LifecycleStatus
+from itam_models import LifecycleStatus
 
 
 def _status_breakdown(assets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -44,7 +44,7 @@ def _status_breakdown(assets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     default for pre-existing agent-discovered assets."""
     counts = {status.value: 0 for status in LifecycleStatus}
     for asset in assets:
-        status_value = asset.get("lifecycleStatus") or DEFAULT_LIFECYCLE_STATUS.value
+        status_value = normalize_lifecycle_status(asset.get("lifecycleStatus"))
         counts[status_value] = counts.get(status_value, 0) + 1
     return [
         {"status": status.value, "label": status.value.capitalize(), "count": counts[status.value]}

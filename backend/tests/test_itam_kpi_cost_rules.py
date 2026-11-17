@@ -114,6 +114,16 @@ class TestAssetValueRules:
         assert sum(counts.values()) == 7
 
     @pytest.mark.asyncio
+    async def test_unhashable_lifecycle_status_reads_as_default(self, mock_db):
+        # IN-02: a list or dict status must not raise TypeError; it counts under the default status.
+        _seed_defaults(mock_db)
+        asset_value = await _kpi(mock_db, [_valued("a1", ["x"]), _valued("a2", {"x": 1}), _valued("a3", "retired")])
+
+        assert asset_value["assetCount"] == 3 and asset_value["inScopeAssetCount"] == 2
+        counts = {seg["status"]: seg["count"] for seg in asset_value["statusBreakdown"]}
+        assert counts["deployable"] == 2 and counts["retired"] == 1
+
+    @pytest.mark.asyncio
     async def test_disposed_value_does_not_count_even_when_it_has_a_policy(self, mock_db):
         _seed_defaults(mock_db)
         before = await _kpi(mock_db, [_valued("a1", "deployed")])

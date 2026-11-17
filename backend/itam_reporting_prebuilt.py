@@ -21,7 +21,6 @@ from itam_finance_service import (
     compute_warranty_status,
     get_warranty_alert_window,
 )
-from itam_models import DEFAULT_LIFECYCLE_STATUS
 from itam_lifecycle_endpoints import (
     AUDIT_INTERVAL_DAYS,
     _audit_cutoff_iso,
@@ -124,7 +123,7 @@ async def _build_asset_value_rows(db, tenant_id: Optional[str]) -> List[Dict[str
         a for a in assets
         if a.get("purchaseCostCents") is not None
         and a.get("purchaseDate") is not None
-        and (a.get("lifecycleStatus") or DEFAULT_LIFECYCLE_STATUS.value) not in INACTIVE_STATUSES
+        and itam_cost_service.normalize_lifecycle_status(a.get("lifecycleStatus")) not in INACTIVE_STATUSES
     ]
     models = await itam_cost_service.load_models_by_id(db, tenant_id, population)
     now = itam_cost_service.utc_now()

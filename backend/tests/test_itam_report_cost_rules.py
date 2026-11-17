@@ -159,6 +159,18 @@ class TestAssetValueReportRules:
         assert rows["IT-bad-date"]["Book Value"] == "—"
 
     @pytest.mark.asyncio
+    async def test_unhashable_lifecycle_status_reads_as_default(self, mock_db, reporting_app):
+        # IN-02: a list or dict status must not raise TypeError (a 500 for the whole report).
+        _seed(mock_db, [
+            _asset("a-list", ["retired"]), _asset("a-dict", {"s": "disposed"}), _asset("a-ok", "retired"),
+        ])
+
+        r = await _run(reporting_app)
+
+        assert r.status_code == 200, r.text
+        assert sorted(row["Asset Tag"] for row in r.json()["rows"]) == ["IT-a-dict", "IT-a-list"]
+
+    @pytest.mark.asyncio
     async def test_report_takes_one_clock_read_and_one_model_read(self, mock_db, reporting_app, monkeypatch):
         calls = []
 
