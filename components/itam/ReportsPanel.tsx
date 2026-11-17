@@ -47,6 +47,12 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   // them (WR-04); the run in flight is held apart so a failed run leaves the shown report intact.
   const [shown, setShown] = useState<ShownReport | null>(null);
   const [pending, setPending] = useState<{ kind: 'prebuilt' | 'custom'; key: string } | null>(null);
+  // The same run, readable after an await (IN-10): every write goes through setPendingRun.
+  const pendingRef = useRef<{ kind: 'prebuilt' | 'custom'; key: string } | null>(null);
+  const setPendingRun = useCallback((run: { kind: 'prebuilt' | 'custom'; key: string } | null) => {
+    pendingRef.current = run;
+    setPending(run);
+  }, []);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
 
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -66,7 +72,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setTenantRejected(true);
     // Nothing shown or running belongs to a blocked tab (IN-08).
     runSeq.current += 1;
-    setPending(null);
+    setPendingRun(null);
     setShown(null);
     return true;
   }
@@ -117,7 +123,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     runSeq.current += 1;
     tenantEpoch.current += 1;
     setExportingFormat(null);
-    setPending(null);
+    setPendingRun(null);
     setShown(null);
     // The saved list and any open delete belong to the tenant that was switched away from.
     setSavedReports([]);
@@ -126,7 +132,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   }, [tenantId]);
 
   const runPrebuilt = useCallback(async (key: string, targetPage = 1) => {
-    setPending({ kind: 'prebuilt', key });
+    setPendingRun({ kind: 'prebuilt', key });
     const seq = ++runSeq.current;
     try {
       const r = await runItamPrebuiltReport(key, targetPage, PAGE_SIZE, tenantId);
@@ -137,7 +143,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       if (takeTenantRejection(e)) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      if (seq === runSeq.current) setPending(null);
+      if (seq === runSeq.current) setPendingRun(null);
     }
   }, [tenantId]);
 
@@ -149,7 +155,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   }, [focusReportKey]);
 
   const runSavedCustom = useCallback(async (reportId: string, targetPage = 1) => {
-    setPending({ kind: 'custom', key: reportId });
+    setPendingRun({ kind: 'custom', key: reportId });
     const seq = ++runSeq.current;
     try {
       const r = await runItamCustomReport(reportId, targetPage, PAGE_SIZE, tenantId);
@@ -160,7 +166,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       if (takeTenantRejection(e)) return;
       showToast(e?.message || "Couldn't run report.", 'error');
     } finally {
-      if (seq === runSeq.current) setPending(null);
+      if (seq === runSeq.current) setPendingRun(null);
     }
   }, [tenantId]);
 
@@ -177,7 +183,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     setBuilderBusy(true);
     // The preview supersedes any in-flight run, whose response is now dropped.
     const seq = ++runSeq.current;
-    setPending(null);
+    setPendingRun(null);
     try {
       const r = await previewItamCustomReport(definition, targetPage, PAGE_SIZE, tenantId);
       if (seq !== runSeq.current) return;
@@ -225,9 +231,12 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
       await deleteItamCustomReport(target.id, tenantId);
       if (epoch !== tenantEpoch.current) return;
       showToast('Report deleted.', 'success');
-      if (shown?.kind === 'custom' && shown.key === target.id) setShown(null);
+      // What is shown and what is running are read now, after the await, not from the render that
+      // started the delete (IN-10).
+      setShown((current) => (current?.kind === 'custom' && current.key === target.id ? null : current));
       // A run of this report still in flight would land after the delete and show it (IN-07).
-      if (pending?.kind === 'custom' && pending.key === target.id) { runSeq.current += 1; setPending(null); }
+      const running = pendingRef.current;
+      if (running?.kind === 'custom' && running.key === target.id) { runSeq.current += 1; setPendingRun(null); }
       setDeleteTarget(null);
       loadSavedReports();
     } catch (e: any) {

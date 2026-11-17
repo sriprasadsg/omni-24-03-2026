@@ -326,6 +326,55 @@ describe('ReportsPanel stale responses (Phase 78 plan 11)', () => {
     expect(screen.queryByRole('button', { name: /Export CSV/ })).not.toBeInTheDocument();
   });
 
+  // IN-10: the delete handler decides what to cancel from the run in flight when the delete finishes,
+  // not from the run that was in flight when the confirm button was rendered.
+  it('a run of another report started during the delete round trip is kept (IN-10)', async () => {
+    listItamCustomReports.mockResolvedValue([SAVED_REPORT]);
+    const heldDelete = deferred();
+    deleteItamCustomReport.mockReturnValueOnce(heldDelete.promise);
+    const heldOldRun = deferred();
+    runItamCustomReport.mockReturnValueOnce(heldOldRun.promise);
+    const heldPrebuilt = deferred();
+    runItamPrebuiltReport.mockReturnValueOnce(heldPrebuilt.promise);
+    await renderPanel({ tenantId: 't-1' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run My report' }));
+    await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete My report' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleteItamCustomReport).toHaveBeenCalledTimes(1));
+    // while the delete is out, another report is run (it supersedes the held run of the deleted one)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Run Report' })[0]);
+    await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledTimes(1));
+
+    await settle(() => heldDelete.resolve(undefined));
+    await settle(() => heldPrebuilt.resolve(resultFor('Asset Value', 'IT-KEPT')));
+
+    expect(await screen.findByText('IT-KEPT')).toBeInTheDocument();
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+  });
+
+  it('a run of the deleted report started during the delete round trip is cancelled (IN-10)', async () => {
+    listItamCustomReports.mockResolvedValue([SAVED_REPORT]);
+    const heldDelete = deferred();
+    deleteItamCustomReport.mockReturnValueOnce(heldDelete.promise);
+    const heldRun = deferred();
+    runItamCustomReport.mockReturnValueOnce(heldRun.promise);
+    await renderPanel({ tenantId: 't-1' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete My report' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deleteItamCustomReport).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Run My report' }));
+    await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledTimes(1));
+
+    await settle(() => heldDelete.resolve(undefined));
+    await settle(() => heldRun.resolve(resultFor('My report', 'IT-GONE')));
+
+    expect(screen.queryByText('IT-GONE')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+  });
+
   // IN-05: shows 'IT-A' for t-1 and holds an Export CSV started there; the caller then switches tenant.
   async function startExportThenSwitchTenant() {
     const heldExport = deferred<{ filename: string }>();
