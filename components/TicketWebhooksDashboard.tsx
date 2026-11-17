@@ -99,7 +99,7 @@ const TicketWebhooksDashboard: React.FC = () => {
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           + Add Webhook
         </button>
@@ -184,7 +184,7 @@ const TicketWebhooksDashboard: React.FC = () => {
               <button
                 onClick={handleAdd}
                 disabled={saving || !form.url.trim() || form.events.length === 0}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 {saving ? 'Adding…' : 'Add Webhook'}
               </button>

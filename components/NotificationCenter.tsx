@@ -196,7 +196,7 @@ const NotificationCenter: React.FC = () => {
                         </h3>
                         <div className="flex items-center gap-2">
                             {canManageSettings && (
-                                <button
+                                <button aria-label="Notification Settings"
                                     onClick={() => setShowConfig(!showConfig)}
                                     className={`p-1.5 rounded-lg transition-colors ${showConfig ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:bg-white/10'}`}
                                     title="Notification Settings"
@@ -204,7 +204,7 @@ const NotificationCenter: React.FC = () => {
                                     <SettingsIcon size={16} />
                                 </button>
                             )}
-                            <button
+                            <button aria-label="Refresh"
                                 onClick={fetchAll}
                                 className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors"
                                 title="Refresh"
@@ -275,7 +275,7 @@ const NotificationCenter: React.FC = () => {
                             <button
                                 onClick={handleSaveConfig}
                                 disabled={configSaving}
-                                className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors mt-4"
+                                className="w-full py-2 bg-primary-600 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors mt-4"
                             >
                                 {configSaving ? 'Saving…' : 'Save Configuration'}
                             </button>
@@ -352,7 +352,7 @@ const NotificationCenter: React.FC = () => {
 
                                                 {/* Action Buttons (Hover) */}
                                                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                                    <button
+                                                    <button aria-label="Delete"
                                                         onClick={() => handleDelete(notif.alert_id)}
                                                         className="p-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500 hover:text-white transition-all"
                                                         title="Delete"

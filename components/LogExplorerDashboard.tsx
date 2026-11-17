@@ -97,7 +97,7 @@ export const LogExplorerDashboard: React.FC = () => {
                 </select>
                 <button
                     onClick={loadData}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                 >
                     <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                     Search

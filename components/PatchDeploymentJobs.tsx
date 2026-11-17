@@ -30,7 +30,7 @@ const JobLogModal: React.FC<{ isOpen: boolean; job: PatchDeploymentJob | null; o
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><TerminalSquareIcon className="mr-3 text-primary-500" /> Deployment Log</h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{job.id}</p>
                     </div>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
+                    <button aria-label="Close" onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
                         <XIcon size={20} />
                     </button>
                 </div>
@@ -127,7 +127,7 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                         <td className="px-4 py-3 text-xs">{new Date(job.scheduledAt).toLocaleString()}</td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
-                                                <button
+                                                <button aria-label="View Logs"
                                                     onClick={() => setViewingJobLogs(job)}
                                                     className="p-1.5 text-gray-500 hover:text-primary-600"
                                                     title="View Logs"
@@ -135,7 +135,7 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                                     <TerminalSquareIcon size={14} />
                                                 </button>
                                                 {job.type !== 'Patch Rollback' && ['Completed', 'Partially Completed', 'Completed with errors'].includes(job.status) && (
-                                                    <button
+                                                    <button aria-label="Rollback Deployment"
                                                         onClick={() => handleRollback(job.id)}
                                                         disabled={rollingBack === job.id}
                                                         className={`p-1.5 text-gray-500 hover:text-red-600 ${rollingBack === job.id ? 'animate-spin' : ''}`}

@@ -85,7 +85,7 @@ export const ProgramsDashboard: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Programs ({programs.length})</h3>
-        <button onClick={() => setShowForm(!showForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showForm ? 'Cancel' : '+ New Program'}</button></div>
+        <button onClick={() => setShowForm(!showForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showForm ? 'Cancel' : '+ New Program'}</button></div>
 
       {showForm && (
         <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
@@ -93,7 +93,7 @@ export const ProgramsDashboard: React.FC = () => {
           <input placeholder="Framework ID (soc2)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, framework_id: e.target.value})} />
           <input placeholder="Owner" className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, owner: e.target.value})} />
           <input placeholder="Description" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setForm({...form, description: e.target.value})} />
-          <button onClick={submit} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
+          <button onClick={submit} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
         </div>
       )}
 
@@ -158,7 +158,7 @@ export const ProgramsDashboard: React.FC = () => {
             </div>
             <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
               <button onClick={closeControlsModal} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded">Cancel</button>
-              <button onClick={saveControls} disabled={savingControls} className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50">
+              <button onClick={saveControls} disabled={savingControls} className="px-2 py-1 bg-primary-600 text-white rounded disabled:opacity-50">
                 {savingControls ? 'Saving...' : 'Save'}
               </button>
             </div>

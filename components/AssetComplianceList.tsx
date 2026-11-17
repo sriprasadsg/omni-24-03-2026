@@ -286,7 +286,7 @@ export const AssetComplianceList: React.FC<AssetComplianceListProps> = ({ contro
                     <div className="bg-white p-4 rounded max-w-2xl w-full max-h-screen overflow-y-auto">
                         <h2 className="text-lg font-semibold mb-2">Suggested Action Details</h2>
                         <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs whitespace-pre-wrap">{showRemediationModal}</pre>
-                        <button onClick={() => setShowRemediationModal('')} className="mt-2 rounded bg-blue-600 px-3 py-1 text-white">Close</button>
+                        <button onClick={() => setShowRemediationModal('')} className="mt-2 rounded bg-primary-600 px-3 py-1 text-white">Close</button>
                     </div>
                 </div>
             )}

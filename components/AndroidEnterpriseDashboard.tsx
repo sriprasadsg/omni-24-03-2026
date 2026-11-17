@@ -104,7 +104,7 @@ export default function AndroidEnterpriseDashboard() {
           <p className="text-slate-400 text-sm mt-1">Enrollment profiles, Knox integration, and dedicated device management</p>
         </div>
         {tab === 'profiles' && (
-          <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+          <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">
             + New Profile
           </button>
         )}
@@ -189,7 +189,7 @@ export default function AndroidEnterpriseDashboard() {
                     <input type="checkbox" checked={knoxForm.kme_enabled} onChange={e => setKnoxForm(f => ({ ...f, kme_enabled: e.target.checked }))} className="rounded" />
                     Enable Knox Mobile Enrollment (KME)
                   </label>
-                  <button onClick={saveKnox} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+                  <button onClick={saveKnox} className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">
                     Save Knox Configuration
                   </button>
                 </div>
@@ -247,7 +247,7 @@ export default function AndroidEnterpriseDashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createProfile} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Create</button>
+              <button onClick={createProfile} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">Create</button>
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">Cancel</button>
             </div>
           </div>

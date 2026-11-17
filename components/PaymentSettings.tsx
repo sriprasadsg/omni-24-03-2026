@@ -140,7 +140,7 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Payment Gateway</h2>
-                    <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500">
+                    <button aria-label="Close" onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500">
                         <X size={18} />
                     </button>
                 </div>
@@ -252,7 +252,7 @@ function AddGatewayModal({ existingTypes, onClose, onSaved }: AddGatewayModalPro
                                                 placeholder="Value"
                                                 className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                             />
-                                            <button type="button" onClick={() => removePair(i)}
+                                            <button aria-label="Remove field" type="button" onClick={() => removePair(i)}
                                                 disabled={pairs.length === 1}
                                                 className="text-gray-400 hover:text-red-500 disabled:opacity-30 flex-shrink-0">
                                                 <MinusCircle size={17} />
@@ -386,7 +386,7 @@ export default function PaymentSettings() {
                     onClick={() => setShowModal(true)}
                     disabled={!canAddMore}
                     title={!canAddMore ? 'All gateway slots are used' : undefined}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
                 >
                     <Plus size={16} />
                     Add Payment Gateway
@@ -409,7 +409,7 @@ export default function PaymentSettings() {
                             Add a payment gateway to enable subscriptions and billing.
                         </p>
                         <button onClick={() => setShowModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium">
                             <Plus size={15} /> Add Payment Gateway
                         </button>
                     </div>

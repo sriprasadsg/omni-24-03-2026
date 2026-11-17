@@ -184,7 +184,7 @@ export default function AdvancedHuntingDashboard() {
                   <Save size={14} /> Save Query
                 </button>
                 <button onClick={runHunt} disabled={huntLoading || !query.trim()}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
+                  className="flex items-center gap-2 px-4 py-1.5 bg-primary-600 hover:bg-primary-600 text-sm rounded transition-colors disabled:opacity-50 text-white">
                   <Play size={14} /> {huntLoading ? 'Running...' : 'Run Hunt'}
                 </button>
               </div>
@@ -252,10 +252,10 @@ export default function AdvancedHuntingDashboard() {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => { setQuery(q.query); setActiveTab('hunt'); }}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-700 hover:bg-blue-600 text-xs rounded transition-colors text-white">
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-primary-700 hover:bg-primary-600 text-xs rounded transition-colors text-white">
                       <Play size={12} /> Run
                     </button>
-                    <button onClick={() => deleteQuery(q.id)}
+                    <button aria-label="Delete saved query" onClick={() => deleteQuery(q.id)}
                       className="px-2 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-100 dark:hover:bg-red-800 text-xs rounded transition-colors text-red-300">
                       <Trash2 size={12} />
                     </button>
@@ -279,7 +279,7 @@ export default function AdvancedHuntingDashboard() {
                 {['IP', 'Domain', 'URL', 'Hash', 'Email'].map(t => <option key={t}>{t}</option>)}
               </select>
               <button onClick={searchIoc} disabled={iocLoading || !iocValue.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-600 text-sm rounded transition-colors disabled:opacity-50 text-white">
                 <Search size={14} /> {iocLoading ? 'Searching...' : 'Search'}
               </button>
             </div>
@@ -359,7 +359,7 @@ export default function AdvancedHuntingDashboard() {
               <button onClick={() => setShowSaveModal(false)}
                 className="flex-1 px-4 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-sm rounded transition-colors">Cancel</button>
               <button onClick={saveQuery} disabled={!saveName.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
+                className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-600 text-sm rounded transition-colors disabled:opacity-50 text-white">
                 <Save size={14} className="inline mr-1" /> Save
               </button>
             </div>

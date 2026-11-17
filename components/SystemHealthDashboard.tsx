@@ -137,7 +137,7 @@ export const SystemHealthDashboard: React.FC = () => {
                         <p className="text-sm text-slate-500">Uptime: {health?.uptime} • Version 2030.0</p>
                     </div>
                 </div>
-                <button 
+                <button aria-label="Refresh" 
                     onClick={fetchHealth}
                     className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all text-slate-400"
                 >

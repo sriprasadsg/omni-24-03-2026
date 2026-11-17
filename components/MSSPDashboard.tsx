@@ -288,7 +288,7 @@ export default function MSSPDashboard() {
                     <div className="flex justify-end">
                       <button
                         onClick={() => openReport(tenant)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm transition-colors"
                       >
                         <BarChart2 className="w-4 h-4" />
                         View Full Report
@@ -353,7 +353,7 @@ export default function MSSPDashboard() {
                 <h3 className="text-gray-900 dark:text-white font-semibold">Tenant Summary Report</h3>
                 <p className="text-gray-600 dark:text-slate-400 text-sm">{reportModal.tenantName}</p>
               </div>
-              <button
+              <button aria-label="Close report"
                 onClick={() => setReportModal(prev => ({ ...prev, open: false }))}
                 className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >

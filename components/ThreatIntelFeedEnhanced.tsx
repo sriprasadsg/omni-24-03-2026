@@ -144,7 +144,7 @@ export const ThreatIntelFeedEnhanced: React.FC<ThreatIntelFeedEnhancedProps> = (
                     <button
                         onClick={handleScan}
                         disabled={scanning}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {scanning ? 'Scanning...' : 'Scan'}
                     </button>

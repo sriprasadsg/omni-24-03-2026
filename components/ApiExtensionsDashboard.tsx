@@ -70,7 +70,7 @@ export const ApiExtensionsDashboard: React.FC = () => {
                 />
               </div>
               <button onClick={() => runTool(t.name)} disabled={running === t.name}
-                className="px-3 py-1 bg-blue-600 text-white rounded shrink-0 disabled:opacity-50">
+                className="px-3 py-1 bg-primary-600 text-white rounded shrink-0 disabled:opacity-50">
                 {running === t.name ? 'Running...' : 'Execute'}
               </button>
             </div>

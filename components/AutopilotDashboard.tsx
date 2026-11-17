@@ -203,7 +203,7 @@ export default function AutopilotDashboard() {
             Import CSV
           </button>
           <button onClick={() => { setShowAddProfile(true); setEditProfile(null); setProfileForm({ ...BLANK_PROFILE }); }}
-            className="px-3 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">
+            className="px-3 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg text-white">
             + New Profile
           </button>
           <button onClick={() => setShowAddDevice(true)} className="px-3 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg text-white">
@@ -472,7 +472,7 @@ export default function AutopilotDashboard() {
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => { setShowAddProfile(false); setEditProfile(null); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={saveProfile} disabled={saving || !profileForm.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
+                className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : (editProfile ? 'Update' : 'Create')}
               </button>
             </div>

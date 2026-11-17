@@ -99,7 +99,7 @@ export const RiskFairModal: React.FC<RiskFairModalProps> = ({ isOpen, risk, onCl
                 type="submit"
                 form="risk-fair-form"
                 disabled={running || !isFormValid}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg disabled:opacity-50"
             >
                 {running ? 'Running...' : 'Run Simulation'}
             </button>

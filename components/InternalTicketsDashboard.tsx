@@ -255,7 +255,7 @@ const TicketModal: React.FC<{
       <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
           <h2 className="text-gray-900 dark:text-white font-semibold text-lg">New Ticket</h2>
-          <button onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white"><X size={18}/></button>
+          <button aria-label="Close" onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white"><X size={18}/></button>
         </div>
         <div className="p-6 space-y-4">
           {err && <p className="text-red-600 dark:text-red-400 text-sm bg-red-100 dark:bg-red-900/20 px-3 py-2 rounded-lg">{err}</p>}
@@ -356,7 +356,7 @@ const TicketModal: React.FC<{
                   />
                 </div>
                 {form.agent_id && (
-                  <button onClick={clearAgent} className="px-2 text-slate-500 hover:text-red-600 dark:hover:text-red-400"><X size={14}/></button>
+                  <button aria-label="Clear agent" onClick={clearAgent} className="px-2 text-slate-500 hover:text-red-600 dark:hover:text-red-400"><X size={14}/></button>
                 )}
               </div>
               {agentDropOpen && filteredAgents.length > 0 && (
@@ -891,7 +891,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               <option value="">All Types</option>
               {['bug','feature','task','incident','security'].map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <button onClick={() => setShowAdvFilters(v => !v)}
+            <button aria-label="Advanced filters" onClick={() => setShowAdvFilters(v => !v)}
               className={`p-2 rounded-lg border transition-colors ${showAdvFilters ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
               <Filter size={15}/>
             </button>
@@ -938,7 +938,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               </select>
               <button onClick={handleBulkAction} disabled={!bulkAction}
                 className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white text-xs rounded disabled:opacity-40">Apply</button>
-              <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
+              <button aria-label="Clear selection" onClick={() => setSelectedIds(new Set())} className="ml-auto text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
                 <X size={14}/>
               </button>
             </div>
@@ -1117,7 +1117,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   className={`font-semibold text-sm text-gray-900 dark:text-white leading-snug transition-colors ${isTicketStaff ? 'cursor-pointer hover:text-teal-700 dark:hover:text-teal-300' : ''}`}>{selected.title}</h3>
               )}
             </div>
-            <button onClick={() => setSelected(null)} className="flex-shrink-0 p-1 text-slate-500 hover:text-gray-900 dark:hover:text-white rounded transition-colors">
+            <button aria-label="Close ticket" onClick={() => setSelected(null)} className="flex-shrink-0 p-1 text-slate-500 hover:text-gray-900 dark:hover:text-white rounded transition-colors">
               <X size={16}/>
             </button>
           </div>
@@ -1250,7 +1250,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium">
                               <ThumbsUp size={11}/> Approve Install
                             </button>
-                            <button onClick={() => setRejectReason('Not permitted on this host')} className="px-3 py-1.5 bg-red-100 dark:bg-red-800 hover:bg-red-700 text-white text-xs rounded">
+                            <button aria-label="Reject install" onClick={() => setRejectReason('Not permitted on this host')} className="px-3 py-1.5 bg-red-100 dark:bg-red-800 hover:bg-red-700 text-white text-xs rounded">
                               <ThumbsDown size={11}/>
                             </button>
                           </div>
@@ -1281,7 +1281,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                             <div className="flex-1 flex gap-1">
                               <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 text-xs text-gray-900 dark:text-white focus:outline-none"
                                 placeholder="Deny reason…" value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
-                              <button onClick={handleReject} disabled={!rejectReason.trim()} className="px-2 bg-red-700 hover:bg-red-600 text-white text-xs rounded disabled:opacity-40">
+                              <button aria-label="Reject" onClick={handleReject} disabled={!rejectReason.trim()} className="px-2 bg-red-700 hover:bg-red-600 text-white text-xs rounded disabled:opacity-40">
                                 <ThumbsDown size={11}/>
                               </button>
                             </div>
@@ -1322,7 +1322,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium">
                               <ThumbsUp size={11}/> Approve Change
                             </button>
-                            <button onClick={() => { setRejectReason('Change not approved'); handleReject(); }} className="px-3 py-1.5 bg-red-100 dark:bg-red-800 hover:bg-red-700 text-white text-xs rounded">
+                            <button aria-label="Reject change" onClick={() => { setRejectReason('Change not approved'); handleReject(); }} className="px-3 py-1.5 bg-red-100 dark:bg-red-800 hover:bg-red-700 text-white text-xs rounded">
                               <ThumbsDown size={11}/>
                             </button>
                           </div>
@@ -1389,7 +1389,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none"
                           placeholder="Rejection reason (required)"
                           value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
-                        <button onClick={handleReject} disabled={!rejectReason.trim()}
+                        <button aria-label="Reject" onClick={handleReject} disabled={!rejectReason.trim()}
                           className="px-2 bg-red-700 hover:bg-red-600 text-white text-xs rounded disabled:opacity-40">
                           <ThumbsDown size={11}/>
                         </button>

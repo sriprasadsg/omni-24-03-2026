@@ -204,7 +204,7 @@ export default function DeviceConfigProfilesDashboard() {
           <h1 className="page-title">Device Configuration Profiles</h1>
           <p className="text-gray-600 dark:text-slate-400 text-sm mt-1">Browser, USB, Wi-Fi, VPN, and Kiosk profiles for managed devices</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">
           + New Profile
         </button>
       </div>
@@ -288,7 +288,7 @@ export default function DeviceConfigProfilesDashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createProfile} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Create Profile</button>
+              <button onClick={createProfile} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">Create Profile</button>
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-900 dark:text-white rounded-lg text-sm">Cancel</button>
             </div>
           </div>

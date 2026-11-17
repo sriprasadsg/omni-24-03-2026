@@ -144,7 +144,7 @@ export const NotificationsDashboard: React.FC = () => {
           {/* Channels */}
           <div className="space-y-2">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Channels</h3>
-              <button onClick={() => setShowChanForm(!showChanForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">+ Channel</button></div>
+              <button onClick={() => setShowChanForm(!showChanForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">+ Channel</button></div>
             {showChanForm && (
               <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
                 <input placeholder="Name" className="p-1 border rounded dark:bg-gray-700" onChange={e => setChanForm({...chanForm, name: e.target.value})} />
@@ -157,7 +157,7 @@ export const NotificationsDashboard: React.FC = () => {
                     : chanForm.type === 'email' ? { email: e.target.value }
                     : { url: e.target.value },
                 })} />
-                <button onClick={submitChannel} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
+                <button onClick={submitChannel} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
               </div>
             )}
             {channels.map((c, i) => <div key={i} className="p-2 bg-white dark:bg-gray-800 rounded shadow-sm text-xs"><span className="font-medium">{c.name}</span> — {c.type}</div>)}
@@ -167,14 +167,14 @@ export const NotificationsDashboard: React.FC = () => {
           {/* Rules */}
           <div className="space-y-2">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Routing Rules</h3>
-              <button onClick={() => setShowRuleForm(!showRuleForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">+ Rule</button></div>
+              <button onClick={() => setShowRuleForm(!showRuleForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">+ Rule</button></div>
             {showRuleForm && (
               <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
                 <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, event_type: e.target.value as EventType | ''})}>
                   <option value="">Event</option><option value="finding_created">Finding Created</option><option value="control_failed">Control Failed</option><option value="evidence_expired">Evidence Expired</option><option value="review_overdue">Review Overdue</option><option value="cert_expiring">Cert Expiring</option>
                 </select>
                 <input placeholder="Channel IDs (comma)" className="p-1 border rounded dark:bg-gray-700" onChange={e => setRuleForm({...ruleForm, channel_ids: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})} />
-                <button onClick={submitRule} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
+                <button onClick={submitRule} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
               </div>
             )}
             {rules.map((r, i) => <div key={i} className="p-2 bg-white dark:bg-gray-800 rounded shadow-sm text-xs">{r.event_type} → {r.channel_ids?.join(', ')}</div>)}
@@ -190,7 +190,7 @@ export const NotificationsDashboard: React.FC = () => {
               <label className="text-xs font-medium block mb-1">Domain to scan</label>
               <input value={domain} onChange={e => setDomain(e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600" placeholder="example.com" />
             </div>
-            <button onClick={handleScan} disabled={scanning} className="px-4 py-2 bg-blue-600 text-white text-sm rounded disabled:opacity-50">{scanning ? 'Scanning...' : 'Scan'}</button>
+            <button onClick={handleScan} disabled={scanning} className="px-4 py-2 bg-primary-600 text-white text-sm rounded disabled:opacity-50">{scanning ? 'Scanning...' : 'Scan'}</button>
             <button onClick={scheduleDomain} className="px-4 py-2 bg-gray-600 text-white text-sm rounded">Schedule</button>
           </div>
 

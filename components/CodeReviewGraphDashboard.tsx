@@ -181,7 +181,7 @@ export const CodeReviewGraphDashboard: React.FC = () => {
           <button
             onClick={() => buildGraph(false)}
             disabled={!!loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 disabled:opacity-50"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw size={14} className={loading === 'build' ? 'animate-spin' : ''} />
             Incremental Update

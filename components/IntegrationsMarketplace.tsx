@@ -127,7 +127,7 @@ export const IntegrationsMarketplace: React.FC<IntegrationsMarketplaceProps> = (
                                                 <CogIcon size={14} className="mr-1.5" /> Configure
                                             </button>
                                             {canManage && (
-                                                <button
+                                                <button aria-label={`Delete ${integration.name}`}
                                                     onClick={() => handleDeleteIntegration(integration)}
                                                     className="flex items-center p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                     title={`Delete ${integration.name}`}

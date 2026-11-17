@@ -187,7 +187,7 @@ export const AIAssistantChat: React.FC = () => {
             Cancel
           </button>
         ) : (
-          <button onClick={sendMessage} disabled={!input.trim()} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:opacity-50 text-white">
+          <button onClick={sendMessage} disabled={!input.trim()} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded disabled:opacity-50 text-white">
             Send
           </button>
         )}

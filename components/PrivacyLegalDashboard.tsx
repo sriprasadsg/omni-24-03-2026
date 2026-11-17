@@ -81,7 +81,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Transfer Impact Assessments</h3>
-            <button onClick={() => setShowTiaForm(!showTiaForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showTiaForm ? 'Cancel' : '+ New TIA'}</button>
+            <button onClick={() => setShowTiaForm(!showTiaForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showTiaForm ? 'Cancel' : '+ New TIA'}</button>
           </div>
           {showTiaForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
@@ -94,7 +94,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
               </select>
               <input placeholder="Data categories (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, data_categories: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
               <input placeholder="Safeguards" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setTiaForm({...tiaForm, safeguards: e.target.value})} />
-              <button onClick={submitTia} className="px-2 py-1 bg-blue-600 text-white rounded">Create</button>
+              <button onClick={submitTia} className="px-2 py-1 bg-primary-600 text-white rounded">Create</button>
             </div>
           )}
           {tiaItems.map((item, i) => (
@@ -112,7 +112,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Legitimate Interest Assessments</h3>
-            <button onClick={() => setShowLiaForm(!showLiaForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showLiaForm ? 'Cancel' : '+ New LIA'}</button>
+            <button onClick={() => setShowLiaForm(!showLiaForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showLiaForm ? 'Cancel' : '+ New LIA'}</button>
           </div>
           {showLiaForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
@@ -120,7 +120,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
               <input placeholder="Data subjects" className="p-1 border rounded dark:bg-gray-700" onChange={e => setLiaForm({...liaForm, data_subjects: e.target.value})} />
               <textarea placeholder="Necessity test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, necessity_test: e.target.value})} />
               <textarea placeholder="Balancing test" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={2} onChange={e => setLiaForm({...liaForm, balancing_test: e.target.value})} />
-              <button onClick={submitLia} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
+              <button onClick={submitLia} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
             </div>
           )}
           {liaItems.map((item, i) => (
@@ -137,7 +137,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Privacy Notices</h3>
-            <button onClick={() => setShowNoticeForm(!showNoticeForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showNoticeForm ? 'Cancel' : '+ New Notice'}</button>
+            <button onClick={() => setShowNoticeForm(!showNoticeForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showNoticeForm ? 'Cancel' : '+ New Notice'}</button>
           </div>
           {showNoticeForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
@@ -145,7 +145,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
               <input placeholder="Effective date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, effective_date: e.target.value})} />
               <input placeholder="Applies to" className="p-1 border rounded dark:bg-gray-700" onChange={e => setNoticeForm({...noticeForm, applies_to: e.target.value})} />
               <textarea placeholder="Content (HTML)" className="p-1 border rounded dark:bg-gray-700 col-span-2" rows={3} onChange={e => setNoticeForm({...noticeForm, content_html: e.target.value})} />
-              <button onClick={submitNotice} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Create</button>
+              <button onClick={submitNotice} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Create</button>
             </div>
           )}
           {noticeItems.map((item, i) => (
@@ -168,7 +168,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
           )}
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Contracts</h3>
-            <button onClick={() => setShowContractForm(!showContractForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showContractForm ? 'Cancel' : '+ New Contract'}</button>
+            <button onClick={() => setShowContractForm(!showContractForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showContractForm ? 'Cancel' : '+ New Contract'}</button>
           </div>
           {showContractForm && (
             <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
@@ -181,7 +181,7 @@ export const PrivacyLegalDashboard: React.FC = () => {
               </select>
               <input placeholder="Expiry date" type="date" className="p-1 border rounded dark:bg-gray-700" onChange={e => setContractForm({...contractForm, expiry_date: e.target.value})} />
               <input placeholder="Parties (comma-separated)" className="p-1 border rounded dark:bg-gray-700 col-span-2" onChange={e => setContractForm({...contractForm, parties: e.target.value.split(',').map(v => v.trim()).filter(Boolean)})} />
-              <button onClick={submitContract} className="px-2 py-1 bg-blue-600 text-white rounded">Create</button>
+              <button onClick={submitContract} className="px-2 py-1 bg-primary-600 text-white rounded">Create</button>
             </div>
           )}
           {contractItems.map((item, i) => (

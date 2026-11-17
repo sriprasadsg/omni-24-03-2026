@@ -522,7 +522,7 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({ initialAgent, onClose }
                                 className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg">
                                 + New
                             </button>
-                            <button onClick={loadSessions}
+                            <button aria-label="Refresh" onClick={loadSessions}
                                 className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white p-1 rounded" title="Refresh">
                                 <RefreshCw size={13} />
                             </button>
@@ -600,7 +600,7 @@ const AgentChatPanel: React.FC<AgentChatPanelProps> = ({ initialAgent, onClose }
                                     </button>
                                 )}
                                 {onClose && (
-                                    <button onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white p-1">
+                                    <button aria-label="Close chat" onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white p-1">
                                         <X size={16} />
                                     </button>
                                 )}

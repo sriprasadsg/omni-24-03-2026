@@ -67,7 +67,7 @@ export function ThreatHunting() {
                         <button
                             onClick={handleHunt}
                             disabled={isLoading}
-                            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+                            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600 disabled:bg-primary-400"
                         >
                             {isLoading ? (
                                 <span className="animate-spin mr-2">⏳</span>

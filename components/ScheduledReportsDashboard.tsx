@@ -194,7 +194,7 @@ export default function ScheduledReportsDashboard() {
           <h1 className="page-title">Scheduled Reports</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Automated report delivery via email, webhook, Slack, and Teams</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+        <button onClick={() => setShowCreate(true)} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Schedule Report
         </button>
       </div>
@@ -222,7 +222,7 @@ export default function ScheduledReportsDashboard() {
           <div className="text-5xl mb-4"><Glyph e="📊" /></div>
           <p className="text-lg">No scheduled reports yet</p>
           <p className="text-sm mt-2">Set up automated reports delivered to email, Slack, or your SIEM</p>
-          <button onClick={() => setShowCreate(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
+          <button onClick={() => setShowCreate(true)} className="mt-4 bg-primary-600 hover:bg-primary-700 px-6 py-2 rounded-lg text-sm text-white">
             Schedule First Report
           </button>
         </div>
@@ -420,7 +420,7 @@ export default function ScheduledReportsDashboard() {
                 )}
                 <div className="flex gap-3 pt-2">
                   <button onClick={createReport} disabled={saving || !form.name}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Saving...' : 'Schedule Report'}
                   </button>
                   <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>

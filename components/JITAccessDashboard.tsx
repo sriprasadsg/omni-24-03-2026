@@ -119,7 +119,7 @@ export default function JITAccessDashboard() {
           <h1 className="page-title">JIT Privileged Access</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Just-in-time access requests with approval workflow and auto-expiry</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+        <button onClick={() => setShowCreate(true)} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Request Access
         </button>
       </div>
@@ -237,7 +237,7 @@ export default function JITAccessDashboard() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={createRequest} disabled={saving || !form.resource || !form.role || !form.reason}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Submitting...' : 'Submit Request'}
                   </button>
                   <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>

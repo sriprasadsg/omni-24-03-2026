@@ -112,7 +112,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                         className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
                     />
                     {query && (
-                        <button onClick={() => { setQuery(''); setResults(null); inputRef.current?.focus(); }}
+                        <button aria-label="Clear search" onClick={() => { setQuery(''); setResults(null); inputRef.current?.focus(); }}
                             className="ml-2 p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                             <XIcon size={15} />
                         </button>

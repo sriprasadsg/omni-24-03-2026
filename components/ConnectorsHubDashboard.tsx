@@ -168,7 +168,7 @@ export default function ConnectorsHubDashboard() {
             <div className="flex gap-3 pt-2">
               <button onClick={() => setSelected(null)} className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm hover:bg-slate-800 transition-colors">Cancel</button>
               <button onClick={save} disabled={saving || !configValue}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save & Connect'}
               </button>
             </div>

@@ -181,7 +181,7 @@ const ChangeManagementDashboard: React.FC = () => {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           + New Change Request
         </button>
@@ -322,7 +322,7 @@ const ChangeManagementDashboard: React.FC = () => {
               <button
                 onClick={handleCreate}
                 disabled={creating || !createForm.title.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 {creating ? 'Creating…' : 'Create'}
               </button>
@@ -454,7 +454,7 @@ const ChangeManagementDashboard: React.FC = () => {
                     <button
                       onClick={handleSchedule}
                       disabled={actionLoading || !schedStart || !schedEnd}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
                       Schedule
                     </button>

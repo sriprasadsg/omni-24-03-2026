@@ -187,7 +187,7 @@ export const WebhookManagement: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
+                                            <button aria-label="Test webhook"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleTestWebhook(webhook.id);
@@ -207,7 +207,7 @@ export const WebhookManagement: React.FC = () => {
                                             >
                                                 {webhook.status === 'Active' ? <CheckIcon size={16} /> : <XCircleIcon size={16} />}
                                             </button>
-                                            <button
+                                            <button aria-label="Delete"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleDeleteWebhook(webhook.id);

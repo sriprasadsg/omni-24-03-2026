@@ -482,7 +482,7 @@ const IncidentWarRoomDashboard: React.FC = () => {
                         <div className="p-8">
                             <div className="flex justify-between items-center mb-8">
                                 <h3 className="font-black text-2xl uppercase italic text-gray-900 dark:text-white tracking-tighter">Declare Critical Incident</h3>
-                                <button onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-gray-900 dark:hover:text-white transition-colors">
+                                <button aria-label="Close" onClick={() => setShowCreate(false)} className="text-slate-500 hover:text-gray-900 dark:hover:text-white transition-colors">
                                     <PlusIcon size={24} className="rotate-45" />
                                 </button>
                             </div>

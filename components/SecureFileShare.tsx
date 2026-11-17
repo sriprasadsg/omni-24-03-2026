@@ -173,7 +173,7 @@ export default function SecureFileShare() {
                                     </button>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button
+                                    <button aria-label="Revoke Access"
                                         onClick={() => handleRevoke(share.id)}
                                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                         title="Revoke Access"

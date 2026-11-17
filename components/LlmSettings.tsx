@@ -225,7 +225,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><BrainCircuitIcon className="mr-3" /> LLM Provider Settings</h2>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
+                    <button aria-label="Close" onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
                         <XIcon size={20} />
                     </button>
                 </div>
@@ -417,7 +417,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                                         <span className="ml-2 font-mono text-gray-500 dark:text-gray-400 truncate max-w-xs inline-block">{tool.endpoint}</span>
                                         <span className="ml-2 text-gray-400">· {tool.model}</span>
                                     </div>
-                                    <button
+                                    <button aria-label="Remove tool"
                                         type="button"
                                         onClick={() => handleRemoveTool(tool.id)}
                                         className="ml-3 text-red-500 hover:text-red-700 flex-shrink-0"

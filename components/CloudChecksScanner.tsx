@@ -125,7 +125,7 @@ export default function CloudChecksScanner() {
               <Play className={`w-4 h-4 ${running ? 'animate-pulse' : ''}`} />{running ? 'Running…' : 'Run Checks'}
             </button>
           )}
-          <button onClick={fetchAll} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <button aria-label="Refresh" onClick={fetchAll} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>

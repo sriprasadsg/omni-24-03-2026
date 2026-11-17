@@ -172,7 +172,7 @@ export default function KnowledgeBaseDashboard() {
           ) : (
             <span className="text-xs text-gray-500 dark:text-gray-400">{KB.startersAdded}</span>
           ))}
-          <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+          <button onClick={() => setShowIngest(true)} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
             + Ingest Document
           </button>
         </div>
@@ -188,7 +188,7 @@ export default function KnowledgeBaseDashboard() {
             className="flex-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-500"
           />
           <button onClick={search} disabled={searching || !query.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2.5 rounded-lg text-sm font-medium text-white">
+            className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-5 py-2.5 rounded-lg text-sm font-medium text-white">
             {searching ? 'Searching…' : 'Search'}
           </button>
         </div>
@@ -228,7 +228,7 @@ export default function KnowledgeBaseDashboard() {
             <div className="text-5xl mb-4">📚</div>
             <p className="text-lg">No documents in knowledge base</p>
             <p className="text-sm mt-2">Ingest runbooks, security policies, playbooks, and threat intel to enable AI-powered Q&A</p>
-            <button onClick={() => setShowIngest(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
+            <button onClick={() => setShowIngest(true)} className="mt-4 bg-primary-600 hover:bg-primary-700 px-6 py-2 rounded-lg text-sm text-white">
               Ingest First Document
             </button>
           </div>
@@ -346,7 +346,7 @@ export default function KnowledgeBaseDashboard() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={ingest} disabled={ingesting || !ingestForm.content.trim()}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {ingesting ? 'Ingesting…' : 'Ingest Document'}
                   </button>
                   <button onClick={() => setShowIngest(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>

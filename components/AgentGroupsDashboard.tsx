@@ -140,7 +140,7 @@ export default function AgentGroupsDashboard() {
       <div className="flex items-center justify-between">
         <h1 className="page-title">Agent Groups</h1>
         <button onClick={() => setShowCreate(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+          className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors">
           + New Group
         </button>
       </div>
@@ -196,7 +196,7 @@ export default function AgentGroupsDashboard() {
                 placeholder="Agent ID to add..."
                 className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
               <button onClick={addMember}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors">
+                className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-sm hover:bg-primary-700 transition-colors">
                 Add
               </button>
             </div>
@@ -257,7 +257,7 @@ export default function AgentGroupsDashboard() {
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm hover:bg-slate-800 transition-colors">Cancel</button>
               <button onClick={createGroup} disabled={saving || !form.name.trim()}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50">
                 {saving ? 'Creating…' : 'Create Group'}
               </button>
             </div>

@@ -92,7 +92,7 @@ export default function AssetIntelligenceDashboard() {
           <h1 className="page-title">Asset Intelligence</h1>
           <p className="text-slate-400 text-sm mt-1">End-of-Life detection and unauthorized device alerting</p>
         </div>
-        <button onClick={loadData} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+        <button onClick={loadData} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">
           Refresh
         </button>
       </div>

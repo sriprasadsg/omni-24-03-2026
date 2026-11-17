@@ -154,7 +154,7 @@ export const InboundQuestionnaireDashboard: React.FC = () => {
         <button
           onClick={handleCreate}
           disabled={creating}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+          className="flex items-center gap-1 px-3 py-1.5 text-xs rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
         >
           <Plus size={14} aria-hidden="true" /> {creating ? 'Creating...' : 'Create question set'}
         </button>

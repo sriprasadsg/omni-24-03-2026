@@ -65,7 +65,7 @@ export const AgentInstructionsTab: React.FC<{ agent: Agent }> = ({ agent }) => {
                         Commands queued for this agent — updates, scans, software installs — and who requested them.
                     </p>
                 </div>
-                <button
+                <button aria-label="Refresh"
                     onClick={() => setRefreshTick(t => t + 1)}
                     disabled={isLoading}
                     title="Refresh"

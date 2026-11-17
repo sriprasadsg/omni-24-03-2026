@@ -251,7 +251,7 @@ export default function RiskRegister() {
                                                 <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
-                                                <button
+                                                <button aria-label="Quantify with FAIR"
                                                     onClick={() => setFairRisk(risk)}
                                                     title="Quantify with FAIR"
                                                     className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors">

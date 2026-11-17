@@ -315,7 +315,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
                   {!isConnected ? (
                     <button
                       onClick={() => connectProvider(provider.id)}
-                      className="flex-1 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2 transition-colors"
+                      className="flex-1 text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white rounded-lg px-3 py-2 transition-colors"
                     >
                       Connect
                     </button>
@@ -324,7 +324,7 @@ const SaaSIntegrationsDashboard: React.FC = () => {
                       <button
                         onClick={() => conn && pullEvidence(conn.id)}
                         disabled={isPulling}
-                        className="flex-1 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg px-3 py-2 transition-colors flex items-center justify-center gap-1.5"
+                        className="flex-1 text-sm font-medium bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white rounded-lg px-3 py-2 transition-colors flex items-center justify-center gap-1.5"
                       >
                         {isPulling ? (
                           <>

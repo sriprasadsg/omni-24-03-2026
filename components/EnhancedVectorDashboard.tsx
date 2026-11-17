@@ -208,7 +208,7 @@ export const EnhancedVectorDashboard: React.FC = () => {
           </button>
           <button
             onClick={addDataSource}
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200"
+            className="flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 transition-colors duration-200"
           >
             <GitMergeIcon size={20} className="mr-2" />
             Add Data Source

@@ -168,7 +168,7 @@ export default function PrivacyDashboard() {
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">GDPR/CCPA compliance — DSRs, breach notifications, consent management</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowCreateDSR(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+          <button onClick={() => setShowCreateDSR(true)} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
             + New DSR
           </button>
           <button onClick={() => setShowCreateBreach(true)} className="bg-red-700 hover:bg-red-600 px-4 py-2 rounded-lg text-sm font-medium text-white">
@@ -402,7 +402,7 @@ export default function PrivacyDashboard() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={createDSR} disabled={saving || !dsrForm.data_subject_name || !dsrForm.data_subject_email}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Creating...' : 'Create Request'}
                   </button>
                   <button onClick={() => setShowCreateDSR(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">Cancel</button>

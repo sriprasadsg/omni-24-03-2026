@@ -198,7 +198,7 @@ export const SASTDashboard: React.FC = () => {
                 </div>
                 <button
                     onClick={() => setShowScanModal(true)}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
+                    className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
                 >
                     Trigger Scan
                 </button>
@@ -298,7 +298,7 @@ export const SASTDashboard: React.FC = () => {
                                     <td className="py-3 px-4 text-right">
                                         <button
                                             onClick={() => handleViewScan(scan)}
-                                            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                            className="px-3 py-1 text-sm bg-primary-600 hover:bg-primary-700 text-white rounded transition-colors"
                                         >
                                             View Details
                                         </button>
@@ -454,7 +454,7 @@ export const SASTDashboard: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                                    className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors"
                                 >
                                     Start Scan
                                 </button>

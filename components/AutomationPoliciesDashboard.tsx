@@ -67,7 +67,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                             <p className="text-xs text-gray-500 dark:text-gray-400">Define a rule for autonomous agent action</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
+                    <button aria-label="Close" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
                         <XIcon size={18} />
                     </button>
                 </div>
@@ -171,7 +171,7 @@ const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ onClose, onSave }) => {
                                         className="flex-1 px-2.5 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                     />
                                     {conditions.length > 1 && (
-                                        <button onClick={() => removeCondition(i)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors">
+                                        <button aria-label="Remove condition" onClick={() => removeCondition(i)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors">
                                             <XIcon size={14} />
                                         </button>
                                     )}

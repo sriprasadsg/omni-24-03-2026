@@ -131,7 +131,7 @@ export default function SecurityCopilotDashboard() {
               placeholder="Ask about threats, incidents, or request KQL queries..."
               className="flex-1 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
             <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">Send</button>
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">Send</button>
           </div>
         </div>
       )}
@@ -144,7 +144,7 @@ export default function SecurityCopilotDashboard() {
               placeholder="e.g. Show me all failed logins from non-corporate IPs in the last 24 hours"
               className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500 resize-none" />
             <button onClick={generateKql} disabled={kqlLoading || !kqlPrompt.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">
               {kqlLoading ? 'Generating...' : 'Generate KQL'}
             </button>
           </div>
@@ -170,7 +170,7 @@ export default function SecurityCopilotDashboard() {
                 placeholder="Enter incident ID..."
                 className="flex-1 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
               <button onClick={analyzeIncident} disabled={incidentLoading || !incidentId.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">
                 {incidentLoading ? 'Analyzing...' : 'Analyze'}
               </button>
             </div>
@@ -208,7 +208,7 @@ export default function SecurityCopilotDashboard() {
                 placeholder="e.g. 192.168.1.1, malware.exe sha256, evil.com"
                 className="flex-1 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
               <button onClick={analyzeThreat} disabled={threatLoading || !iocInput.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors">
                 {threatLoading ? 'Analyzing...' : 'Analyze'}
               </button>
             </div>

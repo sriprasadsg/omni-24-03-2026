@@ -190,7 +190,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
               </span>
             )}
           </h2>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
+          <button aria-label="Close assistant" onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
             <XIcon size={20} />
           </button>
         </header>

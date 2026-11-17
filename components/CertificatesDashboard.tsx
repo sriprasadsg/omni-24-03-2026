@@ -172,7 +172,7 @@ export const CertificatesDashboard: React.FC = () => {
                                             </td>
                                             <td className="px-4 py-3 text-xs text-gray-500">{cert.environment || 'production'}</td>
                                             <td className="px-4 py-3">
-                                                <button onClick={() => handleDelete(cert.id, cert.name)}
+                                                <button aria-label="Delete certificate" onClick={() => handleDelete(cert.id, cert.name)}
                                                     className="p-1 text-gray-400 hover:text-red-600">
                                                     <TrashIcon size={14} />
                                                 </button>
@@ -192,7 +192,7 @@ export const CertificatesDashboard: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
                             <h3 className="font-semibold text-gray-900 dark:text-white">Add Certificate</h3>
-                            <button onClick={() => setShowAdd(false)}><XIcon size={18} className="text-gray-400" /></button>
+                            <button aria-label="Close" onClick={() => setShowAdd(false)}><XIcon size={18} className="text-gray-400" /></button>
                         </div>
                         <div className="p-5 space-y-3">
                             {[

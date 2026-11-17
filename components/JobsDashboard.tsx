@@ -98,11 +98,11 @@ export const JobsDashboard: React.FC = () => {
                         )}
                         <button
                             onClick={() => setIsModalOpen(true)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md text-sm font-medium transition-colors"
                         >
                             + Create Job
                         </button>
-                        <button
+                        <button aria-label="Refresh jobs"
                             onClick={fetchJobs}
                             disabled={loading}
                             className="p-2 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
@@ -204,7 +204,7 @@ export const JobsDashboard: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded transition-colors"
                                 >
                                     Create Job
                                 </button>

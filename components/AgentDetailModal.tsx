@@ -528,7 +528,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ isOpen, onCl
                     <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
                         Updated {formatRelativeTime(lastRefreshed)}
                     </span>
-                    <button
+                    <button aria-label="Refresh now"
                         onClick={onRefresh}
                         disabled={isRefreshing || !onRefresh}
                         title="Refresh now"

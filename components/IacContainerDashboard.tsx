@@ -252,7 +252,7 @@ export function IacContainerDashboard() {
                 placeholder={'Paste Terraform / K8s / CloudFormation code here...\n\ne.g.\nresource "aws_s3_bucket" "data" {\n  bucket = "my-bucket"\n  acl    = "public-read"\n}'}
                 className="w-full min-h-[240px] px-3 py-2 text-xs font-mono border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y" />
               <button onClick={runIacScan} disabled={iacLoading || !iacCode.trim()}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Terminal className="w-4 h-4" /> {iacLoading ? 'Scanning...' : 'Scan Code'}
               </button>
             </div>
@@ -347,7 +347,7 @@ export function IacContainerDashboard() {
                   placeholder="nginx:latest"
                   className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 <button onClick={runContainerScan} disabled={containerLoading || !imageName.trim()}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   <Terminal className="w-4 h-4" /> {containerLoading ? 'Scanning...' : 'Scan Image'}
                 </button>
               </div>

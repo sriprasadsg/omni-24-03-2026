@@ -139,7 +139,7 @@ const SwarmDashboard: React.FC = () => {
                             </div>
                             <button
                                 onClick={startMission}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                                className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                             >
                                 <Play size={18} /> Dispatch Swarm
                             </button>

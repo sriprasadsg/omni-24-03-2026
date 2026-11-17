@@ -231,7 +231,7 @@ export const ServicePricingPage: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex justify-end gap-2">
-                                                <button
+                                                <button aria-label="Edit Service"
                                                     onClick={() => handleOpenEditModal(service)}
                                                     className="p-2 text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
                                                     title="Edit Service"
@@ -239,7 +239,7 @@ export const ServicePricingPage: React.FC = () => {
                                                     <EditIcon size={16} />
                                                 </button>
                                                 {!service.frameworkId && (
-                                                    <button
+                                                    <button aria-label="Delete Service"
                                                         onClick={() => handleDelete(service)}
                                                         className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                                                         title="Delete Service"

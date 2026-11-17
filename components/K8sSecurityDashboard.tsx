@@ -101,7 +101,7 @@ export default function K8sSecurityDashboard() {
           <h1 className="page-title">Kubernetes Security</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">CIS Benchmark assessment, RBAC audit, pod security, and container hardening</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+        <button onClick={() => setShowAdd(true)} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Add Cluster
         </button>
       </div>
@@ -238,7 +238,7 @@ export default function K8sSecurityDashboard() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={addCluster} disabled={saving || !form.name}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Registering…' : 'Register Cluster'}
                   </button>
                   <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>

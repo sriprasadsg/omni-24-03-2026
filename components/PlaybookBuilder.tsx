@@ -317,7 +317,7 @@ export const PlaybookBuilder: React.FC = () => {
                         <button
                             onClick={handleSavePlaybook}
                             disabled={saving}
-                            className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-lg shadow-blue-500/20 text-sm font-medium"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-lg shadow-primary-600/20 text-sm font-medium"
                         >
                             <SaveIcon size={16} />
                             {saving ? 'Saving...' : 'Save Playbook'}

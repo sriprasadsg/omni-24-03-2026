@@ -128,7 +128,7 @@ export const CloudAccountsDashboard: React.FC = () => {
 
       {/* Register button */}
       <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">{showForm ? 'Cancel' : '+ Add Account'}</button>
+        <button onClick={() => setShowForm(!showForm)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded">{showForm ? 'Cancel' : '+ Add Account'}</button>
       </div>
 
       {showForm && (
@@ -141,7 +141,7 @@ export const CloudAccountsDashboard: React.FC = () => {
           <select className="p-1 border rounded dark:bg-gray-700" onChange={e => setForm({...form, environment: e.target.value})}>
             <option value="">Environment</option><option value="prod">Prod</option><option value="staging">Staging</option><option value="dev">Dev</option>
           </select>
-          <button onClick={register} className="px-2 py-1 bg-blue-600 text-white rounded col-span-2">Register</button>
+          <button onClick={register} className="px-2 py-1 bg-primary-600 text-white rounded col-span-2">Register</button>
         </div>
       )}
 
@@ -162,7 +162,7 @@ export const CloudAccountsDashboard: React.FC = () => {
                 </div>
                 {a.last_scan && <div className="text-gray-400">Last scan: {new Date(a.last_scan).toLocaleString()}</div>}
                 <div className="flex gap-1 pt-1">
-                  <button onClick={() => scan(a.id)} disabled={scanning[a.id]} className="px-2 py-0.5 bg-blue-600 text-white rounded disabled:opacity-50 text-[11px]">
+                  <button onClick={() => scan(a.id)} disabled={scanning[a.id]} className="px-2 py-0.5 bg-primary-600 text-white rounded disabled:opacity-50 text-[11px]">
                     {scanning[a.id] ? 'Scanning...' : 'Scan Now'}
                   </button>
                   <button onClick={() => loadResults(a.id)} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[11px]">Results</button>

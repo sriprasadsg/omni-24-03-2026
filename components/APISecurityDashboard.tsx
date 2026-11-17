@@ -92,7 +92,7 @@ export default function APISecurityDashboard() {
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Inventory, risk scoring, and abuse detection for all API endpoints</p>
         </div>
         <button onClick={discover} disabled={discovering}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+          className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
           {discovering ? 'Scanning…' : <><Glyph e="🔍" /> Discover Endpoints</>}
         </button>
       </div>

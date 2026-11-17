@@ -100,7 +100,7 @@ export default function NDRDashboard() {
             {seeding ? 'Seeding…' : 'Demo Data'}
           </button>
           <button onClick={runDetection} disabled={detecting}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
+            className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
             {detecting ? 'Detecting…' : <><Glyph e="🔍" /> Run Detection</>}
           </button>
         </div>

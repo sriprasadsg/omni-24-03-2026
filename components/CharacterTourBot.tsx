@@ -306,7 +306,7 @@ export const CharacterTourBot: React.FC<CharacterTourBotProps> = ({ currentUser:
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 fade-in">
                 <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-3xl w-full border border-gray-200 dark:border-gray-700 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500"></div>
-                    <button onClick={endTour} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors">
+                    <button aria-label="End tour" onClick={endTour} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors">
                         <XIcon size={24} />
                     </button>
                     <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">Choose Your AI Guide</h2>
@@ -366,14 +366,14 @@ export const CharacterTourBot: React.FC<CharacterTourBotProps> = ({ currentUser:
                         </div>
                     </div>
                     <div className="flex space-x-2">
-                        <button
+                        <button aria-label={synthRef.current?.paused ? 'Resume' : 'Pause'}
                             onClick={pauseResumeTour}
                             className="p-1.5 text-gray-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 rounded-md transition-colors"
                             title={synthRef.current?.paused ? 'Resume' : 'Pause'}
                         >
                             {synthRef.current?.paused ? <PlayIcon size={14} /> : <PauseIcon size={14} />}
                         </button>
-                        <button
+                        <button aria-label="End Tour"
                             onClick={endTour}
                             className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                             title="End Tour"

@@ -138,7 +138,7 @@ const ProblemManagementDashboard: React.FC = () => {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           + New Problem
         </button>
@@ -251,7 +251,7 @@ const ProblemManagementDashboard: React.FC = () => {
               <button
                 onClick={handleCreate}
                 disabled={creating || !createForm.title.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 {creating ? 'Creating…' : 'Create'}
               </button>
@@ -346,7 +346,7 @@ const ProblemManagementDashboard: React.FC = () => {
                   <button
                     onClick={handleLinkIncident}
                     disabled={actionLoading || !linkId.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   >
                     Link
                   </button>

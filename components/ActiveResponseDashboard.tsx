@@ -223,7 +223,7 @@ export default function ActiveResponseDashboard() {
       {tab === 'rules' && (
         <div className="space-y-4">
           <button onClick={() => setShowCreate(true)}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors">
             + New Rule
           </button>
           <div className="space-y-3">
@@ -399,7 +399,7 @@ export default function ActiveResponseDashboard() {
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
               <button onClick={createRule} disabled={saving || !form.name || !form.trigger || form.actions.length === 0}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50">
                 {saving ? 'Creating…' : 'Create Rule'}
               </button>
             </div>

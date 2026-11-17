@@ -188,7 +188,7 @@ export const HADRDashboard: React.FC = () => {
                 <div className="flex gap-3 bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
                     <button
                         onClick={() => handleCreateBackup('full')}
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20"
+                        className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary-600/20"
                     >
                         Execute Backup
                     </button>

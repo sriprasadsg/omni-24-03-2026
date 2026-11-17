@@ -127,7 +127,7 @@ export default function MAMDashboard() {
         </div>
         <button
           onClick={() => tab === 'protection' ? setShowCreateProtection(true) : tab === 'config' ? setShowCreateConfig(true) : undefined}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm"
         >
           + New Policy
         </button>
@@ -290,7 +290,7 @@ export default function MAMDashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createProtectionPolicy} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Create</button>
+              <button onClick={createProtectionPolicy} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">Create</button>
               <button onClick={() => setShowCreateProtection(false)} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">Cancel</button>
             </div>
           </div>
@@ -321,7 +321,7 @@ export default function MAMDashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createConfigPolicy} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Create</button>
+              <button onClick={createConfigPolicy} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm">Create</button>
               <button onClick={() => setShowCreateConfig(false)} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">Cancel</button>
             </div>
           </div>

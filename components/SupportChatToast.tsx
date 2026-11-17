@@ -98,7 +98,7 @@ const SingleToast: React.FC<{
                     </div>
 
                     {/* Dismiss button */}
-                    <button
+                    <button aria-label="Dismiss"
                         onClick={e => { e.stopPropagation(); onDismiss(toast.id); }}
                         className="flex-shrink-0 p-1 text-gray-600 hover:text-gray-300 rounded transition-colors"
                         title="Dismiss"

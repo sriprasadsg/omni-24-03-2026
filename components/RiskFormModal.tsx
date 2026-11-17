@@ -42,7 +42,7 @@ export const RiskFormModal: React.FC<RiskFormModalProps> = ({ isOpen, onClose, o
       <button type="button" onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
         Cancel
       </button>
-      <button type="submit" form="risk-form" disabled={submitting} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
+      <button type="submit" form="risk-form" disabled={submitting} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg disabled:opacity-50">
         {submitting ? 'Creating...' : 'Create Risk'}
       </button>
     </>

@@ -101,7 +101,7 @@ export default function BranchSitesDashboard() {
           <h1 className="page-title">Branch Sites &amp; Remote Offices</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Group endpoints by physical location and monitor per-site health and compliance</p>
         </div>
-        <button onClick={openCreate} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ Add Site</button>
+        <button onClick={openCreate} className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg text-white">+ Add Site</button>
       </div>
 
       {/* Summary */}
@@ -125,7 +125,7 @@ export default function BranchSitesDashboard() {
             <div className="text-center text-gray-500 py-16 bg-white dark:bg-gray-800 rounded-lg">
               <div className="text-4xl mb-3"><Glyph e="🏢" /></div>
               <div>No sites configured yet</div>
-              <button onClick={openCreate} className="mt-4 px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">Add your first site</button>
+              <button onClick={openCreate} className="mt-4 px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg text-white">Add your first site</button>
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -239,7 +239,7 @@ export default function BranchSitesDashboard() {
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => { setShowForm(false); setEditSite(null); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={saveSite} disabled={saving || !form.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
+                className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : (editSite ? 'Update' : 'Create')}
               </button>
             </div>

@@ -55,8 +55,8 @@ export function SettingsDataSourcesTab({ dataSources, testingState, onNew, onEdi
                                         <button onClick={() => onTest(source.id)} disabled={testingState[source.id]?.status === 'testing'} className="px-2.5 py-1 text-xs font-medium text-primary-700 bg-primary-100 rounded-md hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300 dark:hover:bg-primary-900 disabled:opacity-50 disabled:cursor-wait">
                                             {testingState[source.id]?.status === 'testing' ? 'Testing...' : 'Test'}
                                         </button>
-                                        <button onClick={() => onEdit(source)} className="p-1.5 text-gray-500 hover:text-primary-600"><PencilIcon size={14} /></button>
-                                        <button onClick={() => onDelete(source.id)} className="p-1.5 text-gray-500 hover:text-red-600"><TrashIcon size={14} /></button>
+                                        <button aria-label="Edit data source" onClick={() => onEdit(source)} className="p-1.5 text-gray-500 hover:text-primary-600"><PencilIcon size={14} /></button>
+                                        <button aria-label="Delete data source" onClick={() => onDelete(source.id)} className="p-1.5 text-gray-500 hover:text-red-600"><TrashIcon size={14} /></button>
                                     </div>
                                 </td>
                             </tr>

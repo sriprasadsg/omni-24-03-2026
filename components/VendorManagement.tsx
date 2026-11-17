@@ -173,7 +173,7 @@ export default function VendorManagement() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button
+                                        <button aria-label="View vendor details"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setSelectedVendor(vendor);

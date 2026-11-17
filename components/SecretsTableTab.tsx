@@ -95,20 +95,20 @@ export function SecretsTableTab({ secrets, isRotationDue, onView, onRotate, onRe
                             </td>
                             <td className="py-3 px-4 text-right">
                                 <div className="flex gap-2 justify-end">
-                                    <button onClick={() => onView(secret)}
+                                    <button aria-label="View secret" onClick={() => onView(secret)}
                                         className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                                         title="View secret">
                                         <EyeIcon size={18} />
                                     </button>
                                     {secret.status === 'active' && secret.rotation_enabled && (
-                                        <button onClick={() => onRotate(secret.name)}
+                                        <button aria-label="Rotate secret" onClick={() => onRotate(secret.name)}
                                             className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                                             title="Rotate secret">
                                             <RefreshCwIcon size={18} />
                                         </button>
                                     )}
                                     {secret.status === 'active' && (
-                                        <button onClick={() => onRevoke(secret.name)}
+                                        <button aria-label="Revoke secret" onClick={() => onRevoke(secret.name)}
                                             className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                             title="Revoke secret">
                                             <TrashIcon size={18} />

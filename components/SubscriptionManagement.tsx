@@ -271,7 +271,7 @@ export default function SubscriptionManagement() {
                         onClick={handleAddPaymentMethod}
                         disabled={configuredGateways.length === 0}
                         title={configuredGateways.length === 0 ? 'Configure a payment gateway first' : 'Add a payment method'}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
                     >
                         <CreditCard className="w-4 h-4" />
                         Add Method
@@ -300,7 +300,7 @@ export default function SubscriptionManagement() {
                             Add a card or bank account to enable automatic billing and plan upgrades.
                         </p>
                         <button onClick={handleAddPaymentMethod}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors">
+                            className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium transition-colors">
                             <CreditCard className="w-3.5 h-3.5" /> Add Payment Method
                         </button>
                     </div>
@@ -321,7 +321,7 @@ export default function SubscriptionManagement() {
                                         </div>
                                     </div>
                                 </div>
-                                <button
+                                <button aria-label="Remove payment method"
                                     onClick={() => handleDeletePaymentMethod(method.id)}
                                     className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
                                     title="Remove payment method"
@@ -423,7 +423,7 @@ export default function SubscriptionManagement() {
                                 <button
                                     onClick={() => handleUpgradeClick(plan)}
                                     disabled={actionLoading}
-                                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                                    className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
                                 >
                                     {plan === 'Custom' ? 'Contact Sales' : 'Upgrade'}
                                 </button>

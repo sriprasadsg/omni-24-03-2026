@@ -107,7 +107,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                         </button>
                     ))}
                 </div>
-                <button
+                <button aria-label="Refresh inventory"
                     onClick={onRefresh}
                     disabled={loading}
                     className="p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -259,7 +259,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                     <p className="text-sm font-bold text-gray-900 dark:text-white">{confirmEntry.name}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setConfirmEntry(null)} className="p-1.5 rounded-lg text-slate-500 hover:text-gray-900 dark:hover:text-white hover:bg-white/[0.08] transition-all">
+                            <button aria-label="Close" onClick={() => setConfirmEntry(null)} className="p-1.5 rounded-lg text-slate-500 hover:text-gray-900 dark:hover:text-white hover:bg-white/[0.08] transition-all">
                                 <XIcon size={15} />
                             </button>
                         </div>

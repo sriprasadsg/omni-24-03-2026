@@ -123,7 +123,7 @@ export const SecuritySettings: React.FC = () => {
                                 <p className="text-[11px] uppercase font-bold text-gray-400 mb-1">Manual Secret</p>
                                 <div className="flex items-center justify-between">
                                     <code className="text-sm font-mono text-primary-600 dark:text-primary-400 tracking-wider">{setupData.secret}</code>
-                                    <button onClick={() => navigator.clipboard.writeText(setupData.secret)} className="text-gray-400 hover:text-primary-500"><CopyIcon size={14} /></button>
+                                    <button aria-label="Copy secret key" onClick={() => navigator.clipboard.writeText(setupData.secret)} className="text-gray-400 hover:text-primary-500"><CopyIcon size={14} /></button>
                                 </div>
                             </div>
 

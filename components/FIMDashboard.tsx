@@ -245,7 +245,7 @@ export default function FIMDashboard() {
                 </button>
               ))}
               <button onClick={() => setShowAdd(true)}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+                className="px-4 py-1.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors">
                 + Add Path
               </button>
             </div>
@@ -397,7 +397,7 @@ export default function FIMDashboard() {
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowAdd(false)} className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
               <button onClick={addPath} disabled={saving || !form.path.trim()}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50">
                 {saving ? 'Adding…' : 'Add Path'}
               </button>
             </div>

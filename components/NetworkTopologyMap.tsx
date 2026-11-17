@@ -420,7 +420,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                                 <p className="text-[11px] text-gray-500 font-mono">{selectedNode.ip}</p>
                             </div>
                         </div>
-                        <button
+                        <button aria-label="Close details"
                             onClick={() => setSelectedNode(null)}
                             className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
                         >

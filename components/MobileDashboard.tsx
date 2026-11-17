@@ -140,7 +140,7 @@ export default function MobileDashboard() {
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Manage iOS and Android devices, compliance policies, and remote actions</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowAddPolicy(true)} className="px-3 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ New Policy</button>
+          <button onClick={() => setShowAddPolicy(true)} className="px-3 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg text-white">+ New Policy</button>
           <button onClick={() => setShowAddDevice(true)} className="px-3 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg text-white">+ Enroll Device</button>
         </div>
       </div>
@@ -266,7 +266,7 @@ export default function MobileDashboard() {
             <div key={p} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="font-medium text-lg mb-2"><Glyph e={PLATFORM_ICONS[p]} /> {p === 'ios' ? 'iOS' : 'Android'} Enrollment</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">Generate a one-time enrollment link to send to a user or display as QR code.</p>
-              <button onClick={() => getEnrollUrl(p)} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg mb-4 text-white">Generate Enrollment URL</button>
+              <button onClick={() => getEnrollUrl(p)} className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg mb-4 text-white">Generate Enrollment URL</button>
               {enrollUrl[p as 'ios' | 'android'] && (
                 <div className="bg-white dark:bg-gray-900 rounded-lg p-3 mt-2">
                   <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Enrollment URL (valid 24 hours)</div>
@@ -357,7 +357,7 @@ export default function MobileDashboard() {
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setShowAddPolicy(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={savePolicy} disabled={saving || !policyForm.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
+                className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : 'Create'}
               </button>
             </div>

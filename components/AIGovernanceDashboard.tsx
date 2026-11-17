@@ -163,7 +163,7 @@ export const AIGovernanceDashboard: React.FC<any> = (props) => {
                         {showReport && selectedModelId && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                                 <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto p-8 relative">
-                                    <button
+                                    <button aria-label="Close report"
                                         onClick={() => setShowReport(false)}
                                         className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                                     >

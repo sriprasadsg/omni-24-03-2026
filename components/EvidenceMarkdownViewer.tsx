@@ -97,14 +97,14 @@ export const EvidenceMarkdownViewer: React.FC<EvidenceMarkdownViewerProps> = ({ 
                     </span>
                 </button>
                 <div className="flex items-center space-x-2 flex-shrink-0">
-                    <button
+                    <button aria-label={copied ? "Copied!" : "Copy to clipboard"}
                         onClick={handleCopy}
                         className="p-1 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400"
                         title={copied ? "Copied!" : "Copy to clipboard"}
                     >
                         <CopyIcon size={12} />
                     </button>
-                    <button
+                    <button aria-label="Download as .md"
                         onClick={handleDownload}
                         className="p-1 text-gray-500 hover:text-green-600 dark:hover:text-green-400"
                         title="Download as .md"

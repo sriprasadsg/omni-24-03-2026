@@ -186,7 +186,7 @@ export const AiPolicyEngine: React.FC = () => {
                                                 className="bg-transparent font-bold text-sm focus:outline-none"
                                                 placeholder="Rule Name"
                                             />
-                                            <button onClick={() => {
+                                            <button aria-label="Remove rule" onClick={() => {
                                                 const rules = newPolicy.rules.filter((_, i) => i !== idx);
                                                 setNewPolicy({ ...newPolicy, rules });
                                             }} className="text-gray-400 hover:text-red-500"><TrashIcon size={14} /></button>

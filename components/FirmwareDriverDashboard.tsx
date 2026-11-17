@@ -164,7 +164,7 @@ export default function FirmwareDriverDashboard() {
         </div>
         {tab === 'updates' && selected.size > 0 && (
           <button onClick={deploySelected} disabled={deploying}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm disabled:opacity-50">
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm disabled:opacity-50">
             {deploying ? 'Deploying...' : `Deploy Selected (${selected.size})`}
           </button>
         )}

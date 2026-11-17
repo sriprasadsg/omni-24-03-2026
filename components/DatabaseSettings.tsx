@@ -128,7 +128,7 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ isOpen, onCl
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center"><DatabaseIcon className="mr-3"/> Database Connection</h2>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
+                    <button aria-label="Close" onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none">
                         <XIcon size={20} />
                     </button>
                 </div>

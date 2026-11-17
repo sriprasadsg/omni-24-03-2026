@@ -164,7 +164,7 @@ export default function RetentionPolicyDashboard() {
                     />
                     <span className="text-sm text-gray-600 dark:text-gray-400">days</span>
                     <button onClick={() => savePolicy(policy.collection)}
-                      className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs text-white">Save</button>
+                      className="bg-primary-600 hover:bg-primary-700 px-3 py-1 rounded text-xs text-white">Save</button>
                     <button onClick={() => setEditing(null)}
                       className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xs">Cancel</button>
                   </div>

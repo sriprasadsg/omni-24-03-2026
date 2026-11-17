@@ -47,8 +47,8 @@ export function SettingsAlertRulesTab({ alertRules, canManageSettings, onNew, on
                                 <td className="px-4 py-3">
                                     {canManageSettings && (
                                         <div className="flex items-center space-x-2">
-                                            <button onClick={() => onEdit(rule)} className="p-1.5 text-gray-500 hover:text-primary-600"><PencilIcon size={14} /></button>
-                                            <button onClick={() => onDelete(rule.id)} className="p-1.5 text-gray-500 hover:text-red-600"><TrashIcon size={14} /></button>
+                                            <button aria-label="Edit rule" onClick={() => onEdit(rule)} className="p-1.5 text-gray-500 hover:text-primary-600"><PencilIcon size={14} /></button>
+                                            <button aria-label="Delete rule" onClick={() => onDelete(rule.id)} className="p-1.5 text-gray-500 hover:text-red-600"><TrashIcon size={14} /></button>
                                         </div>
                                     )}
                                 </td>

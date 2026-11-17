@@ -145,7 +145,7 @@ export const YaraRuleEditor: React.FC = () => {
             </div>
             {rule.source === 'builtin'
                 ? <span className="text-[11px] text-amber-500 border border-amber-500/40 rounded px-1 py-0.5 ml-1 flex-shrink-0">built-in</span>
-                : <button onClick={e => { e.stopPropagation(); handleDelete(rule); }}
+                : <button aria-label="Delete rule" onClick={e => { e.stopPropagation(); handleDelete(rule); }}
                     className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 flex-shrink-0">
                     <TrashIcon size={12} />
                   </button>
@@ -168,7 +168,7 @@ export const YaraRuleEditor: React.FC = () => {
                 <div className="w-60 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
                     <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                         <span className="text-sm font-semibold text-gray-800 dark:text-white">Rules ({rules.length})</span>
-                        <button onClick={openNew} title="New custom rule" className="p-1 text-primary-600 hover:text-primary-800">
+                        <button aria-label="New custom rule" onClick={openNew} title="New custom rule" className="p-1 text-primary-600 hover:text-primary-800">
                             <PlusCircleIcon size={18} />
                         </button>
                     </div>

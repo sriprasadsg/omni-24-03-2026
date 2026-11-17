@@ -149,7 +149,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                         <button
                             type="submit"
                             disabled={confirming || !stripeConfigured}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
                         >
                             {confirming ? <Loader className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
                             {confirming ? 'Redirecting…' : 'Continue to Stripe'}
@@ -198,7 +198,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                         <button
                             onClick={handleConfirm}
                             disabled={!selectedGateway || confirming}
-                            className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+                            className="w-full flex items-center justify-center px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
                         >
                             {confirming ? (
                                 <><Loader className="w-5 h-5 animate-spin mr-2" />Processing…</>

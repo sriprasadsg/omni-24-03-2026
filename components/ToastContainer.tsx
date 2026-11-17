@@ -50,7 +50,7 @@ const ToastItem: React.FC<{ toast: ActiveToast; onDismiss: (id: string) => void 
       <div className="p-3.5 flex items-start gap-3">
         {ICONS[toast.type]}
         <p className="flex-1 text-sm text-gray-200 leading-relaxed">{toast.message}</p>
-        <button
+        <button aria-label="Dismiss"
           onClick={() => onDismiss(toast.id)}
           className="flex-shrink-0 p-0.5 text-gray-500 hover:text-gray-300 rounded transition-colors"
           title="Dismiss"

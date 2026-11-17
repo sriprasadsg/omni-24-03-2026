@@ -149,7 +149,7 @@ export const TenantOnboardingWizard: React.FC<Props> = ({ isOpen, onClose, onCom
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">New Tenant Setup</h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Guided onboarding for a new organization</p>
                     </div>
-                    <button onClick={handleClose} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <button aria-label="Close setup" onClick={handleClose} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
                         <XIcon size={18} />
                     </button>
                 </div>

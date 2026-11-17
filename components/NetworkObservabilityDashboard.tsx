@@ -165,7 +165,7 @@ export const NetworkObservabilityDashboard: React.FC<NetworkObservabilityDashboa
                     <button
                         onClick={handleScan}
                         disabled={isScanning}
-                        className={`flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 ${isScanning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 ${isScanning ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {isScanning ? 'Scanning...' : 'Scan Network'}
                     </button>

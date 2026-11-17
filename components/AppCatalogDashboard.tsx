@@ -97,7 +97,7 @@ export default function AppCatalogDashboard() {
           <h1 className="page-title">Application Catalog</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Browse and manage third-party applications for deployment and patching</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ Add Custom App</button>
+        <button onClick={() => setShowAdd(true)} className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg text-white">+ Add Custom App</button>
       </div>
 
       {/* Summary */}
@@ -247,7 +247,7 @@ export default function AppCatalogDashboard() {
             <div className="flex gap-2 mt-4 justify-end">
               <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={addApp} disabled={saving || !form.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
+                className="px-4 py-2 text-sm bg-primary-700 hover:bg-primary-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Adding…' : 'Add App'}
               </button>
             </div>

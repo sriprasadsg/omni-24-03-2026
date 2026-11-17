@@ -179,7 +179,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
           <button
             onClick={handleSubmitForReview}
             disabled={submitting}
-            className="text-xs px-3 py-3.5 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="text-xs px-3 py-3.5 rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit for Review'}
           </button>
@@ -251,7 +251,7 @@ export const EvidenceReviewPanel: React.FC<EvidenceReviewPanelProps> = ({ eviden
                     <button
                       onClick={() => action && handleReviewDecision(DECISION_MAP[action])}
                       disabled={submitting}
-                      className="px-3 py-3.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                      className="px-3 py-3.5 text-xs rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
                     >
                       {submitting ? 'Saving...' : `Confirm ${action === 'approve' ? 'Approve' : action === 'reject' ? 'Reject' : 'Request Changes'}`}
                     </button>

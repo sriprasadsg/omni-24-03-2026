@@ -133,7 +133,7 @@ export default function DetectionRulesDashboard() {
               <option value="true">Enabled</option>
               <option value="false">Disabled</option>
             </select>
-            <button onClick={load} className="ml-auto p-2 bg-slate-700 rounded hover:bg-slate-600"><RefreshCw size={16} /></button>
+            <button aria-label="Refresh rules" onClick={load} className="ml-auto p-2 bg-slate-700 rounded hover:bg-slate-600"><RefreshCw size={16} /></button>
             <button onClick={() => { setForm(emptyRule()); setEditId(null); setTab('create'); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 rounded-lg text-sm hover:bg-orange-700">
               <Plus size={16} /> New Rule
             </button>
@@ -156,15 +156,15 @@ export default function DetectionRulesDashboard() {
                     <td className="py-3 px-4 text-slate-400">{r.rule_type}</td>
                     <td className="py-3 px-4 text-slate-300">{r.trigger_count || 0}</td>
                     <td className="py-3 px-4">
-                      <button onClick={() => toggle(r.id, r.enabled)} className={r.enabled ? 'text-green-400' : 'text-slate-500'}>
+                      <button aria-label={r.enabled ? 'Disable rule' : 'Enable rule'} onClick={() => toggle(r.id, r.enabled)} className={r.enabled ? 'text-green-400' : 'text-slate-500'}>
                         {r.enabled ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
                       </button>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        <button onClick={() => startEdit(r)} className="p-1.5 bg-blue-600/20 rounded hover:bg-blue-600/40 text-blue-400"><Edit2 size={14} /></button>
-                        <button onClick={() => testRule(r.id)} disabled={testingId === r.id} className="p-1.5 bg-green-600/20 rounded hover:bg-green-600/40 text-green-400"><Play size={14} /></button>
-                        <button onClick={() => del(r.id)} className="p-1.5 bg-red-600/20 rounded hover:bg-red-600/40 text-red-400"><Trash2 size={14} /></button>
+                        <button aria-label="Edit rule" onClick={() => startEdit(r)} className="p-1.5 bg-blue-600/20 rounded hover:bg-blue-600/40 text-blue-400"><Edit2 size={14} /></button>
+                        <button aria-label="Test rule" onClick={() => testRule(r.id)} disabled={testingId === r.id} className="p-1.5 bg-green-600/20 rounded hover:bg-green-600/40 text-green-400"><Play size={14} /></button>
+                        <button aria-label="Delete rule" onClick={() => del(r.id)} className="p-1.5 bg-red-600/20 rounded hover:bg-red-600/40 text-red-400"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -217,7 +217,7 @@ export default function DetectionRulesDashboard() {
                   {['equals','contains','greater_than','less_than','regex'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 <input value={c.value} onChange={e => updateCondition(i, 'value', e.target.value)} placeholder="Value" className="flex-1 bg-slate-700 rounded px-3 py-1.5 text-sm" />
-                <button onClick={() => removeCondition(i)} className="text-red-400"><Trash2 size={14} /></button>
+                <button aria-label="Remove condition" onClick={() => removeCondition(i)} className="text-red-400"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>

@@ -121,7 +121,7 @@ export const StagedDeploymentVisualizer: React.FC<StagedDeploymentVisualizerProp
                         />
                         Auto-refresh
                     </label>
-                    <button
+                    <button aria-label="Refresh"
                         onClick={fetchDeployment}
                         className="p-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
                     >

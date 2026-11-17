@@ -223,7 +223,7 @@ export const SecuritySimulation: React.FC<{ tenantId?: string | null }> = ({ ten
                                     <ShieldAlertIcon className="mr-2 text-amber-500" />
                                     Simulation History
                                 </h3>
-                                <button onClick={loadData} className="text-slate-400 hover:text-slate-600"><ClockIcon size={18} /></button>
+                                <button aria-label="Refresh" onClick={loadData} className="text-slate-400 hover:text-slate-600"><ClockIcon size={18} /></button>
                             </div>
 
                             <div className="overflow-x-auto">

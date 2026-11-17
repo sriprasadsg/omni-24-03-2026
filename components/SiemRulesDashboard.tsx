@@ -325,7 +325,7 @@ export const SiemRulesDashboard: React.FC = () => {
                                                 >
                                                     Edit
                                                 </button>
-                                                <button
+                                                <button aria-label="Delete rule"
                                                     onClick={() => handleDelete(rule.id)}
                                                     className="text-red-500 hover:text-red-700"
                                                     title="Delete rule"

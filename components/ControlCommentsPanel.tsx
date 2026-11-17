@@ -158,7 +158,7 @@ export const ControlCommentsPanel: React.FC<ControlCommentsPanelProps> = ({ cont
                             <button
                                 type="submit"
                                 disabled={submitting || !text.trim()}
-                                className="flex items-center gap-1 text-xs px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                                className="flex items-center gap-1 text-xs px-3 py-2 rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
                             >
                                 <SendIcon size={14} aria-hidden="true" />
                                 {submitting ? 'Posting...' : 'Post Comment'}

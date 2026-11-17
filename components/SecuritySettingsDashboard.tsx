@@ -185,7 +185,7 @@ export function SecuritySettingsDashboard() {
             type="button"
             onClick={addCountryCode}
             disabled={busy}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+            className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
           >
             + Add
           </button>

@@ -237,7 +237,7 @@ export const QuestionnaireAnswerReviewPanel: React.FC<Props> = ({ draft, onStatu
                 <button
                   onClick={() => action && handleDecision(DECISION_MAP[action])}
                   disabled={submitting}
-                  className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
                 >
                   {submitting ? 'Saving...' : `Confirm ${action === 'approve' ? 'Approve' : action === 'reject' ? 'Reject' : 'Request Changes'}`}
                 </button>
@@ -255,7 +255,7 @@ export const QuestionnaireAnswerReviewPanel: React.FC<Props> = ({ draft, onStatu
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs rounded bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
           >
             <Send size={14} aria-hidden="true" /> {submitting ? 'Submitting...' : 'Mark Submitted'}
           </button>

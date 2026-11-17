@@ -198,7 +198,7 @@ export default function CustomFrameworkBuilder() {
             <h1 className="page-title">Custom Compliance Frameworks</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Build and manage your own compliance frameworks with custom controls</p>
           </div>
-          <button onClick={() => setView('create')} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+          <button onClick={() => setView('create')} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
             + New Framework
           </button>
         </div>
@@ -208,7 +208,7 @@ export default function CustomFrameworkBuilder() {
             <div className="text-5xl mb-4"><Glyph e="📋" /></div>
             <p className="text-lg">No custom frameworks yet</p>
             <p className="text-sm mt-2">Create one from a template or start from scratch</p>
-            <button onClick={() => setView('create')} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
+            <button onClick={() => setView('create')} className="mt-4 bg-primary-600 hover:bg-primary-700 px-6 py-2 rounded-lg text-sm text-white">
               Create Framework
             </button>
           </div>
@@ -243,7 +243,7 @@ export default function CustomFrameworkBuilder() {
 
                 <div className="flex gap-2 mt-4">
                   <button onClick={() => { setSelected(fw); setView('builder'); setEvaluation(null); }}
-                    className="flex-1 bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded text-sm text-white">
+                    className="flex-1 bg-primary-700 hover:bg-primary-600 px-3 py-1.5 rounded text-sm text-white">
                     Open
                   </button>
                   <button onClick={() => deleteFramework(fw.id)}
@@ -301,7 +301,7 @@ export default function CustomFrameworkBuilder() {
 
           <div className="flex gap-3 pt-2">
             <button onClick={createFramework} disabled={loading || !newName.trim()}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg font-medium text-white">
+              className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 px-4 py-2 rounded-lg font-medium text-white">
               {loading ? 'Creating...' : 'Create Framework'}
             </button>
             <button onClick={() => setView('list')} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:border-gray-400">
@@ -379,7 +379,7 @@ export default function CustomFrameworkBuilder() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600 dark:text-gray-400">{domain.controls.length} controls</span>
                   <button onClick={() => setAddingControl(addingControl === domain.id ? null : domain.id)}
-                    className="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded text-xs text-white">
+                    className="bg-primary-700 hover:bg-primary-600 px-3 py-1 rounded text-xs text-white">
                     + Control
                   </button>
                 </div>
@@ -413,7 +413,7 @@ export default function CustomFrameworkBuilder() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => addControl(domain.id)} className="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-sm text-white">
+                    <button onClick={() => addControl(domain.id)} className="bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded text-sm text-white">
                       Add Control
                     </button>
                     <button onClick={() => setAddingControl(null)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded text-sm border border-gray-300 dark:border-gray-600">
@@ -463,7 +463,7 @@ export default function CustomFrameworkBuilder() {
                 placeholder="Domain name (e.g. Access Control)" autoFocus
                 className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-gray-900 dark:text-white mb-3" />
               <div className="flex gap-2">
-                <button onClick={addDomain} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm text-white">
+                <button onClick={addDomain} className="bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded text-sm text-white">
                   Add Domain
                 </button>
                 <button onClick={() => setAddingDomain(false)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-sm">

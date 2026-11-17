@@ -225,7 +225,7 @@ export default function TrustProfileEditForm({ editForm, saving, onChange, onSav
                     type="button"
                     onClick={onSave}
                     disabled={saving}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50"
                 >
                     {saving ? 'Saving...' : 'Save Changes'}
                 </button>
