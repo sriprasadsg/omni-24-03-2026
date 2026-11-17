@@ -74,11 +74,16 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
   // Only the latest request may write the result: every run takes a new value and a
   // tenant switch bumps it, so a late or superseded response is dropped.
   const runSeq = useRef(0);
+  // Moves only on a tenant switch (not on every run), so an export started for one tenant
+  // cannot land in another while an export in the same tenant still completes (IN-05).
+  const tenantEpoch = useRef(0);
   const previousTenantId = useRef(tenantId);
   useEffect(() => {
     if (previousTenantId.current === tenantId) return;
     previousTenantId.current = tenantId;
     runSeq.current += 1;
+    tenantEpoch.current += 1;
+    setExportingFormat(null);
     setPending(null);
     setShown(null);
   }, [tenantId]);
@@ -174,16 +179,19 @@ export function ReportsPanel({ focusReportKey, onFocusHandled, tenantId, needsTe
     if (!shown?.kind || !shown.key) return;
     // The export target is fixed at click time, from the report on screen.
     const { kind, key } = shown;
+    const epoch = tenantEpoch.current;
     setExportingFormat(format);
     try {
       const generated = kind === 'prebuilt'
         ? await generateItamReport(kind, key, format, tenantId)
         : await generateItamReport(kind, key, format);
+      if (epoch !== tenantEpoch.current) return;
       await downloadItamReport(generated.filename);
     } catch (e: any) {
+      if (epoch !== tenantEpoch.current) return;
       showToast(e?.message || EXPORT_ERROR, 'error');
     } finally {
-      setExportingFormat(null);
+      if (epoch === tenantEpoch.current) setExportingFormat(null);
     }
   }
 
