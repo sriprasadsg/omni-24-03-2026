@@ -205,29 +205,44 @@ class TestParity:
         user = make_token_data(tenant_id="tenant-p", role="admin", username="admin@example.com")
         s = await _surfaces(seeded)
         by_tag = _rows_by_tag(s["costs"])
-        checked = 0
         for tag in _active_tags():
-            if not isinstance(_cost_of(tag), int) and _cost_of(tag) is not None:
-                continue  # a string cost is not a well-typed input for the per-asset route
             with _as_tenant("tenant-p"):
                 result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
             assert result["bookValueCents"] == by_tag[tag]["bookValueCents"], tag
-            checked += 1
-        assert checked == len(_active_tags()) - 1
 
     @pytest.mark.asyncio
-    async def test_salvage_above_cost_route_and_row_agree(self, seeded, monkeypatch):
-        """WR-06: the per-asset route and the list row give one answer when salvage is above the price
-        paid, and the same reason code for an asset whose model is missing."""
+    async def test_route_reason_matches_row_for_every_unvalued_asset(self, seeded, monkeypatch):
+        """WR-06, WR-07: for every asset the list does not value, the per-asset route returns no figure
+        and the same reason code as the list row (the unreadable cost and date included)."""
         monkeypatch.setattr(itam_finance_endpoints, "get_database",
                             lambda: database.TenantIsolatedDatabase(seeded))
         user = make_token_data(tenant_id="tenant-p", role="admin", username="admin@example.com")
         by_tag = _rows_by_tag((await _surfaces(seeded))["costs"])
-        for tag, reason in (("N-SALVAGE", "salvage_exceeds_cost"), ("N-NOMODEL", "no_depreciation_policy_assigned")):
+        unvalued = {tag for tag, row in by_tag.items() if row["bookValueCents"] is None}
+        assert unvalued == set(NOT_TRACKED)  # a new unvalued seed asset must name its reason in NOT_TRACKED
+        for tag, reason in NOT_TRACKED.items():
             with _as_tenant("tenant-p"):
                 result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
-            assert result["bookValueCents"] is None and by_tag[tag]["bookValueCents"] is None, tag
+            assert result["bookValueCents"] is None, tag
             assert result["reason"] == by_tag[tag]["reason"] == reason, tag
+
+    @pytest.mark.asyncio
+    async def test_route_and_row_differ_only_for_disposed_and_retired(self, seeded, monkeypatch):
+        """Known divergence, kept on purpose: the route has no lifecycle rule, so a disposed or retired
+        asset still shows its own book value on its Finance tab, while the cost list marks it by status
+        (the status as the reason, no figure). Asserted so the difference cannot change silently."""
+        monkeypatch.setattr(itam_finance_endpoints, "get_database",
+                            lambda: database.TenantIsolatedDatabase(seeded))
+        user = make_token_data(tenant_id="tenant-p", role="admin", username="admin@example.com")
+        by_tag = _rows_by_tag((await _surfaces(seeded))["with_inactive"])
+        for tag, status in (("X-DISPOSED", "disposed"), ("X-RETIRED", "retired")):
+            _, _, cost, date, model = next(s for s in SPEC if s[0] == tag)
+            life, salvage = MODELS[model]
+            with _as_tenant("tenant-p"):
+                result = await itam_finance_endpoints.get_asset_book_value(f"tenant-p:{tag}", user)
+            assert result["bookValueCents"] == compute_book_value(date, cost, life, salvage, FIXED)["bookValueCents"], tag
+            assert result["bookValueCents"] is not None, tag
+            assert by_tag[tag]["bookValueCents"] is None and by_tag[tag]["reason"] == status, tag
 
     @pytest.mark.asyncio
     async def test_lifecycle_rule_across_surfaces(self, seeded):
