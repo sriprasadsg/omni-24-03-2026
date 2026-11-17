@@ -368,7 +368,7 @@ describe('ReportsPanel — two-section layout', () => {
     deleteItamCustomReport.mockResolvedValue(undefined);
     listItamCustomReports.mockResolvedValue([]);
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(deleteItamCustomReport).toHaveBeenCalledWith('rpt-abc123'));
+    await waitFor(() => expect(deleteItamCustomReport).toHaveBeenCalledWith('rpt-abc123', undefined));
   });
 
   it('running a saved report renders its rows in the shared preview table', async () => {
@@ -400,7 +400,7 @@ describe('ReportsPanel — two-section layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run My Custom Report' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
-    await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('custom', 'rpt-abc123', 'csv'));
+    await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('custom', 'rpt-abc123', 'csv', undefined));
     await waitFor(() => expect(downloadItamReport).toHaveBeenCalledWith('custom_report.csv'));
   });
 

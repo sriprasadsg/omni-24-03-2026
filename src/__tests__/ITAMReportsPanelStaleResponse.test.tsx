@@ -103,7 +103,7 @@ describe('ReportsPanel stale responses (Phase 78 plan 11)', () => {
     const { rerender } = await renderPanel({ tenantId: 't-1' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Run My report' }));
-    await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50));
+    await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50, 't-1'));
     rerender(<ReportsPanel tenantId="t-2" />);
     await settle(() => held.resolve(resultFor('My report', 'IT-OLD')));
 

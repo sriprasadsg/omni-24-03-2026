@@ -320,14 +320,15 @@ describe('ITAMConsole', () => {
       await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('prebuilt', 'asset_value', 'csv', 't-1'));
     });
 
-    it('runs and exports a saved custom report without any tenant argument', async () => {
+    // D-13 amended 2026-11-17 puts custom reports on the tenant rule (Phase 78 plan 14).
+    it('runs and exports a saved custom report for the selected tenant', async () => {
       listItamCustomReports.mockResolvedValue([{ id: 'c-1', name: 'My report', columns: ['name'] }]);
       runItamCustomReport.mockResolvedValue({ ...assetValueResult, key: 'c-1', title: 'My report' });
       await openReports(<ITAMConsole isSuperAdminView tenantId="t-1" />);
       fireEvent.click(await screen.findByRole('button', { name: 'Run My report' }));
-      await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50));
+      await waitFor(() => expect(runItamCustomReport).toHaveBeenCalledWith('c-1', 1, 50, 't-1'));
       fireEvent.click(await screen.findByRole('button', { name: /Export CSV/ }));
-      await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('custom', 'c-1', 'csv'));
+      await waitFor(() => expect(generateItamReport).toHaveBeenCalledWith('custom', 'c-1', 'csv', 't-1'));
     });
 
     it('disables Run Report with a described status note when a Platform Owner has no tenant', async () => {
