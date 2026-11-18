@@ -3,7 +3,8 @@
 Reads ``security_alerts`` (every detection, written through soc_alerts.record_alert) and the legacy
 ``alerts`` collection (alerts posted to /api/alerts), so the console and Alert Management show one
 list. Nothing is estimated: response times appear once analysts acknowledge or close alerts, and
-MITRE techniques are only those an alert names (or its type maps to in mitre_service).
+MITRE techniques are only those an alert names, or what its detection reported stands for
+(mitre_service.detection_techniques), or its type maps to in mitre_service.
 
 ``scope`` is a tenant id, or None for a Super Admin's all-tenant view.
 """
@@ -14,7 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from database import get_database
 from network_topology_service import HIDDEN_AGENT_STATUSES, ONLINE_WITHIN
-from mitre_service import ALERT_TYPE_TO_TECHNIQUE, ATTACK_MATRIX
+from mitre_service import ALERT_TYPE_TO_TECHNIQUE, ATTACK_MATRIX, detection_techniques
 from soc_alerts import ACTIVE, HIDDEN, SEVERITIES, TYPE_LABELS, severity_of, status_of, type_label
 
 # Range -> (seconds, bucket seconds)
@@ -35,6 +36,11 @@ STATUS_QUERY = {
 EVIDENCE_KEYS = ("process", "exe", "sha256", "vt_detection_ratio", "location", "risk_score", "rule", "path", "target")
 
 
+def technique_name(technique: str) -> tuple:
+    """(name, tactic) of a technique; a sub-technique the matrix does not list takes its parent's."""
+    return TECHNIQUE_NAMES.get(technique) or TECHNIQUE_NAMES.get(technique.split(".")[0]) or (technique, "")
+
+
 def parse_ts(value: Any) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
@@ -51,7 +57,7 @@ def techniques_of(doc: Dict[str, Any]) -> List[str]:
                                      meta.get("description"), doc.get("title"), doc.get("description")) if v)
     found = list(dict.fromkeys(TECHNIQUE.findall(text)))
     mapped = ALERT_TYPE_TO_TECHNIQUE.get(str(doc.get("type") or ""))
-    return found or ([mapped] if mapped else [])
+    return found or detection_techniques(doc) or ([mapped] if mapped else [])
 
 
 def _evidence(doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -192,7 +198,7 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
         "byType": sorted(by_type.values(), key=lambda t: (-t["active"], -t["inRange"], t["label"])),
         "endpoints": endpoints[:8],
         "users": sorted(({"user": u, "risk": _combined(r), "active": len(r)} for u, r in users.items()), key=lambda x: -x["risk"])[:6],
-        "mitre": [{"technique": t, "name": TECHNIQUE_NAMES.get(t, (t, ""))[0], "tactic": TECHNIQUE_NAMES.get(t, ("", ""))[1],
+        "mitre": [{"technique": t, "name": technique_name(t)[0], "tactic": technique_name(t)[1],
                    "count": n} for t, n in mitre.most_common(10)],
         "sources": sources or [],
         "coverage": coverage,

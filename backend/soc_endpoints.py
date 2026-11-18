@@ -243,6 +243,15 @@ async def patch_incident(incident_id: str, body: IncidentActionIn, current_user:
                                         body.resolution, body.note, body.closeAlerts))
 
 
+@router.get("/mitre-coverage", dependencies=[Depends(SECURITY_GUARD)])
+async def get_mitre_coverage(range_key: str = Query("30d", alias="range", pattern="^(1h|24h|7d|30d)$"),
+                             tenant: Optional[str] = Query(None, alias="tenantId", max_length=128),
+                             current_user: TokenData = Depends(get_current_user)):
+    """ATT&CK techniques: which the endpoints' detections cover, which only a SIEM rule names, which alerts named."""
+    import soc_mitre
+    return await soc_mitre.coverage(get_database(), soc_scope(current_user, tenant), range_key)
+
+
 @router.post("/incidents/{incident_id}/triage", dependencies=[Depends(SECURITY_GUARD)])
 async def triage_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
     """Ask the platform's local AI model to summarise the whole incident; stored on the incident."""

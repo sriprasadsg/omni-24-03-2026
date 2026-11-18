@@ -7,7 +7,8 @@ to generate a coverage heatmap.
 
 from database import get_database
 
-# Embedded compact ATT&CK matrix (14 tactics, 40 representative techniques)
+# Embedded compact ATT&CK matrix (14 tactics, 60 representative techniques: the common ones plus every
+# technique a built-in detection or a SIEM rule names)
 # Full matrix: download from https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json
 ATTACK_MATRIX = {
     "tactics": [
@@ -16,17 +17,22 @@ ATTACK_MATRIX = {
             {"id": "T1133", "name": "External Remote Services"},
             {"id": "T1566", "name": "Phishing"},
             {"id": "T1195", "name": "Supply Chain Compromise"},
+            {"id": "T1078", "name": "Valid Accounts"},
         ]},
         {"id": "TA0002", "name": "Execution", "techniques": [
             {"id": "T1059", "name": "Command and Scripting Interpreter"},
             {"id": "T1059.001", "name": "PowerShell"},
             {"id": "T1059.003", "name": "Windows Command Shell"},
             {"id": "T1204", "name": "User Execution"},
+            {"id": "T1569", "name": "System Services"},
         ]},
         {"id": "TA0003", "name": "Persistence", "techniques": [
             {"id": "T1053", "name": "Scheduled Task/Job"},
             {"id": "T1543", "name": "Create or Modify System Process"},
             {"id": "T1547", "name": "Boot or Logon Autostart Execution"},
+            {"id": "T1098", "name": "Account Manipulation"},
+            {"id": "T1546", "name": "Event Triggered Execution"},
+            {"id": "T1574", "name": "Hijack Execution Flow"},
         ]},
         {"id": "TA0004", "name": "Privilege Escalation", "techniques": [
             {"id": "T1068", "name": "Exploitation for Privilege Escalation"},
@@ -38,18 +44,24 @@ ATTACK_MATRIX = {
             {"id": "T1036", "name": "Masquerading"},
             {"id": "T1562", "name": "Impair Defenses"},
             {"id": "T1070", "name": "Indicator Removal"},
+            {"id": "T1218", "name": "System Binary Proxy Execution"},
         ]},
         {"id": "TA0006", "name": "Credential Access", "techniques": [
             {"id": "T1003", "name": "OS Credential Dumping"},
             {"id": "T1003.001", "name": "LSASS Memory"},
             {"id": "T1110", "name": "Brute Force"},
             {"id": "T1558", "name": "Steal or Forge Kerberos Tickets"},
+            {"id": "T1528", "name": "Steal Application Access Token"},
+            {"id": "T1621", "name": "Multi-Factor Authentication Request Generation"},
         ]},
         {"id": "TA0007", "name": "Discovery", "techniques": [
             {"id": "T1082", "name": "System Information Discovery"},
             {"id": "T1083", "name": "File and Directory Discovery"},
             {"id": "T1046", "name": "Network Service Discovery"},
             {"id": "T1069", "name": "Permission Groups Discovery"},
+            {"id": "T1016", "name": "System Network Configuration Discovery"},
+            {"id": "T1049", "name": "System Network Connections Discovery"},
+            {"id": "T1087", "name": "Account Discovery"},
         ]},
         {"id": "TA0008", "name": "Lateral Movement", "techniques": [
             {"id": "T1021", "name": "Remote Services"},
@@ -60,6 +72,7 @@ ATTACK_MATRIX = {
             {"id": "T1005", "name": "Data from Local System"},
             {"id": "T1039", "name": "Data from Network Shared Drive"},
             {"id": "T1056", "name": "Input Capture"},
+            {"id": "T1114", "name": "Email Collection"},
         ]},
         {"id": "TA0010", "name": "Exfiltration", "techniques": [
             {"id": "T1048", "name": "Exfiltration Over Alternative Protocol"},
@@ -70,11 +83,14 @@ ATTACK_MATRIX = {
             {"id": "T1071", "name": "Application Layer Protocol"},
             {"id": "T1071.001", "name": "Web Protocols"},
             {"id": "T1105", "name": "Ingress Tool Transfer"},
+            {"id": "T1095", "name": "Non-Application Layer Protocol"},
+            {"id": "T1573", "name": "Encrypted Channel"},
         ]},
         {"id": "TA0040", "name": "Impact", "techniques": [
             {"id": "T1486", "name": "Data Encrypted for Impact (Ransomware)"},
             {"id": "T1490", "name": "Inhibit System Recovery"},
             {"id": "T1489", "name": "Service Stop"},
+            {"id": "T1565", "name": "Data Manipulation"},
         ]},
         {"id": "TA0042", "name": "Resource Development", "techniques": [
             {"id": "T1588", "name": "Obtain Capabilities"},
@@ -102,6 +118,51 @@ ALERT_TYPE_TO_TECHNIQUE = {
     "lateral_movement": "T1021",
     "privilege_escalation": "T1068",
 }
+
+# The platform's built-in endpoint detections, the agent check that runs each one (availableCapabilities)
+# and the techniques it looks for, with what it actually checks. Taken from the agent's code
+# (omni-agent-rs capabilities fim, persistence_detection, runtime_security, ueba); detections that are not an
+# ATT&CK technique (unapproved AI, personal data, known-malware hashes) are listed without techniques.
+DETECTION_COVERAGE = [
+    {"type": "fim_violation", "check": "fim", "label": "File integrity",
+     "techniques": {"T1565.001": "A watched file's content changed (checksum)"}},
+    {"type": "persistence_mechanism", "check": "persistence_detection", "label": "Suspicious persistence",
+     "techniques": {"T1547.001": "Registry Run keys and Startup folders", "T1547.004": "Winlogon entries",
+                    "T1053.005": "Windows scheduled tasks", "T1053.003": "cron entries", "T1543.002": "systemd services",
+                    "T1546.004": "Shell start-up files (.bashrc, .profile)", "T1574.006": "/etc/ld.so.preload"}},
+    {"type": "runtime_security", "check": "runtime_security", "label": "Runtime threat",
+     "techniques": {"T1003": "Credential dumping tools by name (mimikatz)", "T1569.002": "PsExec", "T1095": "netcat",
+                    "T1036": "System tools (mshta, rundll32, certutil, ...) running outside the system folders"}},
+    {"type": "ueba_anomaly", "check": "ueba", "label": "Unusual user behaviour",
+     "techniques": {"T1078": "Sign-ins at unusual hours"}},
+    {"type": "shadow_ai_process", "check": "shadow_ai", "label": "Unapproved AI process", "techniques": {}},
+    {"type": "pii_detected", "check": "pii_scanner", "label": "Personal data found", "techniques": {}},
+    {"type": "malware_detected", "check": "virustotal_scan", "label": "Malware (known file hashes)", "techniques": {}},
+]
+
+_PERSISTENCE_AT = (("\\winlogon", "T1547.004"), ("\\run", "T1547.001"), ("startup", "T1547.001"),
+                   ("task scheduler", "T1053.005"), ("crontab", "T1053.003"), ("/cron", "T1053.003"),
+                   ("systemd", "T1543.002"), ("ld.so.preload", "T1574.006"), (".bashrc", "T1546.004"),
+                   (".bash_profile", "T1546.004"), (".zshrc", "T1546.004"), ("profile", "T1546.004"))
+_RUNTIME_TOOL = (("mimikatz", "T1003"), ("psexec", "T1569.002"), ("nc.exe", "T1095"), ("netcat", "T1095"))
+
+
+def detection_techniques(doc: dict) -> list:
+    """The technique a built-in detection's alert stands for, from what the agent reported (empty when unknown)."""
+    kind = str(doc.get("type") or "")
+    meta = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
+    if kind == "fim_violation":
+        return ["T1565.001"]
+    if kind == "persistence_mechanism":
+        where = str(doc.get("location") or meta.get("location") or "").lower()
+        return next(([t] for k, t in _PERSISTENCE_AT if k in where), [])
+    if kind == "runtime_security":
+        text = f"{doc.get('description') or ''} {meta.get('description') or ''}".lower()
+        hit = next(([t] for k, t in _RUNTIME_TOOL if f"'{k}" in text), [])
+        return hit or (["T1036"] if "outside system directory" in text else [])
+    if kind == "ueba_anomaly" and "unusual login" in str(doc.get("title") or "").lower():
+        return ["T1078"]
+    return []
 
 
 def get_full_matrix() -> dict:

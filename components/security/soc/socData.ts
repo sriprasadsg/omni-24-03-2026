@@ -229,6 +229,27 @@ export const triageIncident = (fetcher: Fetcher, id: string) =>
 export const caseFromIncident = (fetcher: Fetcher, id: string) =>
     send<{ case: { id: string; title: string } & Record<string, unknown>; created: boolean }>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}/case`, 'POST', undefined, 'No case was opened');
 
+// ATT&CK coverage (backend/soc_mitre.py).
+export type CoverageLevel = 'detected' | 'rule' | 'none';
+export interface CoverageTechnique {
+    id: string; name: string; level: CoverageLevel; seen: number; active: number; ruleCount: number; subTechniques: string[];
+    detections: { type: string; label: string; check: string; technique: string; what: string; endpoints: number }[];
+    rules: { name: string; severity?: string | null; technique: string; library: boolean }[];
+}
+export interface MitreCoverage {
+    generatedAt: string; range: SocRange; endpoints: number; siemLogs: number; siemLogDays: number;
+    tactics: { id: string; name: string; techniques: CoverageTechnique[] }[];
+    totals: { techniques: number; detected: number; ruleOnly: number; none: number; seen: number };
+    checks: { type: string; label: string; check: string; endpoints: number; techniques: string[] }[];
+}
+export const fetchCoverage = async (fetcher: Fetcher, range: SocRange): Promise<MitreCoverage> => {
+    const res = await fetcher(`${SOC}/mitre-coverage?range=${range}`);
+    if (!res.ok) throw await failure(res, 'ATT&CK coverage could not be loaded');
+    const body = await res.json();
+    if (!Array.isArray(body?.tactics)) throw new Error('ATT&CK coverage could not be loaded: unexpected answer from the server');
+    return body;
+};
+
 // Severity is a status scale: fixed hues in both themes (validated with the dataviz validator for
 // colour-blind and normal-vision separation), always shown with an icon and a label.
 export const SEVERITY_META: Record<Severity, { label: string; hex: string; swatch: string; text: string; chip: string }> = {
