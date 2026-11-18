@@ -50,6 +50,14 @@ REVIEWED_UNAUTHENTICATED = frozenset({
     ("GET", "/api/saas/callback/{provider}"),
     ("GET", "/api/graphql"), ("POST", "/api/graphql"), ("WS", "/api/graphql"),
     ("WS", "/api/stream/live"),
+    # SCIM 2.0 for identity providers (scim_endpoints): a per-organization bearer token, stored only as a
+    # SHA-256 and revocable, is checked on every request by scim_caller and names the one tenant it may reach
+    *{(m, f"/api/scim/v2/{p}") for m, p in (
+        ("GET", "ServiceProviderConfig"), ("GET", "ResourceTypes"), ("GET", "Schemas"),
+        ("GET", "Users"), ("POST", "Users"), ("GET", "Users/{user_id}"), ("PUT", "Users/{user_id}"),
+        ("PATCH", "Users/{user_id}"), ("DELETE", "Users/{user_id}"),
+        ("GET", "Groups"), ("POST", "Groups"), ("GET", "Groups/{group_id}"), ("PUT", "Groups/{group_id}"),
+        ("PATCH", "Groups/{group_id}"), ("DELETE", "Groups/{group_id}"))},
     # Watchdog bearer token, loopback only, proxy headers refused (Phase 82)
     ("POST", "/api/internal/watchdog/sync"), ("POST", "/api/internal/watchdog/results"),
     # Public content
