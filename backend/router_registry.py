@@ -274,6 +274,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "soc_endpoints",                 "router")
     _load(app, "soc_endpoints",                 "queue_router")
     _load(app, "soc_case_endpoints",            "router")
+    _load(app, "soc_hunt_endpoints",            "router")
     _load(app, "jobs_endpoints",                "router")
     _load(app, "remediation_endpoints",         "router")
     _load(app, "simulation_endpoints",          "router")

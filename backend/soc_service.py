@@ -293,14 +293,13 @@ async def _source_health(db, scope: Optional[str]) -> List[Dict[str, Any]]:
 
 
 async def _counts(db, scope: Optional[str]) -> Dict[str, int]:
-    raw = getattr(db, "_db", db)  # siem_rules / xdr_hunts keep their own tenant fields
+    raw = getattr(db, "_db", db)  # siem_rules keep their own tenant field
     rules = {"tenant_id": scope} if scope else {}
-    hunts = {"tenantId": {"$in": [scope, "global"]}} if scope else {}
     return {
         "openCases": await db.security_cases.count_documents({**scope_filter(scope), "status": {"$nin": ["Resolved", "Closed"]}}),
         "activeIncidents": await db.soc_incidents.count_documents({**scope_filter(scope), "status": {"$in": STATUS_QUERY["active"]}}),
         "siemRules": await raw.siem_rules.count_documents(rules),
-        "activeHunts": await raw.xdr_hunts.count_documents({**hunts, "status": "active"}),
+        "savedHunts": await raw.soc_hunts.count_documents({"tenantId": scope} if scope else {}),
     }
 
 
