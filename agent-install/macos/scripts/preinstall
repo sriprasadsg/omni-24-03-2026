@@ -1,0 +1,5 @@
+#!/bin/bash
+# Stops a running agent before its files are replaced. config.yaml (the enrollment) is not in the
+# package, so an upgrade keeps it.
+launchctl bootout system/com.omniagent.agent 2>/dev/null || true
+exit 0

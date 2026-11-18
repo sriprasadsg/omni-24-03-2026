@@ -1,0 +1,32 @@
+#!/bin/bash
+# Puts the tenant's config.yaml in place and starts the daemon. The config comes from the folder the
+# package was opened from (the platform's download zip); without one, an installed config (an upgrade,
+# or one an MDM script placed first) is kept.
+set -u
+D="/Library/Application Support/OmniAgent"
+PLIST=/Library/LaunchDaemons/com.omniagent.agent.plist
+PKG="${PACKAGE_PATH:-${1:-}}"
+PKG="${PKG%%#*}"
+NEW="$(dirname "$PKG")/config.yaml"
+
+enrolled() { grep -qE "^agent_secret:[[:space:]]*['\"]?[A-Za-z0-9_-]" "$1" 2>/dev/null; }
+
+if [ -f "$NEW" ]; then
+    # A downloaded config has no agent secret, and the platform refuses (409) an enrolled Mac that
+    # enrolls again without it: keep the installed enrollment for the agent to carry over.
+    if enrolled "$D/config.yaml" && ! enrolled "$D/config.yaml.prev"; then
+        cp -p "$D/config.yaml" "$D/config.yaml.prev"
+    fi
+    cp "$NEW" "$D/config.yaml"
+elif [ ! -f "$D/config.yaml" ]; then
+    echo "config.yaml was not found next to OmniAgent.pkg. Download the macOS agent from the platform and open OmniAgent.pkg from that folder." >&2
+    exit 1
+fi
+
+chown root:wheel "$D" "$D"/config.yaml*
+chmod 755 "$D"
+chmod 600 "$D"/config.yaml*
+chown root:wheel "$PLIST"
+chmod 644 "$PLIST"
+launchctl bootstrap system "$PLIST" 2>/dev/null || launchctl kickstart -k system/com.omniagent.agent
+exit 0
