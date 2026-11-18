@@ -88,7 +88,7 @@ fi
     export TICKET_ATTACHMENT_DIR="${TICKET_ATTACHMENT_DIR:-/tmp/ticket_attachments}"
     # Use socket_app (not app) so Socket.IO real-time events work
     "$BACKEND_PYTHON" -m uvicorn app:socket_app \
-        --host 0.0.0.0 --port 5000 --log-level info
+        --host 127.0.0.1 --port 5000 --log-level info
 ) &
 BACKEND_PID=$!
 print_success "Backend started (PID: $BACKEND_PID)"
