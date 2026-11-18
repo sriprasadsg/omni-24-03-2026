@@ -8,6 +8,7 @@ import {
     type AlertAction, type Resolution, type SocAlert,
 } from './socData';
 import { SeverityBadge, StatusText, field, primaryButton, subhead } from './SocKit';
+import { ResponsePanel } from './ResponsePanel';
 
 const mono = 'font-mono text-[12px] break-all';
 const CLOSE_AS: { key: Resolution; hint: string }[] = [
@@ -171,8 +172,10 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                         </section>
                     )}
 
+                    {alert.source === 'security' && <ResponsePanel alertId={alert.id} onChanged={() => onChanged(null)} />}
+
                     <section className="space-y-3">
-                        <h3 className={subhead}>Actions</h3>
+                        <h3 className={subhead}>Handle the alert</h3>
                         <div className="flex flex-wrap gap-2">
                             {alert.status === 'open' && (
                                 <button type="button" className={primaryButton} disabled={!!busy} onClick={() => act('acknowledge', 'Alert acknowledged')}>

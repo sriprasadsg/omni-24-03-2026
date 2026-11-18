@@ -61,6 +61,19 @@ const alert = (over: Record<string, unknown> = {}) => ({
 });
 const approval = { id: 'ap-1', process: 'ollama', agentId: 'ag-srv', hostname: 'Omniai-copy', reason: "The platform's own local LLM" };
 
+let canRespond = true;
+const responseInfo = () => ({
+    host: 'Omniai-copy', isolated: false, canRespond,
+    options: [
+        { action: 'isolate_host', label: 'Isolate host', available: true, reason: null, target: { host: 'Omniai-copy' } },
+        { action: 'quarantine_file', label: 'Quarantine file', available: false, reason: 'This kind of alert does not point at a harmful file.', target: { host: 'Omniai-copy' } },
+        { action: 'block_ip', label: 'Block IP', available: true, reason: null, target: { host: 'Omniai-copy', ip: '45.33.32.156' } },
+        { action: 'kill_process', label: 'End process', available: false, reason: 'The alert does not name the process id, start time and program.', target: { host: 'Omniai-copy' } },
+    ],
+    history: [{ actionId: 'AO-0', action: 'isolate_host', label: 'Isolate host', state: 'executed', stateText: 'Done', requestedBy: 'Ava',
+                createdAt: at(1), revertsAt: at(-3), keptIsolated: false, canUndo: true, canKeepIsolated: true }],
+});
+
 function route(url: string, init?: RequestInit) {
     const u = new URL(url, 'http://x');
     if (u.pathname === '/api/security/soc/summary') return ok(summary());
@@ -69,6 +82,8 @@ function route(url: string, init?: RequestInit) {
     if (u.pathname === '/api/alerts/queue' && !init?.method) {
         return ok({ items: [alert(), alert({ id: 'al-2', severity: 'info', title: 'Login at 05:00', type: 'ueba_anomaly', typeLabel: 'Unusual user behaviour', status: 'closed', resolution: 'benign' })], total: 2, limit: 500, offset: 0 });
     }
+    if (u.pathname.endsWith('/response') && !init?.method) return ok(responseInfo());
+    if (u.pathname.endsWith('/respond')) return ok({ actionId: 'AO-1', status: 'dispatched' });
     if (u.pathname.endsWith('/bulk')) return ok({ matched: 1, modified: 1 });
     if (u.pathname.endsWith('/approve')) return ok({ approval: { ...approval, id: 'ap-2', process: 'lmstudio' }, closed: 1 });
     if (init?.method === 'PATCH') return ok(alert({ ...JSON.parse(String(init.body)), status: 'closed', resolution: 'false_positive' }));
@@ -90,7 +105,7 @@ function renderConsole() {
     );
 }
 
-beforeEach(() => { authFetch.mockReset(); authFetch.mockImplementation(async (url: string, init?: RequestInit) => route(url, init)); });
+beforeEach(() => { canRespond = true; authFetch.mockReset(); authFetch.mockImplementation(async (url: string, init?: RequestInit) => route(url, init)); });
 
 describe('socData', () => {
     it('writes response times the way analysts read them', () => {
@@ -169,6 +184,44 @@ describe('Alert queue and drawer', () => {
         fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve lmstudio' }));
         await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/al-1/approve').length).toBe(1));
         expect(JSON.parse(String(calls('POST', '/api/security/soc/alerts/al-1/approve')[0][1].body))).toEqual({ allEndpoints: false });
+    });
+});
+
+describe('One-click response', () => {
+    const openDrawer = async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Alert queue/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' }));
+        return screen.getByRole('dialog');
+    };
+
+    it('says why an action is unavailable and confirms before blocking for the chosen time', async () => {
+        const drawer = await openDrawer();
+        expect(await within(drawer).findByText('This kind of alert does not point at a harmful file.')).toBeTruthy();
+        expect(within(drawer).getByRole('button', { name: 'Quarantine file' })).toBeDisabled();
+        fireEvent.change(within(drawer).getByLabelText('Block for'), { target: { value: '1h' } });
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Block IP' }));
+        expect(within(drawer).getByText(/Blocks traffic between Omniai-copy and 45\.33\.32\.156 for 1 hour/)).toBeTruthy();
+        expect(calls('POST', '/api/security/soc/alerts/al-1/respond').length).toBe(0);
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm: block ip' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/al-1/respond').length).toBe(1));
+        expect(JSON.parse(String(calls('POST', '/api/security/soc/alerts/al-1/respond')[0][1].body))).toEqual({ action: 'block_ip', ttl: '1h' });
+    });
+
+    it('lists what was done with Undo and Keep isolated', async () => {
+        const drawer = await openDrawer();
+        fireEvent.click(await within(drawer).findByRole('button', { name: 'Keep isolated' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/al-1/response/AO-0/keep-isolated').length).toBe(1));
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Undo' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/al-1/response/AO-0/undo').length).toBe(1));
+    });
+
+    it('without the Active Response permission nothing can be sent', async () => {
+        canRespond = false;
+        const drawer = await openDrawer();
+        expect(await within(drawer).findByText('Acting on endpoints needs the Active Response permission.')).toBeTruthy();
+        expect(within(drawer).getByRole('button', { name: 'Isolate host' })).toBeDisabled();
+        expect(within(drawer).queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 });
 

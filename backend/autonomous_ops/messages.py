@@ -82,6 +82,7 @@ REASON_TEXT = {
     "suggest_requested": "This action was only suggested.",
     "unregistered_action": "This action is not one Autonomous Ops is allowed to run.",
     "class_approve": "This action is riskier and needs a person's approval.",
+    "analyst_request": "Requested by a person from an alert in the Security Operations Center.",
     "playbook_raised": "The playbook asks for a person's approval before this step.",
     "class_auto": "This action is allowed to run on its own within the limits you set.",
     "no_target": "The request did not name a host to act on.",

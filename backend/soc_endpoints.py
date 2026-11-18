@@ -14,9 +14,11 @@ from pydantic import BaseModel, Field
 from auth_types import TokenData
 from authentication_service import get_current_user
 from catalogue_mounts_secops import ALERT_MANAGEMENT_GUARD, SECURITY_GUARD
-from rbac_utils import is_super_admin
+from database import get_database
+from rbac_utils import is_super_admin, require_permission, verify_permission
 from tenant_context import get_tenant_id
 import soc_actions
+import soc_response
 import soc_service
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,17 @@ class ApproveIn(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class RespondIn(BaseModel):
+    action: Literal["isolate_host", "quarantine_file", "block_ip", "kill_process"]
+    ttl: Optional[Literal["1h", "24h", "7d"]] = None
+
+    model_config = {"extra": "forbid"}
+
+
+# Response actions change endpoints: they also need the Active Response permission (tenant_admin holds it).
+RESPOND = [Depends(SECURITY_GUARD), Depends(require_permission("manage:active_response"))]
+
+
 def soc_scope(current_user: Any, tenant_param: Optional[str] = None) -> Optional[str]:
     """Tenant the caller acts on; None is a Super Admin's all-tenant view."""
     if is_super_admin(getattr(current_user, "role", "") or ""):
@@ -69,8 +82,13 @@ def soc_scope(current_user: Any, tenant_param: Optional[str] = None) -> Optional
 async def _run(coro):
     try:
         return await coro
-    except soc_actions.ActionError as e:
+    except (soc_actions.ActionError, soc_response.ResponseError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
+
+
+async def _actor(user: Any):
+    from autonomous_ops import views
+    return await views.actor_for(get_database(), await views.build_caller(user))
 
 
 @router.get("/summary", dependencies=[Depends(SECURITY_GUARD)])
@@ -128,6 +146,34 @@ async def approve_ai_process(alert_id: str, body: ApproveIn, current_user: Token
     """Approve the AI process an alert names, on its endpoint or all endpoints; its alerts close as approved."""
     return await _run(soc_actions.approve_ai(soc_scope(current_user), alert_id[:128], current_user,
                                              body.allEndpoints, body.reason))
+
+
+@router.get("/alerts/{alert_id}/response", dependencies=[Depends(SECURITY_GUARD)])
+async def get_response_options(alert_id: str, current_user: TokenData = Depends(get_current_user)):
+    """Response actions this alert supports, whether its endpoint can carry each out, and what was done."""
+    out = await _run(soc_response.options(soc_scope(current_user), alert_id[:128]))
+    out["canRespond"] = await verify_permission(current_user, "manage:active_response")
+    return out
+
+
+@router.post("/alerts/{alert_id}/respond", dependencies=RESPOND)
+async def respond_to_alert(alert_id: str, body: RespondIn, current_user: TokenData = Depends(get_current_user)):
+    """Isolate the host, quarantine the file, block the IP or end the process the alert names; the click is the approval."""
+    return await _run(soc_response.respond(soc_scope(current_user), alert_id[:128], body.action,
+                                           await _actor(current_user), current_user, body.ttl))
+
+
+@router.post("/alerts/{alert_id}/response/{action_id}/undo", dependencies=RESPOND)
+async def undo_alert_response(alert_id: str, action_id: str, current_user: TokenData = Depends(get_current_user)):
+    return await _run(soc_response.undo(soc_scope(current_user), alert_id[:128], action_id[:128],
+                                        await _actor(current_user), current_user))
+
+
+@router.post("/alerts/{alert_id}/response/{action_id}/keep-isolated", dependencies=RESPOND)
+async def keep_alert_host_isolated(alert_id: str, action_id: str, current_user: TokenData = Depends(get_current_user)):
+    """Keep the host isolated past the 4-hour automatic reconnect."""
+    return await _run(soc_response.keep_isolated(soc_scope(current_user), alert_id[:128], action_id[:128],
+                                                 await _actor(current_user), current_user))
 
 
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])

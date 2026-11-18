@@ -103,10 +103,13 @@ async def _revalidate(db, row: Dict[str, Any]) -> Optional[str]:
         return "settings_unreadable"
     if tenant_id == PLATFORM_TENANT_ID:
         return "platform_tenant"
-    if not tenant.eligible:
-        return "not_enabled"
-    if settings.effective_level(tenant) == "off":
-        return "level_off"
+    # A person's own request from an alert (gate.ANALYST_ORIGIN) does not depend on the tenant's
+    # Autonomous Ops switch or level; every check below still applies to it.
+    if row.get("origin") != gate.ANALYST_ORIGIN:
+        if not tenant.eligible:
+            return "not_enabled"
+        if settings.effective_level(tenant) == "off":
+            return "level_off"
     targets = row.get("targets") or []
     if not targets:
         return "no_target"

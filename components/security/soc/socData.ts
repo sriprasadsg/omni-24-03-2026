@@ -111,6 +111,50 @@ export const fetchApprovals = async (fetcher: Fetcher): Promise<Approval[]> => {
 export const revokeApproval = (fetcher: Fetcher, id: string) =>
     send<{ success: boolean }>(fetcher, `${SOC}/approved-ai/${encodeURIComponent(id)}`, 'DELETE', undefined, 'The approval was not removed');
 
+export type ResponseAction = 'isolate_host' | 'quarantine_file' | 'block_ip' | 'kill_process';
+export type BlockTtl = '1h' | '24h' | '7d';
+export interface ResponseOption {
+    action: ResponseAction; label: string; available: boolean; reason: string | null;
+    target: { host: string; path?: string | null; ip?: string | null; pid?: number | null; exe?: string | null };
+}
+export interface ResponseRecord {
+    actionId: string; action: ResponseAction | string; label: string; state: string; stateText: string; reason?: string | null;
+    requestedBy?: string | null; createdAt?: string | null; blockedUntil?: string | null; revertsAt?: string | null;
+    keptIsolated: boolean; canUndo: boolean; canKeepIsolated: boolean;
+}
+export interface ResponseInfo { options: ResponseOption[]; history: ResponseRecord[]; host: string; isolated: boolean; canRespond: boolean }
+
+export const fetchResponse = async (fetcher: Fetcher, alertId: string): Promise<ResponseInfo> => {
+    const res = await fetcher(`${SOC}/alerts/${encodeURIComponent(alertId)}/response`);
+    if (!res.ok) throw await failure(res, 'Response actions could not be loaded');
+    const body = await res.json();
+    if (!Array.isArray(body?.options)) throw new Error('Response actions could not be loaded: unexpected answer from the server');
+    return body;
+};
+
+export const respondToAlert = (fetcher: Fetcher, alertId: string, action: ResponseAction, ttl?: BlockTtl) =>
+    send<{ actionId: string; status: string }>(fetcher, `${SOC}/alerts/${encodeURIComponent(alertId)}/respond`, 'POST',
+        { action, ...(ttl ? { ttl } : {}) }, 'The action was not sent');
+
+export const undoResponse = (fetcher: Fetcher, alertId: string, actionId: string) =>
+    send<{ status: string }>(fetcher, `${SOC}/alerts/${encodeURIComponent(alertId)}/response/${encodeURIComponent(actionId)}/undo`, 'POST', undefined, 'It was not undone');
+
+export const keepIsolated = (fetcher: Fetcher, alertId: string, actionId: string) =>
+    send<{ status: string }>(fetcher, `${SOC}/alerts/${encodeURIComponent(alertId)}/response/${encodeURIComponent(actionId)}/keep-isolated`, 'POST', undefined, 'The isolation was not kept');
+
+const TTL_WORDS: Record<BlockTtl, string> = { '1h': '1 hour', '24h': '24 hours', '7d': '7 days' };
+
+/** What an action will do, in the words the confirmation shows. */
+export const responseImpact = (o: ResponseOption, ttl: BlockTtl): string => {
+    const host = o.target.host;
+    switch (o.action) {
+        case 'isolate_host': return `Cuts ${host} off from every network connection except the Omni-Agent server. It reconnects by itself after 4 hours unless someone keeps it isolated.`;
+        case 'quarantine_file': return `Moves ${o.target.path} on ${host} into quarantine so it cannot run. It can be restored.`;
+        case 'block_ip': return `Blocks traffic between ${host} and ${o.target.ip} for ${TTL_WORDS[ttl]}. The block lifts by itself.`;
+        default: return `Ends ${o.target.exe} (process ${o.target.pid}) on ${host}. Only that program is ended.`;
+    }
+};
+
 // Severity is a status scale: fixed hues in both themes (validated with the dataviz validator for
 // colour-blind and normal-vision separation), always shown with an icon and a label.
 export const SEVERITY_META: Record<Severity, { label: string; hex: string; swatch: string; text: string; chip: string }> = {

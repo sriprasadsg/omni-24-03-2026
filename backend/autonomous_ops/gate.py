@@ -49,7 +49,13 @@ REASON_CODES = (
     "settings_unreadable", "level_suggest", "suggest_requested", "unregistered_action", "class_approve",
     "playbook_raised", "class_auto", "no_target", "cross_tenant_target", "protected_target",
     "invalid_target", "blast_radius", "rate_limit", "duplicate", "suppressed_by_undo",
-    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline", "range_block", "desk_rate_limit")
+    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline", "range_block", "desk_rate_limit",
+    "analyst_request")
+# A person asked for the action from an alert in the SOC console (soc_response). Their click is the
+# approval, so the tenant's Autonomous Ops switch, level and shadow mode do not apply; every protective
+# step (stops, Platform tenant, class, protected targets, agent support, blast radius, dedupe) still
+# does, and the row is carried out through approvals.approve like any card.
+ANALYST_ORIGIN = "analyst"
 # Refusals that never leave a row: the tenant is Off, so nothing is recorded (D-23).
 _UNRECORDED = frozenset({"no_tenant", "platform_tenant", "not_enabled", "level_off", "duplicate",
                          "suppressed_by_undo", "ledger_unavailable", "agent_unsupported",
@@ -160,7 +166,7 @@ async def _step_eligibility(ctx: _Ctx) -> None:
     await _load_tenant(ctx)
     if ctx.req.tenant_id == PLATFORM_TENANT_ID:
         return ctx.refuse("eligibility", "platform_tenant", record=False)
-    if not ctx.tenant.eligible:
+    if not ctx.tenant.eligible and ctx.req.origin != ANALYST_ORIGIN:
         return ctx.refuse("eligibility", "not_enabled", record=False)
     if not ctx.tenant.readable:
         ctx.escalate("eligibility", "suggest", "settings_unreadable")
@@ -175,7 +181,10 @@ async def _step_tenant_stop(ctx: _Ctx) -> None:
 
 
 async def _step_level(ctx: _Ctx) -> None:
-    """Off refuses, Suggest escalates; a caller can also force Suggest."""
+    """Off refuses, Suggest escalates; a caller can also force Suggest. A person's request waits for
+    that person's approval whatever the level."""
+    if ctx.req.origin == ANALYST_ORIGIN:
+        return ctx.escalate("level", "needs_approval", "analyst_request")
     if ctx.level == "off":
         return ctx.refuse("level", "level_off", record=False)
     if ctx.level == "suggest":
@@ -316,7 +325,10 @@ async def _step_dedupe(ctx: _Ctx) -> None:
 
 async def _step_shadow(ctx: _Ctx) -> None:
     """D-02: with either shadow layer on, an outcome that would dispatch or create an approval
-    card is recorded as a simulation instead. Refusals stay refusals."""
+    card is recorded as a simulation instead. Refusals stay refusals. A person's own request is not
+    a simulation."""
+    if ctx.req.origin == ANALYST_ORIGIN:
+        return ctx.note("shadow", "pass", "analyst_request")
     on, source = settings.shadow_state(ctx.tenant, ctx.master)
     if on:
         ctx.shadow = source
