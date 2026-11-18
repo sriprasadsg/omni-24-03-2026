@@ -28,12 +28,15 @@ URLLIB_ADV = {"id": "GHSA-34jh-p97f-mpxf", "modified": "2026-01-01T00:00:00Z", "
                             "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "1.26.19"}]}]}]}
 
 
-def osv(vulnerable: dict, calls: list):
-    """A fake OSV/CISA: ``vulnerable`` maps (name, version) to advisory ids."""
+def osv(vulnerable: dict, calls: list, busy: int = 0):
+    """A fake OSV/CISA: ``vulnerable`` maps (name, version) to advisory ids; each OSV path answers 503 ``busy`` times
+    before it answers."""
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request.url.path)
         if request.url.host == "www.cisa.gov":
             return httpx.Response(200, json={"vulnerabilities": [{"cveID": "CVE-2024-37891"}]})
+        if calls.count(request.url.path) <= busy:
+            return httpx.Response(503)
         if request.url.path == "/v1/querybatch":
             qs = json.loads(request.content)["queries"]
             return httpx.Response(200, json={"results": [{"vulns": [{"id": i} for i in vulnerable.get((q["package"]["name"], q["version"]), [])]}
@@ -115,3 +118,20 @@ async def test_an_upgraded_package_resolves_and_a_person_set_status_is_kept(db):
         await vuln_matcher.run(db, client, NOW + timedelta(days=2))
     curl = await db.vulnerabilities.find_one({"cve_id": "CVE-2024-11053"})
     assert curl["status"] == "Open" and "resolvedBy" not in curl
+
+
+@pytest.mark.asyncio
+async def test_a_brief_osv_overload_is_retried_and_an_outage_resolves_nothing(db, monkeypatch):
+    """protects=an OSV 503 on the batch or an advisory is tried again, so the finding is recorded this run; when OSV
+    stays down the endpoint is skipped and its open findings stay open; fails_when=a burst of 503s hides findings until
+    the next daily run (live 2026-11-18: 11 advisories), or an outage marks every finding Resolved; no_claim=-"""
+    monkeypatch.setattr(vuln_matcher, "RETRY_DELAYS", (0, 0))
+    vulnerable = {("curl", "8.5.0-2ubuntu10.1"): [CURL_ADV["id"]], ("urllib3", "1.26.5"): [URLLIB_ADV["id"]]}
+    async with osv(vulnerable, [], busy=2) as client:
+        out = await vuln_matcher.run(db, client, NOW)
+    assert out["open"] == 2
+    async with osv(vulnerable, [], busy=3) as client:
+        out = await vuln_matcher.run(db, client, NOW + timedelta(days=1))
+    # srv-1 gets all three 503s and is skipped; the other endpoint's batch then gets through
+    assert out == {"agents": 1, "open": 0, "resolved": 0, "checked": 1}
+    assert await db.vulnerabilities.count_documents({"agentId": "ag1", "status": "Open"}) == 2

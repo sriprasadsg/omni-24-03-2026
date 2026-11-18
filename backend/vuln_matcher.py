@@ -27,6 +27,8 @@ OSV_VULN_URL = "https://api.osv.dev/v1/vulns/{}"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 BATCH = 1000
 FETCH_CONCURRENCY = 8
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+RETRY_DELAYS = (2.0, 5.0)  # seconds before the 2nd and 3rd try
 KEV_MAX_AGE = timedelta(hours=24)
 SOURCE = "osv"
 RESOLVER = "osv-matcher"
@@ -82,11 +84,22 @@ def fixed_version(advisory: Dict[str, Any], eco: str, package: str) -> Optional[
     return None
 
 
+async def _osv(client: httpx.AsyncClient, method: str, url: str, **kw: Any) -> httpx.Response:
+    """An OSV request, tried again after a pause while OSV is briefly overloaded (live 2026-11-18: 503s on 11 of a
+    burst of advisory fetches, all fine seconds later)."""
+    for delay in (*RETRY_DELAYS, None):
+        resp = await client.request(method, url, **kw)
+        if resp.status_code in RETRY_STATUSES and delay is not None:
+            await asyncio.sleep(delay)
+            continue
+        resp.raise_for_status()
+        return resp
+
+
 async def _batch(client: httpx.AsyncClient, queries: List[Dict[str, Any]]) -> List[List[str]]:
     out: List[List[str]] = []
     for i in range(0, len(queries), BATCH):
-        resp = await client.post(OSV_BATCH_URL, json={"queries": queries[i:i + BATCH]}, timeout=60.0)
-        resp.raise_for_status()
+        resp = await _osv(client, "POST", OSV_BATCH_URL, json={"queries": queries[i:i + BATCH]}, timeout=60.0)
         out += [[v["id"] for v in (r.get("vulns") or [])] for r in resp.json().get("results", [])]
     return out
 
@@ -100,8 +113,7 @@ async def _advisories(db, client: httpx.AsyncClient, ids: Iterable[str]) -> Dict
     async def fetch(vid: str) -> None:
         async with gate:
             try:
-                resp = await client.get(OSV_VULN_URL.format(vid), timeout=30.0)
-                resp.raise_for_status()
+                resp = await _osv(client, "GET", OSV_VULN_URL.format(vid), timeout=30.0)
             except httpx.HTTPError as exc:
                 logger.warning("OSV advisory %s not fetched: %s", vid, exc)
                 return
