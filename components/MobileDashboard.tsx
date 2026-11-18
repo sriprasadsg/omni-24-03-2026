@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IntuneConnectorCard } from './IntuneConnectorCard';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { Glyph } from './ui/Glyph';
@@ -7,6 +8,7 @@ interface MdmDevice {
   id: string;
   udid: string;
   name: string;
+  source?: string; // 'intune' when it mirrors a device of the connected Intune (Wave 5)
   platform: string;
   os_version: string;
   model: string;
@@ -101,12 +103,21 @@ export default function MobileDashboard() {
       reset_passcode: 'Reset the passcode on this device?',
       retire: 'Retire this device?',
     };
-    if (confirmMsgs[action] && !confirm(confirmMsgs[action])) return;
+    const device = devices.find(d => d.id === id);
+    const viaIntune = device?.source === 'intune';
+    let confirmName: string | undefined;
+    if (viaIntune && (action === 'wipe' || action === 'retire')) {
+      // Intune carries these out for real: the device name must be typed, as the server checks.
+      confirmName = window.prompt(`${action === 'wipe' ? 'Factory-reset' : 'Retire'} "${device?.name}" through Intune. Type the device name to confirm.`) ?? undefined;
+      if (!confirmName) return;
+    } else if (confirmMsgs[action] && !confirm(confirmMsgs[action])) return;
     const r = await authFetch(`/api/mdm/devices/${id}/action`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, confirm: confirmName }),
     });
-    if (r.ok) showToast(`Action '${action}' queued`, 'success');
-    else { const d = await r.json(); showToast(d.detail || 'Failed', 'error'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) showToast(d.detail || 'Failed', 'error');
+    else if (d.status === 'sent') showToast(`'${action}' sent to Intune`, 'success');
+    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune`, 'info');
   }
 
   async function savePolicy() {
@@ -144,6 +155,7 @@ export default function MobileDashboard() {
           <button onClick={() => setShowAddDevice(true)} className="px-3 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg text-white">+ Enroll Device</button>
         </div>
       </div>
+      <IntuneConnectorCard onSynced={loadAll} />
 
       {/* Summary */}
       {summary && (
