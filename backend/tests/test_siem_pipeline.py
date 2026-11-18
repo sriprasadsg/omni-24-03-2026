@@ -156,3 +156,15 @@ async def test_rule_states_say_what_runs_and_what_waits(db):
     assert await db.siem_rules.count_documents({"logic": {"$exists": True}}) == 10
     await migration.up(db)  # a second run changes nothing
     assert await db.siem_rules.count_documents({}) == 11
+
+
+@pytest.mark.asyncio
+async def test_opening_the_siem_rules_screen_keeps_the_executable_library(db):
+    """protects=the SIEM Rules screen's seed refresh (siem_endpoints._upsert_seed_rules) removes only stale descriptive
+    seeds, never a rule with logic; fails_when=a Super Admin opening the screen deletes migration 039's 10 rules;
+    no_claim=the seed list's content"""
+    import siem_endpoints
+    await db.siem_rules.insert_one({"id": "stale", "tenant_id": "platform-admin", "created_by": "system", "name": "Gone"})
+    await siem_endpoints._upsert_seed_rules(db, "platform-admin")
+    assert await db.siem_rules.count_documents({"logic": {"$exists": True}}) == 10
+    assert not await db.siem_rules.find_one({"id": "stale"})

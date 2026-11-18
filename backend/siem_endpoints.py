@@ -589,11 +589,13 @@ _SEED_RULE_NAMES = {s["name"] for s in _SEED_RULES}
 
 async def _upsert_seed_rules(db, tenant_id: str) -> None:
     now = datetime.now(timezone.utc).isoformat()
-    # Remove stale system rules whose names are no longer in the current seed set
+    # Remove stale system rules whose names are no longer in the current seed set. Executable rules (migration 039's
+    # platform library, a hunt saved as a rule) carry ``logic`` and are never seeds, so they stay.
     await db.siem_rules.delete_many({
         "tenant_id": tenant_id,
         "created_by": "system",
         "name": {"$nin": list(_SEED_RULE_NAMES)},
+        "logic": {"$exists": False},
     })
     for s in _SEED_RULES:
         await db.siem_rules.update_one(
