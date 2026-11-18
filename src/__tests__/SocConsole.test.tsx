@@ -50,7 +50,7 @@ const summary = () => ({
     sources: [{ type: 'runtime_security', label: 'Runtime threat', lastAlertAt: at(1), total: 1 },
               { type: 'malware_detected', label: 'Malware', lastAlertAt: null, total: 0 }],
     coverage: [{ check: 'fim', label: 'File integrity', agents: 2 }],
-    counts: { openCases: 0, siemRules: 26, activeHunts: 19 },
+    counts: { openCases: 0, siemRules: 26, savedHunts: 2 },
 });
 
 const alert = (over: Record<string, unknown> = {}) => ({

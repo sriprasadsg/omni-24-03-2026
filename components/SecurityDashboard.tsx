@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertCircle, Bot, Box, Download, Grid3x3, Layers, LayoutDashboard, ShieldAlert, Workflow } from 'lucide-react';
+import { Activity, AlertCircle, Bot, Box, Download, Grid3x3, Layers, LayoutDashboard, Search, ShieldAlert, Workflow } from 'lucide-react';
 import { SecurityCase, SecurityEvent, Playbook, Comment, ThreatIntelResult, User } from '../types';
 import { SecurityEventsFeed } from './SecurityEventsFeed';
 import { CaseManagement } from './CaseManagement';
@@ -26,6 +26,7 @@ import { AlertDrawer } from './security/soc/AlertDrawer';
 import { IncidentsTab } from './security/soc/IncidentsTab';
 import { CoverageTab } from './security/soc/CoverageTab';
 import { RulesTab } from './security/soc/RulesTab';
+import { HuntTab } from './security/soc/HuntTab';
 import { WatchlistPanel } from './security/soc/WatchlistPanel';
 import { SlaPanel } from './security/soc/SlaPanel';
 import { segment, segmented } from './security/soc/SocKit';
@@ -41,7 +42,7 @@ interface SecurityDashboardProps {
     threatIntelFeed: ThreatIntelResult[];
 }
 
-type Tab = 'overview' | 'incidents' | 'queue' | 'coverage' | 'rules' | 'cases' | 'playbooks' | 'events';
+type Tab = 'overview' | 'incidents' | 'queue' | 'hunt' | 'coverage' | 'rules' | 'cases' | 'playbooks' | 'events';
 
 // New alerts are pushed (security_alert) as agents raise them; this poll catches anything a push missed.
 const POLL_MS = 30_000;
@@ -246,6 +247,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
         { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} /> },
         { id: 'incidents', label: 'Incidents', icon: <Layers size={15} />, count: data?.counts?.activeIncidents },
         { id: 'queue', label: 'Alert queue', icon: <ShieldAlert size={15} />, count: data?.kpis?.active },
+        { id: 'hunt', label: 'Hunting', icon: <Search size={15} />, count: data?.counts?.savedHunts },
         { id: 'coverage', label: 'ATT&CK coverage', icon: <Grid3x3 size={15} /> },
         { id: 'rules', label: 'Automation', icon: <Workflow size={15} /> },
         { id: 'cases', label: 'Cases', icon: <Box size={15} />, count: cases.length },
@@ -296,6 +298,8 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 return <IncidentsTab reloadKey={queueKey} onOpenAlert={setOpenAlert} onCaseOpened={handleCaseFromAlert} onChanged={alertsChanged} />;
             case 'queue':
                 return <AlertQueue focus={focus} onClearFocus={() => setFocus(null)} types={typeOptions} reloadKey={queueKey} onOpen={setOpenAlert} onChanged={alertsChanged} />;
+            case 'hunt':
+                return <HuntTab />;
             case 'coverage':
                 return <CoverageTab range={range} rangeLabel={rangeLong} />;
             case 'rules':

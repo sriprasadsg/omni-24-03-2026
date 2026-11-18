@@ -139,7 +139,7 @@ export const DetectionHealth: React.FC<{ data: SocSummary; approvals: Approval[]
                             </p>
                         )}
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            {data.counts.openCases ?? 0} open case{data.counts.openCases === 1 ? '' : 's'} · {data.counts.siemRules ?? 0} SIEM correlation rules · {data.counts.activeHunts ?? 0} active threat hunts
+                            {data.counts.openCases ?? 0} open case{data.counts.openCases === 1 ? '' : 's'} · {data.counts.siemRules ?? 0} SIEM correlation rules · {data.counts.savedHunts ?? 0} saved hunt{data.counts.savedHunts === 1 ? '' : 's'}
                         </p>
                     </div>
                     {data.workload && data.workload.length > 0 && (

@@ -79,7 +79,7 @@ export interface SocSummary {
     mitre: { technique: string; name: string; tactic: string; count: number }[];
     sources: { type: string; label: string; lastAlertAt: string | null; total: number }[];
     coverage: { check: string; label: string; agents: number }[];
-    counts: { openCases?: number; siemRules?: number; activeHunts?: number; activeIncidents?: number };
+    counts: { openCases?: number; siemRules?: number; savedHunts?: number; activeIncidents?: number };
 }
 export interface AlertPage { items: SocAlert[]; total: number; limit: number; offset: number }
 export interface QueueQuery { status: QueueStatus; severity?: Severity | ''; type?: string; agentId?: string; q?: string; limit?: number; offset?: number; sort?: 'severity' | 'risk' }
