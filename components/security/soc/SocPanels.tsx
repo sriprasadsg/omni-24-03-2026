@@ -135,7 +135,7 @@ export const DetectionHealth: React.FC<{ data: SocSummary; approvals: Approval[]
                         </ul>
                         {data.threatIntel && (
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                Threat intel: {data.threatIntel.indicators} indicators{data.threatIntel.feeds.map(f => ` · ${FEED_NAME[f.source] || f.source}: ${f.needsKey ? 'needs a free abuse.ch key' : f.ok ? `updated ${formatSince(f.at)}` : 'last download failed'}`).join('')}
+                                Threat intel: {data.threatIntel.indicators} indicator{data.threatIntel.indicators === 1 ? '' : 's'}{data.threatIntel.feeds.map(f => ` · ${FEED_NAME[f.source] || f.source}: ${f.needsKey ? 'needs a free abuse.ch key' : f.ok ? `updated ${formatSince(f.at)}` : 'last download failed'}`).join('')}
                             </p>
                         )}
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">

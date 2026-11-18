@@ -80,7 +80,7 @@ export const ContextPanel: React.FC<{ alertId: string; canEdit: boolean; onChang
                     </p>
                 )}
                 <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                    Feeds: {ctx.feeds.feeds.length ? ctx.feeds.feeds.map(f => `${FEED_NAME[f.source] || f.source} ${f.needsKey ? 'needs a free abuse.ch key (ABUSECH_AUTH_KEY)' : f.ok ? `${f.count ?? 0} indicators, ${formatSince(f.at)}` : 'failed'}`).join('; ') : 'first download runs a minute after the backend starts'}
+                    Feeds: {ctx.feeds.feeds.length ? ctx.feeds.feeds.map(f => `${FEED_NAME[f.source] || f.source} ${f.needsKey ? 'needs a free abuse.ch key (ABUSECH_AUTH_KEY)' : f.ok ? `${f.count ?? 0} indicator${f.count === 1 ? '' : 's'}, ${formatSince(f.at)}` : 'failed'}`).join('; ') : 'first download runs a minute after the backend starts'}
                 </p>
             </div>
         </section>
