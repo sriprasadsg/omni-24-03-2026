@@ -4,10 +4,11 @@ import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { EmptyNote, ghostButton } from '../../network/NetworkKit';
 import {
-    actOnIncident, caseFromIncident, endpointName, fetchIncident, fetchIncidents, formatSince, formatWhen, RESOLUTION_LABEL,
+    actOnIncident, caseFromIncident, triageIncident, endpointName, fetchIncident, fetchIncidents, formatSince, formatWhen, RESOLUTION_LABEL,
     type IncidentDetail, type IncidentPage, type QueueStatus, type Resolution, type SocAlert, type SocIncident,
 } from './socData';
 import { SeverityBadge, SeverityIcon, StatusText, field, primaryButton, segment, segmented, subhead } from './SocKit';
+import { TriagePanel } from './TriagePanel';
 
 const STATUSES: { key: QueueStatus; label: string }[] = [{ key: 'active', label: 'Active' }, { key: 'closed', label: 'Closed' }, { key: 'all', label: 'All' }];
 const CLOSE_AS: Resolution[] = ['resolved', 'false_positive', 'benign'];
@@ -103,6 +104,9 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
                                 {inc.autonomyIncidentId && <div className="flex gap-3"><dt className="w-32 shrink-0 text-xs text-gray-500 dark:text-gray-400">Autonomous Ops</dt><dd className="text-gray-900 dark:text-white">Also tracked there ({inc.autonomyIncidentId})</dd></div>}
                             </dl>
                         </section>
+                        <TriagePanel alertId={id} triage={inc.aiSummary} canRun askLabel="Summarise this incident"
+                            runner={() => triageIncident(authFetch, id)} onTriaged={t => setInc({ ...inc, aiSummary: t })}
+                            onStep={() => document.getElementById('soc-incident-handle')?.scrollIntoView?.({ block: 'center' })} />
                         <section>
                             <h3 className={subhead}>Attack stages</h3>
                             <div className="mt-2"><Stages tactics={inc.tactics} /></div>
@@ -122,7 +126,7 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
                             </ol>
                         </section>
                         <section className="space-y-3">
-                            <h3 className={subhead}>Handle the incident</h3>
+                            <h3 id="soc-incident-handle" className={subhead}>Handle the incident</h3>
                             <div className="flex flex-wrap gap-2">
                                 {inc.status === 'open' && <button type="button" className={primaryButton} disabled={busy} onClick={() => act('acknowledge', 'Incident acknowledged')}><Check className="w-4 h-4" aria-hidden="true" />Acknowledge</button>}
                                 {active && (inc.assignee

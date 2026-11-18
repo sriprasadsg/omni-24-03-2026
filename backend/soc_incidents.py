@@ -113,6 +113,7 @@ def incident_view(inc: Dict[str, Any], top: Optional[Dict[str, Any]] = None, hos
         "assignee": inc.get("assignee"), "acknowledgedAt": inc.get("acknowledgedAt"), "acknowledgedBy": inc.get("acknowledgedBy"),
         "closedAt": inc.get("closedAt"), "closedBy": inc.get("closedBy"), "closeNote": inc.get("closeNote"),
         "caseId": inc.get("caseId"), "autonomyIncidentId": inc.get("autonomyIncidentId"),
+        "aiSummary": inc.get("aiSummary") if isinstance(inc.get("aiSummary"), dict) else None,
     }
 
 

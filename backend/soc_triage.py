@@ -182,3 +182,46 @@ def schedule_auto(alert: Dict[str, Any]) -> None:
         asyncio.get_running_loop().create_task(_run())
     except RuntimeError:
         pass
+
+
+def incident_prompt(inc: Dict[str, Any], os_name: Optional[str] = None) -> str:
+    """The question for the model about a whole incident (soc_incidents.get_incident), alerts in time order."""
+    lines = [f"- {a.get('createdAt')}: {a['typeLabel']}, {a['severity']}, {redact(a['title'])[:160]}"
+             + (f" (seen {a['occurrences']} times)" if a.get("occurrences", 1) > 1 else "")
+             + (f" MITRE {', '.join(a['mitre'])}" if a.get("mitre") else "") for a in inc.get("timeline", [])[:15]]
+    more = len(inc.get("timeline", [])) - 15
+    return (
+        "You help a security analyst understand one incident: alerts on one endpoint less than an hour apart. "
+        "Say what most likely happened across the alerts, in order, and whether they look like one attack, "
+        "unrelated noise, or a false positive. Be concrete and brief.\n\n"
+        f"Endpoint operating system: {os_name or 'unknown'}\nAttack stages seen: {', '.join(inc.get('tactics') or []) or 'none named'}\n"
+        f"Alerts ({inc.get('alertCount')}):\n" + "\n".join(lines) + (f"\n- and {more} more" if more > 0 else "")
+        + "\n\nAnswer only JSON with these keys: summary (at most 3 sentences), likely_cause (1 sentence), "
+        f"seriousness (one of {', '.join(SERIOUSNESS)}), why (1-2 sentences), next_steps (1 to 4 ids from: "
+        "acknowledge, close_false_positive, close_benign, isolate_host, open_case, investigate)."
+    )
+
+
+async def triage_incident(scope: Optional[str], incident_id: str, who: str) -> Dict[str, Any]:
+    """Ask the local model about a whole incident and store its answer on the incident (``aiSummary``)."""
+    import soc_incidents
+    db = get_database()
+    inc = await soc_incidents.get_incident(db, scope, incident_id)
+    if not inc:
+        raise TriageError("Incident not found", 404)
+    agent = await db.agents.find_one({"id": inc.get("agentId")}, {"_id": 0, "platform": 1, "meta.os": 1}) if inc.get("agentId") else None
+    prompt = incident_prompt(inc, ((agent or {}).get("meta") or {}).get("os") or (agent or {}).get("platform"))
+    from guardrail_service import guardrail_service
+    scan = await guardrail_service.scan_and_log(prompt, "soc_incident_triage_input")
+    if not scan.passed:
+        raise TriageError("The AI guardrail stopped this incident's text from being sent: " + ", ".join(scan.findings), 422)
+    async with _ONE_AT_A_TIME:
+        try:
+            raw = await _generate(prompt)
+        except (httpx.HTTPError, OSError) as e:
+            logger.warning("SOC incident triage: local model unavailable: %s", e)
+            raise TriageError("The local AI model (Ollama) is not answering; try again later.", 503)
+    result = {**parse(raw), "model": MODEL, "at": datetime.now(timezone.utc).isoformat(), "by": who}
+    result["nextSteps"] = [s for s in result["nextSteps"] if s not in ("quarantine_file", "block_ip", "approve_process")]
+    await db.soc_incidents.update_one({"id": incident_id, **scope_filter(scope)}, {"$set": {"aiSummary": result}})
+    return result

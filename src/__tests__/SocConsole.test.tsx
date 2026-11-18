@@ -94,6 +94,7 @@ function route(url: string, init?: RequestInit) {
     if (u.pathname.includes('/endpoints/') && init?.method === 'PUT') return ok({ importance: 'critical', owner: 'IT desk' });
     if (u.pathname === '/api/security/soc/rules' && !init?.method) return ok({ items: [], canEdit: true });
     if (u.pathname === '/api/security/soc/rules/preview') return ok({ days: 7, checked: 40, matched: 35, examples: [{ id: 'x', title: 'UEBA Anomaly: Unusual Login Time' }] });
+    if (u.pathname === '/api/security/soc/incidents/INC-1/triage') return ok({ summary: 'Three alerts look like one attack.', seriousness: 'high', nextSteps: ['open_case'], model: 'llama3.2:3b', at: at(0), by: 'ava' });
     if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
     if (u.pathname === '/api/security/soc/incidents/INC-1') return ok({ ...incident(), timeline: [alert()], ...(init?.method === 'PATCH' ? { status: 'closed', resolution: 'benign' } : {}) });
     if (u.pathname.endsWith('/triage')) return ok({ summary: 'A local AI tool runs on purpose.', likelyCause: 'Developer tooling.', seriousness: 'low',
@@ -248,6 +249,8 @@ describe('Incidents', () => {
         fireEvent.click(row);
         const drawer = await screen.findByRole('dialog', { name: /Unapproved AI process: lmstudio and 2 more/ });
         expect(await within(drawer).findByText(/still collecting/)).toBeTruthy();
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Summarise this incident' }));
+        expect(await within(drawer).findByText('Three alerts look like one attack.')).toBeTruthy();
         fireEvent.click(within(drawer).getByRole('radio', { name: 'Benign' }));
         expect(within(drawer).getByRole('checkbox', { name: /Also close its 1 open alert/ })).toBeChecked();
         fireEvent.click(within(drawer).getByRole('button', { name: 'Close incident as benign' }));

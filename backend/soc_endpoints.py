@@ -235,6 +235,12 @@ async def patch_incident(incident_id: str, body: IncidentActionIn, current_user:
                                         body.resolution, body.note, body.closeAlerts))
 
 
+@router.post("/incidents/{incident_id}/triage", dependencies=[Depends(SECURITY_GUARD)])
+async def triage_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
+    """Ask the platform's local AI model to summarise the whole incident; stored on the incident."""
+    return await _run(soc_triage.triage_incident(soc_scope(current_user), incident_id[:128], current_user.username))
+
+
 @router.post("/incidents/{incident_id}/case", dependencies=[Depends(SECURITY_GUARD)])
 async def case_from_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
     return await _run(soc_incidents.open_case(soc_scope(current_user), incident_id[:128], current_user))

@@ -106,3 +106,26 @@ async def test_only_new_critical_alerts_are_triaged_automatically(db, monkeypatc
     soc_triage.schedule_auto({"id": "c2", "tenantId": "t1", "severity": "critical"})
     await asyncio.sleep(0.05)
     assert calls == [("t1", "c1", "automatic (critical alert)")]
+
+
+@pytest.mark.asyncio
+async def test_incident_summary_reads_the_whole_timeline_and_is_stored(db, monkeypatch):
+    """protects=the incident prompt lists its alerts in order without user names, the answer is stored as
+    aiSummary and only incident-level steps survive; fails_when=the summary leaks names or offers per-file
+    actions; no_claim=the model's judgement"""
+    import soc_alerts
+    import soc_incidents
+    monkeypatch.setenv("SOC_AUTO_TRIAGE", "0")
+    await soc_incidents.ensure_indexes(db)
+    sent = []
+
+    async def fake(prompt):
+        sent.append(prompt)
+        return json.dumps({"summary": "Two logins then a file change.", "seriousness": "high",
+                           "next_steps": ["quarantine_file", "open_case", "acknowledge"]})
+    monkeypatch.setattr(soc_triage, "_generate", fake)
+    a = await soc_alerts.record_alert(db, {"tenantId": "t1", "agent_id": "ag1", "type": "ueba_anomaly", "title": "Login by bob@corp.test"})
+    await soc_alerts.record_alert(db, {"tenantId": "t1", "agent_id": "ag1", "type": "fim_violation", "severity": "high", "title": "Change in /home/bob/x"})
+    out = await soc_triage.triage_incident("t1", a["incidentId"], "ana")
+    assert out["nextSteps"] == ["open_case", "acknowledge"] and "bob" not in sent[0] and "Alerts (2)" in sent[0]
+    assert (await soc_incidents.get_incident(db, "t1", a["incidentId"]))["aiSummary"]["summary"] == "Two logins then a file change."

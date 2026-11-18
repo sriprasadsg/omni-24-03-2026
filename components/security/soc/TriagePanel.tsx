@@ -11,7 +11,7 @@ import { SeverityBadge, subhead } from './SocKit';
  * control, it never runs anything.
  */
 export const TriagePanel: React.FC<{ alertId: string; triage: AiTriage | null | undefined; canRun: boolean;
-    onTriaged: (t: AiTriage) => void; onStep: (step: TriageStep) => void }> = ({ alertId, triage, canRun, onTriaged, onStep }) => {
+    onTriaged: (t: AiTriage) => void; onStep: (step: TriageStep) => void; runner?: () => Promise<AiTriage>; askLabel?: string }> = ({ alertId, triage, canRun, onTriaged, onStep, runner, askLabel = 'Explain this alert' }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +19,7 @@ export const TriagePanel: React.FC<{ alertId: string; triage: AiTriage | null | 
         setBusy(true);
         setError(null);
         try {
-            onTriaged(await triageAlert(authFetch, alertId));
+            onTriaged(await (runner ? runner() : triageAlert(authFetch, alertId)));
         } catch (e) {
             setError(e instanceof Error ? e.message : 'The AI explanation failed');
         } finally {
@@ -36,7 +36,7 @@ export const TriagePanel: React.FC<{ alertId: string; triage: AiTriage | null | 
                 {canRun && (
                     <button type="button" className={`${ghostButton} h-8`} disabled={busy} onClick={run}>
                         {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                        {triage ? 'Ask again' : 'Explain this alert'}
+                        {triage ? 'Ask again' : askLabel}
                     </button>
                 )}
             </div>

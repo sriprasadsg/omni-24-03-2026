@@ -199,7 +199,7 @@ export interface SocIncident {
     status: AlertStatus; resolution: Resolution | null; alertCount: number; grouping: boolean; startedAt?: string | null;
     lastAlertAt?: string | null; tactics: string[]; techniques: string[]; assignee?: string | null;
     acknowledgedAt?: string | null; acknowledgedBy?: string | null; closedAt?: string | null; closedBy?: string | null;
-    closeNote?: string | null; caseId?: string | null; autonomyIncidentId?: string | null;
+    closeNote?: string | null; caseId?: string | null; autonomyIncidentId?: string | null; aiSummary?: AiTriage | null;
 }
 export interface IncidentDetail extends SocIncident { timeline: SocAlert[]; closedAlerts?: number }
 export interface IncidentPage { items: SocIncident[]; total: number; limit: number; offset: number }
@@ -220,6 +220,9 @@ export const fetchIncident = async (fetcher: Fetcher, id: string): Promise<Incid
 
 export const actOnIncident = (fetcher: Fetcher, id: string, body: { action: Exclude<AlertAction, 'archive'>; resolution?: Resolution; note?: string; closeAlerts?: boolean }) =>
     send<IncidentDetail>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}`, 'PATCH', body, 'The incident was not changed');
+
+export const triageIncident = (fetcher: Fetcher, id: string) =>
+    send<AiTriage>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}/triage`, 'POST', undefined, 'The AI summary failed');
 
 export const caseFromIncident = (fetcher: Fetcher, id: string) =>
     send<{ case: { id: string; title: string } & Record<string, unknown>; created: boolean }>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}/case`, 'POST', undefined, 'No case was opened');
