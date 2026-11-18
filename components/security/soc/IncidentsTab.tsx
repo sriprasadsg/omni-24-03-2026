@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Briefcase, Check, ChevronRight, Layers, RotateCcw, UserMinus, UserPlus, X } from 'lucide-react';
+import { Briefcase, Check, ChevronRight, Layers, Network, RotateCcw, UserMinus, UserPlus, X } from 'lucide-react';
 import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { EmptyNote, ghostButton } from '../../network/NetworkKit';
@@ -9,6 +9,7 @@ import {
 } from './socData';
 import { SeverityBadge, SeverityIcon, StatusText, field, primaryButton, segment, segmented, subhead } from './SocKit';
 import { TriagePanel } from './TriagePanel';
+import { InvestigationGraph } from './InvestigationGraph';
 
 const STATUSES: { key: QueueStatus; label: string }[] = [{ key: 'active', label: 'Active' }, { key: 'closed', label: 'Closed' }, { key: 'all', label: 'All' }];
 const CLOSE_AS: Resolution[] = ['resolved', 'false_positive', 'benign'];
@@ -33,6 +34,7 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
     const [closeAs, setCloseAs] = useState<Resolution>('resolved');
     const [note, setNote] = useState('');
     const [closeAlerts, setCloseAlerts] = useState(true);
+    const [graphOpen, setGraphOpen] = useState(false);
     const closeRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +76,7 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
 
     const openAlerts = inc ? inc.timeline.filter(a => a.status !== 'closed').length : 0;
     const active = inc && inc.status !== 'closed';
-    return (
+    return (<>
         <div className="fixed inset-0 z-50" onKeyDown={onKeyDown}>
             <div className="absolute inset-0 bg-gray-950/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
             <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="soc-incident-title"
@@ -135,6 +137,9 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
                                 <button type="button" className={ghostButton} disabled={busy} onClick={() => run(async () => { const r = await caseFromIncident(authFetch, id); onCaseOpened(r.case); return null; }, 'Case opened')}>
                                     <Briefcase className="w-4 h-4" aria-hidden="true" />{inc.caseId ? 'Show case' : 'Open a case'}
                                 </button>
+                                <button type="button" className={ghostButton} onClick={() => setGraphOpen(true)}>
+                                    <Network className="w-4 h-4" aria-hidden="true" />Investigation graph
+                                </button>
                                 {!active && <button type="button" className={ghostButton} disabled={busy} onClick={() => act('reopen', 'Incident reopened')}><RotateCcw className="w-4 h-4" aria-hidden="true" />Reopen</button>}
                             </div>
                             {active && (
@@ -166,7 +171,9 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
                 </div>
             </div>
         </div>
-    );
+        {graphOpen && inc && <InvestigationGraph of="incidents" id={id} title={inc.title} onClose={() => setGraphOpen(false)}
+            onOpenAlert={alertId => { const found = inc.timeline.find(a => a.id === alertId); if (found) onOpenAlert(found); }} />}
+    </>);
 };
 
 interface Campaign { kind: string; key: string; label: string; endpoints: { agentId: string; hostname: string }[]; alertCount: number; severity: SocIncident['severity']; active: number; lastAt?: string | null }

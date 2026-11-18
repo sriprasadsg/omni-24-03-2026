@@ -229,6 +229,24 @@ export const triageIncident = (fetcher: Fetcher, id: string) =>
 export const caseFromIncident = (fetcher: Fetcher, id: string) =>
     send<{ case: { id: string; title: string } & Record<string, unknown>; created: boolean }>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}/case`, 'POST', undefined, 'No case was opened');
 
+// Investigation graph (backend/soc_graph.py): the endpoint, its alerts, what they name, other endpoints.
+export type GraphKind = 'host' | 'alert' | 'user' | 'process' | 'file' | 'ip' | 'technique';
+export interface GraphNode {
+    id: string; kind: GraphKind; label: string; sub?: string | null; count?: number; primary?: boolean; agentId?: string | null;
+    alertId?: string; severity?: Severity; status?: AlertStatus; at?: string | null; focus?: boolean;
+}
+export interface InvestigationGraphData {
+    nodes: GraphNode[]; edges: { from: string; to: string; label: string }[]; truncated: boolean; alerts: number;
+    alertsTotal: number; pivotDays: number; focus: string | null; incidentId: string | null;
+}
+export const fetchGraph = async (fetcher: Fetcher, of: 'incidents' | 'alerts', id: string): Promise<InvestigationGraphData> => {
+    const res = await fetcher(`${SOC}/${of}/${encodeURIComponent(id)}/graph`);
+    if (!res.ok) throw await failure(res, 'The investigation graph could not be loaded');
+    const body = await res.json();
+    if (!Array.isArray(body?.nodes)) throw new Error('The investigation graph could not be loaded: unexpected answer from the server');
+    return body;
+};
+
 // ATT&CK coverage (backend/soc_mitre.py).
 export type CoverageLevel = 'detected' | 'rule' | 'none';
 export interface CoverageTechnique {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, Briefcase, Check, ExternalLink, RotateCcw, UserMinus, UserPlus, X } from 'lucide-react';
+import { Bot, Briefcase, Check, ExternalLink, Network, RotateCcw, UserMinus, UserPlus, X } from 'lucide-react';
 import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { ghostButton } from '../../network/NetworkKit';
@@ -11,6 +11,7 @@ import { SeverityBadge, StatusText, field, primaryButton, subhead } from './SocK
 import { ResponsePanel } from './ResponsePanel';
 import { TriagePanel } from './TriagePanel';
 import { ContextPanel } from './ContextPanel';
+import { InvestigationGraph } from './InvestigationGraph';
 import { useUser } from '../../../contexts/UserContext';
 import type { TriageStep } from './socData';
 
@@ -60,6 +61,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
     const [note, setNote] = useState('');
     const [approveAll, setApproveAll] = useState(false);
     const [reason, setReason] = useState('');
+    const [graphOpen, setGraphOpen] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const { hasPermission } = useUser();
     const closeRef = useRef<HTMLButtonElement>(null);
@@ -126,7 +128,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
     const process = typeof alert.evidence.process === 'string' ? alert.evidence.process : null;
     const evidence = Object.entries(alert.evidence).filter(([, v]) => v !== null && v !== '' && !(Array.isArray(v) && !v.length));
 
-    return (
+    return (<>
         <div className="fixed inset-0 z-50" onKeyDown={onKeyDown}>
             <div className="absolute inset-0 bg-gray-950/40 backdrop-blur-[2px] animate-in fade-in duration-150" onClick={onClose} aria-hidden="true" />
             <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="soc-drawer-title"
@@ -215,6 +217,11 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                                     <Briefcase className="w-4 h-4" aria-hidden="true" />{alert.caseId ? 'Show case' : 'Open a case'}
                                 </button>
                             )}
+                            {alert.source === 'security' && (
+                                <button type="button" className={ghostButton} onClick={() => setGraphOpen(true)}>
+                                    <Network className="w-4 h-4" aria-hidden="true" />Investigation graph
+                                </button>
+                            )}
                             {!active && (
                                 <button type="button" className={ghostButton} disabled={!!busy} onClick={() => act('reopen', 'Alert reopened')}>
                                     <RotateCcw className="w-4 h-4" aria-hidden="true" />Reopen
@@ -266,5 +273,6 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                 </div>
             </div>
         </div>
-    );
+        {graphOpen && <InvestigationGraph of="alerts" id={alert.id} title={alert.title} onClose={() => setGraphOpen(false)} />}
+    </>);
 };

@@ -5,7 +5,7 @@ import { RESOLUTION_LABEL, SEVERITY_META, STATUS_LABEL, type AlertStatus, type R
 // Small pieces shared by the SOC console's panels, queue and drawer. Severity always travels with
 // an icon and a label, never colour alone.
 
-const SEVERITY_ICON: Record<Severity, React.ElementType> = {
+export const SEVERITY_ICON: Record<Severity, React.ElementType> = {
     critical: AlertOctagon, high: AlertTriangle, medium: AlertCircle, low: Info, info: Info,
 };
 

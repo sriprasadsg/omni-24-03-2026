@@ -243,6 +243,26 @@ async def patch_incident(incident_id: str, body: IncidentActionIn, current_user:
                                         body.resolution, body.note, body.closeAlerts))
 
 
+@router.get("/incidents/{incident_id}/graph", dependencies=[Depends(SECURITY_GUARD)])
+async def get_incident_graph(incident_id: str, current_user: TokenData = Depends(get_current_user)):
+    """The incident's endpoint, alerts, what they name, and other endpoints where the same things appeared."""
+    import soc_graph
+    try:
+        return await soc_graph.incident_graph(get_database(), soc_scope(current_user), incident_id[:128])
+    except soc_graph.GraphError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@router.get("/alerts/{alert_id}/graph", dependencies=[Depends(SECURITY_GUARD)])
+async def get_alert_graph(alert_id: str, current_user: TokenData = Depends(get_current_user)):
+    """The graph of the alert's incident with the alert marked (or of the alert alone)."""
+    import soc_graph
+    try:
+        return await soc_graph.alert_graph(get_database(), soc_scope(current_user), alert_id[:128])
+    except soc_graph.GraphError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
 @router.get("/mitre-coverage", dependencies=[Depends(SECURITY_GUARD)])
 async def get_mitre_coverage(range_key: str = Query("30d", alias="range", pattern="^(1h|24h|7d|30d)$"),
                              tenant: Optional[str] = Query(None, alias="tenantId", max_length=128),
