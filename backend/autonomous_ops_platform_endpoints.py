@@ -144,6 +144,37 @@ async def get_platform_health(
         raise _unavailable(exc) from exc
 
 
+@router.get("/health/integrations", summary="Which optional integrations are configured")
+async def get_health_integrations(
+    user=Depends(_require_platform_autonomy_control),
+    _session=Depends(_require_interactive_session),
+):
+    """Each optional integration (SMTP, Slack, VirusTotal, NVD, abuse.ch, Stripe, Gemini) with the environment
+    variables that configure it and whether it is configured: names only, never a value. Super Admin only."""
+    import integration_status
+    return {"items": await integration_status.status(get_database())}
+
+
+@router.post("/health/integrations/{name}/test", summary="Test one configured integration")
+async def post_health_integration_test(
+    name: str = Path(..., pattern="^[a-z]{2,20}$"),
+    user=Depends(_require_platform_autonomy_control),
+    _session=Depends(_require_interactive_session),
+):
+    """One harmless live call with the configured key (an email goes to the caller); answers {ok, detail} with a
+    reason built by the platform, never the provider's body. Audited. Super Admin only, interactive session."""
+    import integration_status
+    try:
+        out = await integration_status.test(get_database(), name, getattr(user, "username", None))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Unknown integration")
+    await audit_ledger.event("platform.integration.test", PLATFORM_TENANT_ID,
+                             actor={"email": getattr(user, "username", None), "role": getattr(user, "role", None)},
+                             outcome="success" if out["ok"] else "failure", db=getattr(get_database(), "_db", None),
+                             resourceType="integration", resourceId=name, detail=out["detail"])
+    return out
+
+
 @router.post("/health/test-alert", summary="Ask the watchdog to send a test alert")
 async def post_health_test_alert(
     user=Depends(_require_platform_autonomy_control),
