@@ -232,8 +232,8 @@ async def catalogue(db, scope: Optional[str], now: Optional[datetime] = None) ->
         for name, (path, label, listed) in fields_of(source, scope is None).items():
             values: List[Any] = []
             if listed:
-                rows = await getattr(db, src["collection"]).aggregate(
-                    [{"$match": {**base, path: {"$nin": [None, ""]}}}, {"$group": {"_id": f"${path}", "n": {"$sum": 1}}},
+                rows = await getattr(db, src["collection"]).aggregate(  # $and: a status field keeps the hidden filter
+                    [{"$match": {"$and": [base, {path: {"$nin": [None, ""]}}]}}, {"$group": {"_id": f"${path}", "n": {"$sum": 1}}},
                      {"$sort": {"n": -1, "_id": 1}}, {"$limit": VALUES}], maxTimeMS=MAX_MS).to_list(VALUES)
                 values = [r["_id"] for r in rows if not isinstance(r["_id"], (dict, list))]
             fields.append({"name": name, "label": label, "values": values,

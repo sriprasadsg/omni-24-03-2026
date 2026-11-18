@@ -189,6 +189,8 @@ async def test_the_field_catalogue_offers_this_tenants_values(db):
     ip = next(f for f in out["sources"]["events"]["fields"] if f["name"] == "srcIp")
     assert ip["values"] == ["2.57.121.25", "35.187.231.181"] and ip["ruleable"]
     assert "tenantId" not in {f["name"] for f in out["sources"]["alerts"]["fields"]}
+    status = next(f for f in out["sources"]["alerts"]["fields"] if f["name"] == "status")
+    assert status["values"] == ["closed", "open"]  # a2 is merged: hidden, as in every alert hunt
     assert "tenantId" in {f["name"] for f in (await soc_hunt.catalogue(db, None, now=NOW))["sources"]["logs"]["fields"]}
 
 
