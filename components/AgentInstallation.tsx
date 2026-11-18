@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
-import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon, ChevronDownIcon, AlertTriangleIcon, DownloadIcon, InfoIcon, CodeIcon, BuildingIcon } from './icons';
+import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, MonitorIcon, DockerIcon, KubernetesIcon, ChevronDownIcon, AlertTriangleIcon, DownloadIcon, InfoIcon, CodeIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { Tenant } from '../types';
 import { WindowsInstallTab } from './WindowsInstallTab';
@@ -50,7 +50,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ command }) => {
     );
 };
 
-type PlatformTab = 'linux' | 'windows' | 'python' | 'docker' | 'kubernetes';
+type PlatformTab = 'linux' | 'windows' | 'macos' | 'python' | 'docker' | 'kubernetes';
 
 interface AgentInstallationProps {
     registrationKey: string | null;
@@ -96,6 +96,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
 
     const commands = registrationKey ? {
         linux: `curl -sSL ${serverUrl}/static/linux-install.sh | sudo bash -s -- --registration-key ${registrationKey}`,
+        macos: `cd ~/Downloads/OmniAgent-macOS && sudo installer -pkg OmniAgent.pkg -target /`,
         windows: `powershell -Command "Invoke-WebRequest -Uri '${serverUrl}/static/win-install.ps1' -OutFile 'install-service.ps1'; & './install-service.ps1' -ApiUrl '${serverUrl}' -RegistrationKey '${registrationKey}'; Remove-Item 'install-service.ps1'"`,
         python: `curl -sSL ${serverUrl}/static/omni-agent-install.py | python3 - --registration-key ${registrationKey} --api-url ${serverUrl}`,
         docker: `docker build -t omni-agent:latest ./agent\ndocker run -d --name omni-agent \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  -e OMNI_REGISTRATION_KEY="${registrationKey}" \\\n  omni-agent:latest`,
@@ -103,8 +104,9 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     } : null;
 
     const tabs: { id: PlatformTab; name: string; icon: React.ReactNode }[] = [
-        { id: 'linux', name: 'Linux/macOS', icon: <LinuxIcon size={20} /> },
+        { id: 'linux', name: 'Linux', icon: <LinuxIcon size={20} /> },
         { id: 'windows', name: 'Windows', icon: <WindowsIcon size={20} /> },
+        { id: 'macos', name: 'macOS', icon: <MonitorIcon size={20} /> },
         { id: 'python', name: 'Python', icon: <CodeIcon size={20} /> },
         { id: 'docker', name: 'Docker', icon: <DockerIcon size={20} /> },
         { id: 'kubernetes', name: 'Kubernetes', icon: <KubernetesIcon size={20} /> },
@@ -157,7 +159,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
         return token;
     };
 
-    const handleDownloadAgentZip = async (platform: 'linux' | 'windows' = 'linux') => {
+    const handleDownloadAgentZip = async (platform: 'linux' | 'windows' | 'macos' = 'linux') => {
         if (!effectiveTenantId) return;
         setIsDownloadingZip(true);
         try {
@@ -393,6 +395,20 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                                     Standard Windows Installer (.msi) with Add/Remove Programs integration.
                                                 </p>
                                             </div>
+                                        ) : isFreeTierDownloadable && activeTab === 'macos' ? (
+                                            <div className="mt-4">
+                                                <button
+                                                    onClick={() => handleDownloadAgentZip('macos')}
+                                                    disabled={isDownloadingZip}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                                                >
+                                                    <DownloadIcon size={16} />
+                                                    {isDownloadingZip ? 'Preparing package...' : '⬇ Download macOS Installer (.zip)'}
+                                                </button>
+                                                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
+                                                    The signed installer package and your tenant's <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">config.yaml</code>. Keep both in the same folder, then open <code className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">OmniAgent.pkg</code>.
+                                                </p>
+                                            </div>
                                         ) : isFreeTierDownloadable ? (
                                             <div className="mt-4">
                                                 <button
@@ -420,6 +436,12 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                                 <div className="flex items-center">
                                                     <InfoIcon size={14} className="mr-2" />
                                                     The EXE is a self-extracting NSIS installer with a setup wizard. The MSI uses the Windows Installer engine (Add/Remove Programs). Both install OmniAgent as a Windows Service that starts automatically on boot and auto-registers with the platform.
+                                                </div>
+                                            )}
+                                            {activeTab === 'macos' && (
+                                                <div className="flex items-center">
+                                                    <InfoIcon size={14} className="mr-2" />
+                                                    For macOS 11 or later, Apple silicon and Intel. The agent runs as a launchd daemon from /Library/Application Support/OmniAgent; to remove it, run its uninstall.sh there with sudo.
                                                 </div>
                                             )}
                                             {activeTab === 'python' && (
