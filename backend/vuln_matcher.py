@@ -11,6 +11,8 @@ flagged with CISA's Known Exploited Vulnerabilities (KEV) list.
   left alone.
 * Runs two minutes after start-up and then daily (VULN_MATCH_INTERVAL_HOURS). Advisories are cached by id and
   modified date in ``osv_advisories``; the KEV list is fetched once a day into ``kev_catalog``.
+* Windows programs (from the heartbeat, not ``software_inventory``) are checked against NVD by nvd_matcher, in
+  the same loop right after this run.
 """
 import asyncio
 import logging
@@ -223,4 +225,9 @@ async def match_loop() -> None:
             await run(get_database())
         except Exception as exc:  # the loop must survive a bad run
             logger.warning("Vulnerability matching run failed: %s", exc)
+        try:
+            from nvd_matcher import run as match_windows_programs
+            await match_windows_programs(get_database())
+        except Exception as exc:
+            logger.warning("Windows program matching run failed: %s", exc)
         await asyncio.sleep(float(os.getenv("VULN_MATCH_INTERVAL_HOURS", "24")) * 3600)
