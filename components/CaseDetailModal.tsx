@@ -5,6 +5,7 @@ import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { ClockIcon, MessageSquareQuoteIcon, PaperclipIcon, ExternalLinkIcon, ShieldSearchIcon, Share2Icon } from './icons';
 import { Modal } from './Modal';
+import { CaseWork } from './security/soc/CaseWork';
 
 interface CaseDetailModalProps {
     isOpen: boolean;
@@ -108,6 +109,9 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({ isOpen, onClos
                         <div><strong className="block text-gray-500 dark:text-gray-400">Owner</strong> {caseItem.owner || 'Unassigned'}</div>
                         <div><strong className="block text-gray-500 dark:text-gray-400">Created</strong> {new Date(caseItem.createdAt).toLocaleDateString()}</div>
                     </div>
+
+                    {/* Tasks and evidence (stored apart from the case document) */}
+                    <CaseWork caseId={caseItem.id} />
 
                     {/* Threat Intel Enrichment */}
                     {caseItem.enrichmentData && caseItem.enrichmentData.length > 0 && (

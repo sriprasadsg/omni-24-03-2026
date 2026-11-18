@@ -268,6 +268,59 @@ export const fetchCoverage = async (fetcher: Fetcher, range: SocRange): Promise<
     return body;
 };
 
+// Case work (backend/soc_cases.py): tasks and evidence of a security case.
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'skipped';
+export interface CaseTask {
+    id: string; title: string; status: TaskStatus; assignee?: string | null; dueAt?: string | null; note?: string | null;
+    createdBy: string; createdAt: string; closedBy?: string | null; closedAt?: string | null;
+}
+export type IndicatorKind = 'user' | 'process' | 'file' | 'ip' | 'domain' | 'hash' | 'other';
+export interface CaseEvidence {
+    id: string; kind: 'indicator' | 'note' | 'file'; value: string; indicatorKind?: IndicatorKind; note?: string | null;
+    size?: number; sha256?: string; alertIds?: string[]; addedBy: string; addedAt: string; excluded: boolean;
+    custody: { action: 'added' | 'downloaded' | 'excluded' | 'restored'; by: string; at: string; note?: string }[];
+}
+export interface CaseWork {
+    caseId: string; tasks: CaseTask[]; evidence: CaseEvidence[]; standardSteps: string[]; canEdit: boolean;
+    alertIndicators: { indicatorKind: IndicatorKind; key: string; value: string; detail?: string | null; alertIds: string[] }[];
+}
+const caseUrl = (caseId: string, rest = '') => `${SOC}/cases/${encodeURIComponent(caseId)}${rest}`;
+export const fetchCaseWork = async (fetcher: Fetcher, caseId: string): Promise<CaseWork> => {
+    const res = await fetcher(caseUrl(caseId, '/work'));
+    if (!res.ok) throw await failure(res, 'Tasks and evidence could not be loaded');
+    const body = await res.json();
+    if (!Array.isArray(body?.tasks) || !Array.isArray(body?.evidence)) throw new Error('Tasks and evidence could not be loaded: unexpected answer from the server');
+    return body;
+};
+export const addCaseTask = (fetcher: Fetcher, caseId: string, title: string, assignee?: string) =>
+    send<CaseTask>(fetcher, caseUrl(caseId, '/tasks'), 'POST', { title, ...(assignee ? { assignee } : {}) }, 'The task was not added');
+export const addStandardSteps = (fetcher: Fetcher, caseId: string) =>
+    send<{ added: number }>(fetcher, caseUrl(caseId, '/tasks/standard'), 'POST', undefined, 'The standard steps were not added');
+export const updateCaseTask = (fetcher: Fetcher, caseId: string, taskId: string, changes: Partial<Pick<CaseTask, 'status' | 'assignee' | 'note'>>) =>
+    send<CaseTask>(fetcher, caseUrl(caseId, `/tasks/${encodeURIComponent(taskId)}`), 'PATCH', changes, 'The task was not changed');
+export const addCaseEvidence = (fetcher: Fetcher, caseId: string, body: { kind: 'indicator' | 'note'; value: string; indicatorKind?: IndicatorKind; note?: string }) =>
+    send<CaseEvidence>(fetcher, caseUrl(caseId, '/evidence'), 'POST', body, 'The evidence was not added');
+export const addAlertIndicators = (fetcher: Fetcher, caseId: string) =>
+    send<{ added: number }>(fetcher, caseUrl(caseId, '/evidence/from-alerts'), 'POST', undefined, 'The indicators were not added');
+export const setEvidenceExcluded = (fetcher: Fetcher, caseId: string, evidenceId: string, excluded: boolean, reason?: string) =>
+    send<CaseEvidence>(fetcher, caseUrl(caseId, `/evidence/${encodeURIComponent(evidenceId)}`), 'PATCH', { excluded, ...(reason ? { reason } : {}) }, 'The evidence was not changed');
+export const uploadCaseFile = async (fetcher: Fetcher, caseId: string, file: File, note?: string): Promise<CaseEvidence> => {
+    const form = new FormData();
+    form.append('file', file);
+    if (note) form.append('note', note);
+    const res = await fetcher(caseUrl(caseId, '/evidence/file'), { method: 'POST', body: form });
+    if (!res.ok) throw await failure(res, 'The file was not added');
+    return res.json();
+};
+export const downloadCaseFile = async (fetcher: Fetcher, caseId: string, item: CaseEvidence): Promise<void> => {
+    const res = await fetcher(caseUrl(caseId, `/evidence/${encodeURIComponent(item.id)}/download`));
+    if (!res.ok) throw await failure(res, 'The file could not be downloaded');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = item.value; a.click();
+    URL.revokeObjectURL(url);
+};
+
 // Severity is a status scale: fixed hues in both themes (validated with the dataviz validator for
 // colour-blind and normal-vision separation), always shown with an icon and a label.
 export const SEVERITY_META: Record<Severity, { label: string; hex: string; swatch: string; text: string; chip: string }> = {
