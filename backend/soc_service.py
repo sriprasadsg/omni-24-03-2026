@@ -90,6 +90,8 @@ def view(doc: Dict[str, Any], hosts: Optional[Dict[str, str]] = None, legacy: bo
         "autoClosed": bool(doc.get("autoClosed")),
         "caseId": doc.get("caseId"),
         "incidentId": doc.get("incidentId"),
+        "rules": doc.get("rules") if isinstance(doc.get("rules"), list) else [],
+        "suggestedResponse": doc.get("suggestedResponse") if isinstance(doc.get("suggestedResponse"), dict) else None,
         "aiTriage": doc.get("aiTriage") if isinstance(doc.get("aiTriage"), dict) else None,
         "origin": doc["source"] if isinstance(doc.get("source"), dict) else None,  # legacy alerts: {ip, hostname}
         "mitre": techniques_of(doc),

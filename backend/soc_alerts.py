@@ -111,17 +111,24 @@ async def record_alert(db, alert: Dict[str, Any], group: Optional[str] = None) -
     alert["id"] = alert.get("id") or str(uuid.uuid4())
     await db.security_alerts.insert_one(alert)
     alert.pop("_id", None)
-    try:  # the endpoint's incident (soc_incidents); a failure never loses the alert
-        import soc_incidents
-        alert["incidentId"] = await soc_incidents.attach(db, alert)
+    try:  # the tenant's automation rules (soc_rules) first: they may raise, assign or close it
+        import soc_rules
+        await soc_rules.apply(db, alert)
     except Exception as e:
-        logger.warning("SOC alert %s not put on an incident: %s", alert["id"], e)
+        logger.warning("SOC rules not applied to %s: %s", alert["id"], e)
+    if alert.get("status") != "closed":
+        try:  # the endpoint's incident (soc_incidents); a failure never loses the alert
+            import soc_incidents
+            alert["incidentId"] = await soc_incidents.attach(db, alert)
+        except Exception as e:
+            logger.warning("SOC alert %s not put on an incident: %s", alert["id"], e)
     await _push(alert)
-    try:  # a new critical alert gets an AI triage in the background (soc_triage)
-        import soc_triage
-        soc_triage.schedule_auto(alert)
-    except Exception as e:
-        logger.debug("SOC auto-triage not scheduled: %s", e)
+    if alert.get("status") != "closed":
+        try:  # a new critical alert gets an AI triage in the background (soc_triage)
+            import soc_triage
+            soc_triage.schedule_auto(alert)
+        except Exception as e:
+            logger.debug("SOC auto-triage not scheduled: %s", e)
     return alert
 
 

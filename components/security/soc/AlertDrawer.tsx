@@ -161,6 +161,8 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                                 </Row>
                             )}
                             {alert.caseId && <Row term="Case"><span className={mono}>{alert.caseId}</span></Row>}
+                            {alert.rules && alert.rules.length > 0 && <Row term="Rules">{alert.rules.map(r => r.name).join(', ')}</Row>}
+                            {alert.suggestedResponse && <Row term="Suggested response">{({ isolate_host: 'Isolate host', quarantine_file: 'Quarantine file', block_ip: 'Block IP', kill_process: 'End process' } as Record<string, string>)[alert.suggestedResponse.action] ?? alert.suggestedResponse.action} (rule “{alert.suggestedResponse.rule}”). Use Respond below to send it.</Row>}
                         </dl>
                     </section>
 

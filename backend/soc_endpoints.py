@@ -6,9 +6,9 @@ when only that screen is switched on. A tenant user only ever sees their tenant;
 the tenant they are viewing (X-Tenant-ID), or every tenant, or the one named in ``tenantId``.
 """
 import logging
-from typing import Any, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from auth_types import TokenData
@@ -20,6 +20,7 @@ from tenant_context import get_tenant_id
 import soc_actions
 import soc_incidents
 import soc_response
+import soc_rules
 import soc_service
 import soc_triage
 
@@ -73,6 +74,10 @@ class RespondIn(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+# Rules change what happens to every future alert: they also need manage:automation (tenant_admin holds it).
+RULES_WRITE = [Depends(SECURITY_GUARD), Depends(require_permission("manage:automation"))]
+
+
 # Response actions change endpoints: they also need the Active Response permission (tenant_admin holds it).
 RESPOND = [Depends(SECURITY_GUARD), Depends(require_permission("manage:active_response"))]
 
@@ -93,7 +98,7 @@ def soc_scope(current_user: Any, tenant_param: Optional[str] = None) -> Optional
 async def _run(coro):
     try:
         return await coro
-    except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError) as e:
+    except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError, soc_rules.RuleError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
 
@@ -223,6 +228,40 @@ async def patch_incident(incident_id: str, body: IncidentActionIn, current_user:
 @router.post("/incidents/{incident_id}/case", dependencies=[Depends(SECURITY_GUARD)])
 async def case_from_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
     return await _run(soc_incidents.open_case(soc_scope(current_user), incident_id[:128], current_user))
+
+
+@router.get("/rules", dependencies=[Depends(SECURITY_GUARD)])
+async def get_rules(current_user: TokenData = Depends(get_current_user)):
+    """The organization's automation rules, in the order they run."""
+    return {"items": await soc_rules.list_rules(get_database(), soc_scope(current_user)),
+            "canEdit": await verify_permission(current_user, "manage:automation")}
+
+
+@router.post("/rules/preview", dependencies=[Depends(SECURITY_GUARD)])
+async def preview_rule(body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+    """How many of the last 7 days' alerts these conditions would have matched."""
+    return await _run(soc_rules.preview(get_database(), soc_scope(current_user), body))
+
+
+@router.post("/rules", dependencies=RULES_WRITE)
+async def create_rule(body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+    out = await _run(soc_rules.save(get_database(), soc_scope(current_user), body, current_user.username))
+    await soc_actions._audit("soc.rule.create", soc_scope(current_user), current_user, ruleId=out["id"], name=out["name"])
+    return out
+
+
+@router.put("/rules/{rule_id}", dependencies=RULES_WRITE)
+async def update_rule(rule_id: str, body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+    out = await _run(soc_rules.save(get_database(), soc_scope(current_user), body, current_user.username, rule_id[:64]))
+    await soc_actions._audit("soc.rule.update", soc_scope(current_user), current_user, ruleId=out["id"], enabled=out["enabled"])
+    return out
+
+
+@router.delete("/rules/{rule_id}", dependencies=RULES_WRITE)
+async def delete_rule(rule_id: str, current_user: TokenData = Depends(get_current_user)):
+    await _run(soc_rules.delete(get_database(), soc_scope(current_user), rule_id[:64]))
+    await soc_actions._audit("soc.rule.delete", soc_scope(current_user), current_user, ruleId=rule_id[:64])
+    return {"success": True}
 
 
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])

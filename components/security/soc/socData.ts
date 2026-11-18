@@ -23,6 +23,7 @@ export interface SocAlert {
     closeNote?: string | null; autoClosed?: boolean; caseId?: string | null; mitre: string[]; evidence: Record<string, unknown>;
     origin?: { ip?: string; hostname?: string } | null;
     incidentId?: string | null;
+    rules?: { id: string; name: string }[]; suggestedResponse?: { action: string; rule: string } | null;
     aiTriage?: AiTriage | null;
 }
 export type TriageStep = 'acknowledge' | 'close_false_positive' | 'close_benign' | 'isolate_host' | 'quarantine_file'

@@ -87,6 +87,8 @@ function route(url: string, init?: RequestInit) {
     }
     if (u.pathname.endsWith('/response') && !init?.method) return ok(responseInfo());
     if (u.pathname.endsWith('/respond')) return ok({ actionId: 'AO-1', status: 'dispatched' });
+    if (u.pathname === '/api/security/soc/rules' && !init?.method) return ok({ items: [], canEdit: true });
+    if (u.pathname === '/api/security/soc/rules/preview') return ok({ days: 7, checked: 40, matched: 35, examples: [{ id: 'x', title: 'UEBA Anomaly: Unusual Login Time' }] });
     if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
     if (u.pathname === '/api/security/soc/incidents/INC-1') return ok({ ...incident(), timeline: [alert()], ...(init?.method === 'PATCH' ? { status: 'closed', resolution: 'benign' } : {}) });
     if (u.pathname.endsWith('/triage')) return ok({ summary: 'A local AI tool runs on purpose.', likelyCause: 'Developer tooling.', seriousness: 'low',
@@ -246,6 +248,25 @@ describe('Incidents', () => {
         fireEvent.click(within(drawer).getByRole('button', { name: 'Close incident as benign' }));
         await waitFor(() => expect(calls('PATCH', '/api/security/soc/incidents/INC-1').length).toBe(1));
         expect(JSON.parse(String(calls('PATCH', '/api/security/soc/incidents/INC-1')[0][1].body))).toEqual({ action: 'close', resolution: 'benign', closeAlerts: true });
+    });
+});
+
+describe('Automation rules', () => {
+    it('builds a rule in words, previews it on the last week and saves it', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Automation/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'New rule' }));
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Night logins' } });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Runtime threat' }));
+        fireEvent.change(screen.getByLabelText('Close as'), { target: { value: 'benign' } });
+        expect(screen.getByText('When Runtime threat, close as benign.')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Preview on the last 7 days' }));
+        expect(await screen.findByText(/Would have matched/)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Save rule' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/rules').filter(([u]) => !String(u).includes('preview')).length).toBe(1));
+        const body = JSON.parse(String(calls('POST', '/api/security/soc/rules').find(([u]) => !String(u).includes('preview'))![1].body));
+        expect(body.conditions.types).toEqual(['runtime_security']);
+        expect(body.actions.close).toBe('benign');
     });
 });
 
