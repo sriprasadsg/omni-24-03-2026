@@ -152,6 +152,17 @@ describe('Security Operations Center overview', () => {
         expect(screen.getByRole('button', { name: /Alert queue/ }).textContent).toContain('3');
     });
 
+    it('exports the period\'s alerts as CSV', async () => {
+        const created = vi.fn(() => 'blob:x');
+        Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() });
+        authFetch.mockImplementation(async (url: string, init?: RequestInit) => String(url).includes('report.csv')
+            ? { ok: true, status: 200, blob: async () => new Blob(['id\n']) } : route(url, init));
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: 'Export alerts' }));
+        await waitFor(() => expect(created).toHaveBeenCalled());
+        expect(calls('GET', '/api/security/soc/report.csv?kind=alerts&range=24h').length).toBe(1);
+    });
+
     it('a pushed alert refreshes the overview, and the range picker reloads', async () => {
         renderConsole();
         await screen.findByRole('heading', { name: 'Active alerts' });

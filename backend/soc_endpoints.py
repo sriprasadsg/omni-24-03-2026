@@ -338,6 +338,18 @@ async def remove_from_watchlist(item_id: str, current_user: TokenData = Depends(
     return {"success": True}
 
 
+@router.get("/report.csv", dependencies=[Depends(SECURITY_GUARD)])
+async def export_report(kind: Literal["alerts", "incidents"] = "alerts",
+                        range_key: str = Query("7d", alias="range", pattern="^(1h|24h|7d|30d)$"),
+                        current_user: TokenData = Depends(get_current_user)):
+    """The period's alerts or incidents as CSV (formula-safe)."""
+    from fastapi.responses import Response
+    import soc_report
+    body = await soc_report.export(get_database(), soc_scope(current_user), kind, range_key)
+    await soc_actions._audit("soc.report.export", soc_scope(current_user), current_user, kind=kind, range=range_key)
+    return Response(body, media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="soc-{kind}-{range_key}.csv"'})
+
+
 @router.get("/sla", dependencies=[Depends(SECURITY_GUARD)])
 async def get_sla(current_user: TokenData = Depends(get_current_user)):
     """Minutes to acknowledge and to close, per severity, for the caller's organization."""

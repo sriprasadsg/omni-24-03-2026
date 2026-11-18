@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertCircle, Bot, Box, Layers, LayoutDashboard, ShieldAlert, Workflow } from 'lucide-react';
+import { Activity, AlertCircle, Bot, Box, Download, Layers, LayoutDashboard, ShieldAlert, Workflow } from 'lucide-react';
 import { SecurityCase, SecurityEvent, Playbook, Comment, ThreatIntelResult, User } from '../types';
 import { SecurityEventsFeed } from './SecurityEventsFeed';
 import { CaseManagement } from './CaseManagement';
@@ -130,6 +130,18 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     const eventsLast24h = securityEvents.filter(e => new Date(e.timestamp).getTime() >= dayAgo).length;
 
     const showQueue = (f: QueueFocus) => { setFocus(f); setTab('queue'); };
+    const exportCsv = async (kind: 'alerts' | 'incidents') => {
+        try {
+            const res = await authFetch(`/api/security/soc/report.csv?kind=${kind}&range=${range}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const url = URL.createObjectURL(await res.blob());
+            const a = document.createElement('a');
+            a.href = url; a.download = `soc-${kind}-${range}.csv`; a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            showToast(`The ${kind} export failed: ${e instanceof Error ? e.message : 'unknown error'}`, 'error');
+        }
+    };
     const alertsChanged = () => { refresh(); setQueueKey(k => k + 1); };
 
     const handleAddComment = async (caseId: string, content: string) => {
@@ -326,6 +338,12 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 onRefresh={alertsChanged}
                 refreshing={live.loading}
             >
+                <button type="button" className={ghostButton} onClick={() => exportCsv('alerts')} title={`Alerts of the last ${rangeLong} as CSV`}>
+                    <Download className="w-4 h-4" aria-hidden="true" />Export alerts
+                </button>
+                <button type="button" className={ghostButton} onClick={() => exportCsv('incidents')} title={`Incidents of the last ${rangeLong} as CSV`}>
+                    <Download className="w-4 h-4" aria-hidden="true" />Export incidents
+                </button>
                 <div role="group" aria-label="Time range" className={segmented}>
                     {SOC_RANGES.map(r => (
                         <button key={r.key} type="button" aria-pressed={range === r.key} onClick={() => setRange(r.key)} className={`${segment(range === r.key)} font-mono`}>{r.label}</button>
