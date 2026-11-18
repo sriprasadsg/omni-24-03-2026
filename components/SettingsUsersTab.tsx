@@ -3,6 +3,7 @@ import { User, Role, Tenant } from '../types';
 import { PlusCircleIcon, PencilIcon, TrashIcon, KeyIcon, SearchIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { roleLabel } from '../utils/permissions';
+import { ScimProvisioningCard } from './ScimProvisioningCard';
 
 interface Props {
     users: User[];
@@ -126,6 +127,7 @@ export function SettingsUsersTab({
                     </tbody>
                 </table>
             </div>
+            {canManageRBAC && <ScimProvisioningCard />}
         </div>
     );
 }
