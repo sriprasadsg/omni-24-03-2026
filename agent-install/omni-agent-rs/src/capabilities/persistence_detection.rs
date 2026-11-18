@@ -1,7 +1,8 @@
 //! Persistence Detection capability — scans common persistence mechanisms.
 //! Ports agent/capabilities/persistence_detection.py. Windows: registry Run
 //! keys, Startup folders, scheduled tasks. Linux: systemd units, crontab,
-//! /etc/cron.*, profile.d, shell rc files, /etc/ld.so.preload. Each finding is
+//! /etc/cron.*, profile.d, shell rc files, /etc/ld.so.preload. macOS: launchd
+//! daemons and agents, then the Linux places that exist there. Each finding is
 //! risk-scored by suspicious command keywords (LOLBins, temp paths, encoders).
 
 use super::Capability;
@@ -10,7 +11,7 @@ use serde_json::{json, Value};
 const SUSPICIOUS_KEYWORDS: &[&str] = &[
     "powershell", "cmd.exe", "wscript", "cscript", "mshta", "rundll32",
     "regsvr32", "certutil", "bitsadmin", "curl", "wget", "nc ", "ncat",
-    "python", "perl", "ruby", "base64", "encodedcommand", "-enc ",
+    "python", "perl", "ruby", "base64", "encodedcommand", "-enc ", "osascript",
     "/tmp/", "\\temp\\", "\\appdata\\local\\temp\\",
 ];
 
@@ -169,6 +170,13 @@ fn parse_csv_line(line: &str) -> Vec<String> {
 #[cfg(not(windows))]
 fn scan() -> Vec<Value> {
     let mut findings: Vec<Value> = Vec::new();
+
+    // launchd daemons and agents (macOS)
+    #[cfg(target_os = "macos")]
+    for (kind, path, label, cmd) in super::macos::launchd_jobs() {
+        let sev = risk_score(&cmd);
+        findings.push(finding(kind, &path, &label, &cmd, sev));
+    }
 
     // systemd services
     for dir in ["/etc/systemd/system", "/lib/systemd/system", "/usr/lib/systemd/system"] {

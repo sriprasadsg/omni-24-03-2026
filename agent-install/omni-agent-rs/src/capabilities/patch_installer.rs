@@ -145,7 +145,7 @@ pub fn triage(raw_ids: &[String], windows: bool) -> (Vec<String>, Vec<Value>) {
             Some(id) if windows && !id.starts_with("KB") =>
                 rejected.push(patch_result(&id, "failed", "Only Windows KB updates can be installed on Windows", false)),
             Some(id) if !windows && KB_RE.is_match(&id) =>
-                rejected.push(patch_result(&id, "failed", "Windows KB updates do not apply to Linux", false)),
+                rejected.push(patch_result(&id, "failed", if cfg!(target_os = "macos") { "Windows KB updates do not apply to macOS" } else { "Windows KB updates do not apply to Linux" }, false)),
             Some(id) => if !valid.contains(&id) { valid.push(id) },
         }
     }
@@ -532,7 +532,12 @@ async fn run_os(packages: &[String], job: &PatchJob) -> Vec<Value> {
     if job.rollback { linux::rollback(packages, job).await } else { linux::install(packages, job).await }
 }
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(target_os = "macos")]
+async fn run_os(ids: &[String], job: &PatchJob) -> Vec<Value> {
+    super::macos::install_updates(ids, job).await
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 async fn run_os(ids: &[String], _job: &PatchJob) -> Vec<Value> {
     ids.iter().map(|id| patch_result(id, "failed", "Patching is not supported on this OS", false)).collect()
 }

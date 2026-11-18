@@ -67,7 +67,16 @@ fn default_max_cpu() -> f32 { 20.0 }
 fn default_fim_paths() -> Vec<String> {
     #[cfg(windows)]
     return vec![r"C:\Windows\System32\drivers\etc".to_string()];
-    #[cfg(not(windows))]
+    // /usr/bin and /usr/sbin are on the sealed system volume; launchd folders are where persistence lands.
+    #[cfg(target_os = "macos")]
+    return vec![
+        "/private/etc".to_string(),
+        "/Library/LaunchDaemons".to_string(),
+        "/Library/LaunchAgents".to_string(),
+        "/usr/local/bin".to_string(),
+        format!("{}/.ssh", std::env::var("HOME").unwrap_or_default()),
+    ];
+    #[cfg(not(any(windows, target_os = "macos")))]
     return vec![
         "/etc".to_string(),
         "/usr/bin".to_string(),

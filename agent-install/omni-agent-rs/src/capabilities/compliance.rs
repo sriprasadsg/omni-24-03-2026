@@ -37,8 +37,14 @@ impl Capability for ComplianceCapability {
 fn platform_checks() -> Vec<Value> { windows_compliance_checks() }
 #[cfg(target_os = "linux")]
 fn platform_checks() -> Vec<Value> { linux::checks() }
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(target_os = "macos")]
+fn platform_checks() -> Vec<Value> { macos::checks() }
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn platform_checks() -> Vec<Value> { Vec::new() }
+
+#[cfg(any(target_os = "macos", test))]
+#[path = "compliance_macos.rs"]
+mod macos;
 
 #[cfg(windows)]
 fn ps_json(cmd: &str) -> Option<serde_json::Value> {
@@ -287,7 +293,9 @@ fn windows_compliance_checks() -> Vec<Value> {
 
 /// Linux checks. Each name is mapped to controls by the backend (COMPLIANCE_CHECK_MAPPINGS); what a command or
 /// file says is read by a pure function the tests below cover. Read-only: nothing is changed on the machine.
-#[cfg(any(target_os = "linux", test))]
+/// The macOS checks reuse its sshd_config reading.
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 mod linux {
     use serde_json::{json, Value};
 

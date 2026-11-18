@@ -106,5 +106,9 @@ fn collect_sbom() -> Vec<Value> {
         });
     }
 
+    #[cfg(target_os = "macos")]
+    components.extend(super::macos::installed_software().iter()
+        .map(|s| json!({"name": s["name"], "version": s["version"], "publisher": s["publisher"], "type": s["source"]})));
+
     components
 }

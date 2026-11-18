@@ -96,6 +96,7 @@ fn bios_field(reg_value: &str, sysfs_file: &str) -> String {
     String::new()
 }
 
+#[allow(unreachable_code)] // the Windows and macOS arms return before the Linux/other fallback
 fn bios_version_str() -> String {
     // Read BIOS version from registry — no wmic needed.
     #[cfg(windows)]
@@ -112,6 +113,11 @@ fn bios_version_str() -> String {
             // Fallback: BIOSReleaseDate
             return key.get_value("BIOSReleaseDate").unwrap_or_default();
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return super::macos::firmware_version();
     }
 
     // Linux: try sysfs (no sudo needed), then dmidecode (needs sudo)
@@ -149,7 +155,8 @@ fn bios_version_str() -> String {
 }
 
 /// Pending OS updates, each with an installable `id` (a KB number on Windows, the
-/// package name on Linux) that the install_patches instruction accepts.
+/// package name on Linux, the Software Update label on macOS) that the install_patches
+/// instruction accepts.
 #[allow(unreachable_code)] // the Windows arm returns before the Linux/other fallback
 fn pending_updates_list() -> Result<Vec<Value>, String> {
     #[cfg(windows)]
@@ -177,6 +184,11 @@ if ($updates.Count -eq 0) { '[]' } else { $updates | ConvertTo-Json -Compress }
             .output()
             .map_err(|e| format!("Windows Update search could not start: {e}"))?;
         return parse_windows_updates(&String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return super::macos::pending_updates();
     }
 
     #[cfg(target_os = "linux")]

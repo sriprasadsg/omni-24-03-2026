@@ -60,6 +60,30 @@ async fn main() {
         }
     }
 
-    log::info!("Standalone mode (args: {args:?})");
-    omni_agent::agent_loop(None).await;
+    // launchd stops the daemon with SIGTERM. A stop signal also turns on the FIM watcher, which
+    // agent_loop starts only when it can be stopped.
+    #[cfg(target_os = "macos")]
+    {
+        let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+        tokio::spawn(async move {
+            use tokio::signal::unix::{signal, SignalKind};
+            if let Ok(mut term) = signal(SignalKind::terminate()) {
+                term.recv().await;
+                log::info!("SIGTERM received, stopping");
+                let _ = stop_tx.send(true);
+                // agent_loop notices between beats; launchd waits 20 s before SIGKILL.
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                std::process::exit(0);
+            }
+        });
+        log::info!("launchd mode (args: {args:?})");
+        omni_agent::agent_loop(Some(stop_rx)).await;
+        return;
+    }
+
+    #[allow(unreachable_code)]
+    {
+        log::info!("Standalone mode (args: {args:?})");
+        omni_agent::agent_loop(None).await;
+    }
 }

@@ -44,6 +44,8 @@ pub mod patch_reversible;
 pub mod patch_state;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
+#[cfg(any(target_os = "macos", test))]
+pub mod macos;
 
 #[cfg(target_os = "linux")]
 pub mod process_mapper;

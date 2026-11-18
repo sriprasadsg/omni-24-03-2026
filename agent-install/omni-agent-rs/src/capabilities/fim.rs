@@ -313,9 +313,16 @@ pub fn start_watcher(
     Ok(())
 }
 
-/// fanotify has no macOS/Windows equivalent; FIM watching is unavailable on
+// macOS watches through FSEvents (fim_macos.rs).
+#[cfg(any(target_os = "macos", test))]
+#[path = "fim_macos.rs"]
+mod fsevents;
+#[cfg(target_os = "macos")]
+pub use fsevents::start_watcher;
+
+/// fanotify has no Windows equivalent; FIM watching is unavailable on
 /// this platform (Phase 65 shipped Linux-only).
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub fn start_watcher(
     _paths: Vec<String>,
     _stop_rx: tokio::sync::watch::Receiver<bool>,

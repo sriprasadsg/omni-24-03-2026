@@ -83,7 +83,12 @@ fn enumerate_installed_software() -> Vec<Value> {
     software
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn enumerate_installed_software() -> Vec<Value> {
+    super::macos::installed_software()
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn enumerate_installed_software() -> Vec<Value> {
     vec![]
 }

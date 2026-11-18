@@ -404,6 +404,11 @@ fn detect_device_type() -> Value {
     unknown_device()
 }
 
+/// The platform name the backend files this computer under (license class, auto-update, icons).
+pub fn platform_name() -> &'static str {
+    if cfg!(windows) { "Windows" } else if cfg!(target_os = "macos") { "macOS" } else { "Linux" }
+}
+
 pub fn collect_metrics(sys: &System) -> Value {
     let cpus = sys.cpus();
     let avg_cpu = if cpus.is_empty() {
@@ -551,7 +556,7 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
         "hostname": hostname_str(),
         "tenantId": cfg.tenant_id,
         "status": "Online",
-        "platform": if cfg!(windows) { "Windows" } else { "Linux" },
+        "platform": platform_name(),
         "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": best_ip(),
         "publicIp": public_ip,
@@ -568,7 +573,7 @@ pub fn identity_payload(cfg: &Config) -> Value {
     json!({
         "hostname": hostname_str(),
         "tenantId": cfg.tenant_id,
-        "platform": if cfg!(windows) { "Windows" } else { "Linux" },
+        "platform": platform_name(),
         "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": best_ip(),
         "publicIp": cached_public_ip(),
