@@ -21,10 +21,12 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
         "description": description,
         "metadata": metadata,
         "created_at": now,
-        "status": "new",
+        "status": "open",
         "timestamp": now,
     }
-    await db.security_alerts.insert_one(alert)
+    # record_alert lifts tenantId/agent_id out of metadata, so the tenant's consoles can see it.
+    import soc_alerts
+    await soc_alerts.record_alert(db, alert)
 
     # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
     # Fire-and-forget; never raises into the UEBA pipeline.

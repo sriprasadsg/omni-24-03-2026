@@ -20,6 +20,7 @@ from fastapi import APIRouter, Body, Depends
 
 from agent_auth import verify_agent_key
 import agent_capabilities
+import soc_alerts
 from database import get_database
 
 logger = logging.getLogger("agent_security_scan_endpoints")
@@ -63,7 +64,7 @@ async def ingest_scan_result(
 
     alerted = False
     if verdict == "Malicious":
-        await db.security_alerts.insert_one({
+        await soc_alerts.record_alert(db, {
             "id": str(uuid.uuid4()),
             "tenantId": tenant_id,
             "agent_id": agent_id,

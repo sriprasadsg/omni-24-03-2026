@@ -412,6 +412,14 @@ async def broadcast_security_event(tenant_id: str, event: dict):
     
     logger.debug("WebSocket security event broadcast to tenant %s", tenant_id)
 
+async def broadcast_security_alert(tenant_id: str, alert: dict):
+    """Push a new (or repeated) security alert to the tenant's open SOC consoles.
+
+    payload: { id, type, severity, title, agentId, createdAt, repeat }
+    """
+    for sid in list(connected_clients.get(tenant_id, ())):
+        await sio.emit('security_alert', alert, room=sid)
+
 async def broadcast_compliance_alert(tenant_id: str, alert: dict):
     """Broadcast compliance-related alert"""
     if tenant_id not in connected_clients:

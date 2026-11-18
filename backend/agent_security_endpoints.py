@@ -9,6 +9,7 @@ import uuid
 from agent_auth import verify_agent_key
 import logging
 import agent_capabilities
+import soc_alerts
 from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -20,7 +21,7 @@ _MAX_ARRAY = 500
 
 async def _raise_malware_alert(db, tenant_id, agent_id, target, sha256, verdict, ts, rule="file"):
     """Insert a critical security alert for a VirusTotal-confirmed malicious hash."""
-    await db.security_alerts.insert_one({
+    await soc_alerts.record_alert(db, {
         "id": str(uuid.uuid4()),
         "tenantId": tenant_id,
         "agent_id": agent_id,
@@ -168,16 +169,24 @@ async def post_shadow_ai_scan(
         )
 
     for proc in body.get("local_ai_processes", [])[:_MAX_ARRAY]:
-        await db.security_alerts.insert_one({
+        # Agents name the process "process"; older ones sent "name".
+        name = str(proc.get("process") or proc.get("name") or "").strip() or None
+        if await soc_alerts.is_approved_ai(db, tenant_id, agent_id, name):
+            continue
+        label = name or "unknown"
+        # One active alert per endpoint and process, counted, instead of a new one every scan.
+        await soc_alerts.record_alert(db, {
             "tenantId": tenant_id,
             "agent_id": agent_id,
             "type": "shadow_ai_process",
             "severity": "medium",
-            "title": f"Unauthorized AI process: {proc.get('name', 'unknown')}",
-            "description": f"Local AI process '{proc.get('name')}' (PID {proc.get('pid')}) detected on agent {agent_id}",
+            "title": f"Unapproved AI process: {label}",
+            "description": f"Local AI process '{label}' (PID {proc.get('pid')}) detected on agent {agent_id}",
+            "process": name,
+            "exe": proc.get("exe"),
             "created_at": scanned_at,
             "status": "open",
-        })
+        }, group=f"shadow_ai_process:{agent_id}:{label.lower()}")
 
     return {"success": True, "detected_count": doc["detected_count"]}
 
@@ -383,7 +392,8 @@ async def post_persistence_findings(
 
     for entry in body.get("suspicious_entries", [])[:_MAX_ARRAY]:
         if entry.get("severity") in ("Critical", "High"):
-            await db.security_alerts.insert_one({
+            # Every scan reports the same entries again: count them on one active alert.
+            await soc_alerts.record_alert(db, {
                 "tenantId": tenant_id,
                 "agent_id": agent_id,
                 "type": "persistence_mechanism",
@@ -394,7 +404,7 @@ async def post_persistence_findings(
                 "risk_score": entry.get("risk_score", 0),
                 "created_at": doc["scanned_at"],
                 "status": "open",
-            })
+            }, group=f"persistence_mechanism:{agent_id}:{entry.get('name', '')}:{entry.get('location', '')}")
 
     return {"success": True, "critical_count": doc["critical_count"], "high_count": doc["high_count"]}
 

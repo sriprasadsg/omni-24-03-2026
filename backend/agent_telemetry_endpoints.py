@@ -12,6 +12,7 @@ from catalogue_mounts_agents import AGENTS_GUARD
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
+import soc_alerts
 from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -88,7 +89,7 @@ async def ingest_telemetry(
         })
         if severity in ("high", "critical"):
             alert_count += 1
-            await db.security_alerts.insert_one({
+            await soc_alerts.record_alert(db, {
                 "id": str(uuid.uuid4()),
                 "tenantId": tenant_id,
                 "agent_id": agent_id,
