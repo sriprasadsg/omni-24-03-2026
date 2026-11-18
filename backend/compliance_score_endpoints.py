@@ -35,17 +35,49 @@ _CATEGORY_SEVERITY: dict[str, str] = {
     "Risk Management":   "Medium",
 }
 
+# The 44 seeded frameworks name 229 categories in their own words (ISO themes, NIST families and functions,
+# OWASP risks, privacy-law chapters), so a category not named above takes the severity of the FIRST group,
+# in this order, holding a word it contains (lower case): direct compromise when it fails (Critical), physical
+# controls (Medium), technical protection, detection and recovery (High), governance, people, process and
+# legal duties (Medium), and any other security category (High).
+_SEVERITY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Critical", ("access", "identification", "identity", "authentication", "auth failures", "crypt", "incident",
+                  "breach", "respond", "response", "malware", "injection", "ssrf", "cardholder")),
+    ("Medium", ("physical",)),
+    ("High", ("audit", "logging", "detect", "configuration", "integrity", "vulnerab", "network",
+              "communications protection", "transmission", "browser and email", "infrastructure", "datacentre",
+              "cloud", "privacy", "pii", "data protection", "data security", "confidentiality", "media protection",
+              "special categories", "backup", "recover", "continuity", "contingency", "bcp", "bcm", "availability",
+              "secure development", "application", "insecure design", "testing", "endpoint", "protect",
+              "preventive", "security measures", "technical safeguard", "technological", "operations security",
+              "cyber")),
+    ("Medium", ("risk", "govern", "policy", "organi", "compliance", "manage", "planning", "program", "framework",
+                "leadership", "assessment", "control", "supply", "third", "vendor", "supplier", "partner",
+                "personnel", "people", "hr", "human", "awareness", "training", "learning", "change", "asset",
+                "maintenance", "operation", "process", "support", "resources", "ai ", "for ai", "map", "measure",
+                "obligation", "rights", "consent", "opt-out", "lawful", "transparency", "disclosure", "purpose",
+                "retention", "transfer", "fiduciary", "data practices", "provisions", "safeguard", "criteria",
+                "principles", "requirements", "prototype", "review", "improvement", "evaluat", "align", "acquire",
+                "acquisition", "deliver", "monitor", "interoperability", "supervision", "communication",
+                "extended controls", "branch office", "telework", "identify", "regulatory")),
+    ("High", ("security", "infosec")),
+)
+
+
+def _rule_severity(category: str) -> str | None:
+    name = (category or "").strip().lower()
+    return next((sev for sev, words in _SEVERITY_RULES if any(w in name for w in words)), None) if name else None
+
 # IN-01: categories we've already warned about, so an unmapped/miscategorized
 # category logs once (rate-limited) instead of once per request.
 _unmapped_categories_warned: set[str] = set()
 
 
 def _category_severity(category: str) -> str:
-    """Map a control's category to severity, defaulting to 'Low' when the
-    category isn't found in _CATEGORY_SEVERITY. Logs a rate-limited warning
-    for unmapped categories so a typo'd, newly-added, or differently-cased
-    category doesn't silently under-weight a genuinely critical control."""
-    severity = _CATEGORY_SEVERITY.get(category)
+    """Map a control's category to severity: _CATEGORY_SEVERITY by name, else _SEVERITY_RULES, else 'Low'.
+    Logs a rate-limited warning for a category neither covers, so a typo'd or newly-added category doesn't
+    silently under-weight a genuinely critical control."""
+    severity = _CATEGORY_SEVERITY.get(category) or _rule_severity(category)
     if severity is None:
         if category not in _unmapped_categories_warned:
             _unmapped_categories_warned.add(category)
