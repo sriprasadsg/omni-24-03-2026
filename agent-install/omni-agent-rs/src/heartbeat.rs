@@ -562,6 +562,9 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
         "publicIp": public_ip,
         "supportsPending": true,
         "hardware": crate::identity::hardware_block(),
+        // Certificate changes (tls.rs): what this agent trusts, and its test of the next certificate.
+        "tls_trust": crate::tls::fingerprints(),
+        "tls_probe": crate::tls::probe_report(),
         "meta": meta,
     })
 }

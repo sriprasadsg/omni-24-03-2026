@@ -72,13 +72,14 @@ function Sync-TrayConfig {
     # reachable. Agents installed before pinning still use accept_invalid_certs.
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
     if ($c.server_cert_der_b64) {
-        # Pinned: accept the server only if it presents exactly the certificate the
-        # installer shipped (same rule as the Rust agent's own connections).
-        $Pinned = [string]$c.server_cert_der_b64
+        # Pinned: accept the server only if it presents exactly one of the certificates
+        # the agent trusts (same rule as the Rust agent's own connections). It is a list
+        # while the platform changes certificates; an older agent wrote one string.
+        $Pinned = @($c.server_cert_der_b64 | ForEach-Object { [string]$_ })
         try {
             [Net.ServicePointManager]::ServerCertificateValidationCallback = {
                 param($sender, $cert, $chain, $errors)
-                $cert -ne $null -and [Convert]::ToBase64String($cert.GetRawCertData()) -eq $Pinned
+                $cert -ne $null -and ($Pinned -ccontains [Convert]::ToBase64String($cert.GetRawCertData()))
             }.GetNewClosure()
         } catch { }
     } elseif ($c.accept_invalid_certs) {

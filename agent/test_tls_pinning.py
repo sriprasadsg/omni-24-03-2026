@@ -27,6 +27,7 @@ def _isolate(monkeypatch):
     requests.Session.request = original
     tls_pinning._original_request = None
     tls_pinning._state.update(origin=None, ca_file=None)
+    tls_pinning._probe.update(ask=None, result=None, at=0.0)
 
 
 def _decoy_pem(tmp_path) -> str:
@@ -114,3 +115,53 @@ def test_any_other_certificate_is_refused(tmp_path):
     import websocket
     with pytest.raises(ssl.SSLCertVerificationError):
         websocket.create_connection("wss://127.0.0.1/api/agents/remote/ws/agent/x", timeout=5)
+
+
+def _pinned(tmp_path, pem: str) -> dict:
+    cfg = {"api_base_url": "https://127.0.0.1", "server_ca_cert": pem}
+    tls_pinning.configure(cfg, tmp_path)
+    return cfg
+
+
+def test_a_new_list_is_taken_only_if_it_keeps_a_trusted_certificate(tmp_path):
+    a, b = _decoy_pem(tmp_path), _decoy_pem(tmp_path)
+    fa, fb = tls_pinning.fingerprint(a), tls_pinning.fingerprint(b)
+    assert len(tls_pinning.accept_bundle([fa], a + b).split("BEGIN CERTIFICATE")) == 3
+    assert tls_pinning.accept_bundle([fa, fb], b + a) is None
+    with pytest.raises(ValueError, match="keeps none"):
+        tls_pinning.accept_bundle([fa], b)
+    with pytest.raises(ValueError):
+        tls_pinning.accept_bundle([fa], a + PEM)
+    with pytest.raises(ValueError):
+        tls_pinning.accept_bundle([fa], "")
+
+
+def test_a_heartbeat_reply_changes_the_trust_only_while_pinned(tmp_path):
+    a, b = _decoy_pem(tmp_path), _decoy_pem(tmp_path)
+    saved = []
+    cfg = {"api_base_url": "https://127.0.0.1"}
+    assert not tls_pinning.update_from_heartbeat(cfg, {"serverTrust": {"certs": a + b}}, saved.append)
+    cfg = _pinned(tmp_path, a)
+    reply = {"serverTrust": {"certs": a + b, "next": [tls_pinning.fingerprint(b)], "probePort": 8443}}
+    assert tls_pinning.update_from_heartbeat(cfg, reply, saved.append)
+    assert tls_pinning.fingerprints() == [tls_pinning.fingerprint(a), tls_pinning.fingerprint(b)]
+    assert len(saved) == 1 and cfg["server_ca_cert"].count("BEGIN CERTIFICATE") == 2
+    assert not tls_pinning.update_from_heartbeat(cfg, reply, saved.append)
+    assert tls_pinning._probe["ask"][0] == "https://127.0.0.1:8443/api/health"
+    assert not tls_pinning.update_from_heartbeat(cfg, {"serverTrust": {"certs": b"x"}}, saved.append)
+    assert tls_pinning.probe_url("http://10.0.0.4", 8443) is None
+    assert tls_pinning.probe_url("https://[::1]:443/x", 8443) == "https://[::1]:8443/api/health"
+
+
+@live
+def test_the_probe_passes_only_for_the_certificate_the_server_presents(tmp_path):
+    served, decoy = open(NGINX_CERT).read(), _decoy_pem(tmp_path)
+    cfg = _pinned(tmp_path, served + "\n" + decoy)
+    for nxt, ok in ((served, True), (decoy, False)):
+        tls_pinning._probe.update(result=None, at=0.0)
+        tls_pinning.update_from_heartbeat(cfg, {"serverTrust": {"next": [tls_pinning.fingerprint(nxt)], "probePort": 443}}, print)
+        tls_pinning.probe_if_due()
+        report = tls_pinning.probe_report()
+        assert report["ok"] is ok, report
+        assert report["url"] == "https://127.0.0.1:443/api/health"
+    assert report["error"].startswith("certificate")

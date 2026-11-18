@@ -1463,6 +1463,10 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
         "device_id": cfg.get("_security_mgr").device_id if cfg.get("_security_mgr") else "unknown",
         "meta":      meta,
     }
+    # Certificate changes (tls_pinning): what this agent trusts, and its test of the next certificate.
+    import tls_pinning
+    payload["tls_trust"] = tls_pinning.fingerprints()
+    payload["tls_probe"] = tls_pinning.probe_report()
 
     headers = capability_mgr._auth_headers()
     url     = cfg["api_base_url"].rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/heartbeat"
@@ -1477,6 +1481,11 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
                     uninstall_guard.update_from_heartbeat(cfg, resp.json(), save_config)
                 except ValueError:
                     pass
+            try:
+                tls_pinning.update_from_heartbeat(cfg, resp.json(), save_config)
+            except ValueError:
+                pass
+            tls_pinning.probe_if_due()
             # Also POST metrics to dedicated endpoint for frontend charts
             metrics_data = capability_data.get("metrics_collection", {}).get("data", {})
             if metrics_data:

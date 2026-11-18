@@ -161,13 +161,13 @@ $PollUrl  = "$Base/api/agent-chat/sessions/$Session/messages"
 # told about the pinned server certificate here too.
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 if ($cfg.server_cert_der_b64) {
-    # Pinned: accept the server only if it presents exactly the certificate the
-    # installer shipped (same rule as the Rust agent's own connections).
-    $Pinned = [string]$cfg.server_cert_der_b64
+    # Pinned: accept the server only if it presents exactly one of the certificates
+    # the agent trusts (a list while the platform changes certificates).
+    $Pinned = @($cfg.server_cert_der_b64 | ForEach-Object { [string]$_ })
     try {
         [Net.ServicePointManager]::ServerCertificateValidationCallback = {
             param($sender, $cert, $chain, $errors)
-            $cert -ne $null -and [Convert]::ToBase64String($cert.GetRawCertData()) -eq $Pinned
+            $cert -ne $null -and ($Pinned -ccontains [Convert]::ToBase64String($cert.GetRawCertData()))
         }.GetNewClosure()
     } catch { }
 } elseif ($cfg.accept_invalid_certs) {

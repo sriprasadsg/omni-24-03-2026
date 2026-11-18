@@ -59,7 +59,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     tls::init(&cfg);
     // Platform requests trust only the pinned certificate (when shipped); the
     // public-IP echo services are third parties and use the OS store.
-    let client = tls::platform_client()
+    let mut client = tls::platform_client()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("HTTP client build");
@@ -207,6 +207,18 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
         if let Some(body) = heartbeat::send(&cfg, payload, &buf, &client).await {
             uninstall::update_from_heartbeat(&mut cfg, &body);
+            if tls::update_from_heartbeat(&mut cfg, &body) {
+                client = tls::platform_client()
+                    .timeout(std::time::Duration::from_secs(30))
+                    .build()
+                    .expect("HTTP client build");
+                #[cfg(windows)]
+                {
+                    if let Err(e) = config::write_tray_config(&cfg) {
+                        log::warn!("tray-config write failed: {e}");
+                    }
+                }
+            }
             crate::capabilities::update_enabled_from_heartbeat(&mut cfg, &body);
             crate::capabilities::isolation::apply_body(&body);
             crate::capabilities::service_watch::update_watched_from_heartbeat(&mut cfg, &body);
@@ -225,6 +237,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
             continue;
         }
         instructions::poll(&cfg, &client).await;
+        tls::probe_if_due().await;
 
         tick += 1;
         log::debug!("Tick {tick} complete");
