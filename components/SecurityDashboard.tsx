@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertCircle, Bot, Box, LayoutDashboard, ShieldAlert } from 'lucide-react';
+import { Activity, AlertCircle, Bot, Box, Layers, LayoutDashboard, ShieldAlert } from 'lucide-react';
 import { SecurityCase, SecurityEvent, Playbook, Comment, ThreatIntelResult, User } from '../types';
 import { SecurityEventsFeed } from './SecurityEventsFeed';
 import { CaseManagement } from './CaseManagement';
@@ -23,6 +23,7 @@ import { AlertTrend } from './security/soc/AlertTrend';
 import { DetectionHealth, EndpointsAtRisk, MitreTechniques, TopDetections, type QueueFocus } from './security/soc/SocPanels';
 import { AlertQueue } from './security/soc/AlertQueue';
 import { AlertDrawer } from './security/soc/AlertDrawer';
+import { IncidentsTab } from './security/soc/IncidentsTab';
 import { segment, segmented } from './security/soc/SocKit';
 
 interface SecurityDashboardProps {
@@ -36,7 +37,7 @@ interface SecurityDashboardProps {
     threatIntelFeed: ThreatIntelResult[];
 }
 
-type Tab = 'overview' | 'queue' | 'cases' | 'playbooks' | 'events';
+type Tab = 'overview' | 'incidents' | 'queue' | 'cases' | 'playbooks' | 'events';
 
 // New alerts are pushed (security_alert) as agents raise them; this poll catches anything a push missed.
 const POLL_MS = 30_000;
@@ -227,6 +228,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
 
     const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
         { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} /> },
+        { id: 'incidents', label: 'Incidents', icon: <Layers size={15} />, count: data?.counts?.activeIncidents },
         { id: 'queue', label: 'Alert queue', icon: <ShieldAlert size={15} />, count: data?.kpis?.active },
         { id: 'cases', label: 'Cases', icon: <Box size={15} />, count: cases.length },
         { id: 'playbooks', label: 'Playbooks', icon: <Bot size={15} />, count: playbooks.length },
@@ -272,6 +274,8 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
         switch (tab) {
             case 'overview':
                 return overview();
+            case 'incidents':
+                return <IncidentsTab reloadKey={queueKey} onOpenAlert={setOpenAlert} onCaseOpened={handleCaseFromAlert} onChanged={alertsChanged} />;
             case 'queue':
                 return <AlertQueue focus={focus} onClearFocus={() => setFocus(null)} types={typeOptions} reloadKey={queueKey} onOpen={setOpenAlert} onChanged={alertsChanged} />;
             case 'events':

@@ -18,6 +18,7 @@ from database import get_database
 from rbac_utils import is_super_admin, require_permission, verify_permission
 from tenant_context import get_tenant_id
 import soc_actions
+import soc_incidents
 import soc_response
 import soc_service
 import soc_triage
@@ -52,6 +53,15 @@ class BulkIn(BaseModel):
 class ApproveIn(BaseModel):
     allEndpoints: bool = False
     reason: Optional[str] = Field(None, max_length=500)
+
+    model_config = {"extra": "forbid"}
+
+
+class IncidentActionIn(BaseModel):
+    action: Literal["acknowledge", "assign", "unassign", "close", "reopen"]
+    resolution: Optional[Literal["resolved", "false_positive", "benign"]] = None
+    note: Optional[str] = Field(None, max_length=2000)
+    closeAlerts: bool = False
 
     model_config = {"extra": "forbid"}
 
@@ -182,6 +192,37 @@ async def keep_alert_host_isolated(alert_id: str, action_id: str, current_user: 
     """Keep the host isolated past the 4-hour automatic reconnect."""
     return await _run(soc_response.keep_isolated(soc_scope(current_user), alert_id[:128], action_id[:128],
                                                  await _actor(current_user), current_user))
+
+
+@router.get("/incidents", dependencies=[Depends(SECURITY_GUARD)])
+async def get_incidents(
+    status: StatusKey = "active",
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0, le=100000),
+    tenant: Optional[str] = Query(None, alias="tenantId", max_length=128),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Incidents: an endpoint's alerts less than an hour apart, most severe first."""
+    return await soc_incidents.list_incidents(get_database(), soc_scope(current_user, tenant), status, limit, offset)
+
+
+@router.get("/incidents/{incident_id}", dependencies=[Depends(SECURITY_GUARD)])
+async def get_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
+    found = await soc_incidents.get_incident(get_database(), soc_scope(current_user), incident_id[:128])
+    if not found:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return found
+
+
+@router.patch("/incidents/{incident_id}", dependencies=[Depends(SECURITY_GUARD)])
+async def patch_incident(incident_id: str, body: IncidentActionIn, current_user: TokenData = Depends(get_current_user)):
+    return await _run(soc_incidents.act(soc_scope(current_user), incident_id[:128], body.action, current_user,
+                                        body.resolution, body.note, body.closeAlerts))
+
+
+@router.post("/incidents/{incident_id}/case", dependencies=[Depends(SECURITY_GUARD)])
+async def case_from_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
+    return await _run(soc_incidents.open_case(soc_scope(current_user), incident_id[:128], current_user))
 
 
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])

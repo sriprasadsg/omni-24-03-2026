@@ -61,6 +61,9 @@ const alert = (over: Record<string, unknown> = {}) => ({
 });
 const approval = { id: 'ap-1', process: 'ollama', agentId: 'ag-srv', hostname: 'Omniai-copy', reason: "The platform's own local LLM" };
 
+const incident = () => ({ id: 'INC-1', agentId: 'ag-srv', hostname: 'Omniai-copy', title: 'Unapproved AI process: lmstudio and 2 more',
+    severity: 'high', status: 'open', resolution: null, alertCount: 3, grouping: true, startedAt: at(2), lastAlertAt: at(1),
+    tactics: ['Execution', 'Credential Access'], techniques: ['T1059', 'T1003'] });
 let canRespond = true;
 const responseInfo = () => ({
     host: 'Omniai-copy', isolated: false, canRespond,
@@ -84,6 +87,8 @@ function route(url: string, init?: RequestInit) {
     }
     if (u.pathname.endsWith('/response') && !init?.method) return ok(responseInfo());
     if (u.pathname.endsWith('/respond')) return ok({ actionId: 'AO-1', status: 'dispatched' });
+    if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
+    if (u.pathname === '/api/security/soc/incidents/INC-1') return ok({ ...incident(), timeline: [alert()], ...(init?.method === 'PATCH' ? { status: 'closed', resolution: 'benign' } : {}) });
     if (u.pathname.endsWith('/triage')) return ok({ summary: 'A local AI tool runs on purpose.', likelyCause: 'Developer tooling.', seriousness: 'low',
         why: 'Known program.', nextSteps: ['approve_process', 'close_benign'], model: 'llama3.2:3b', at: at(0), by: 'ava@x.test' });
     if (u.pathname.endsWith('/bulk')) return ok({ matched: 1, modified: 1 });
@@ -224,6 +229,23 @@ describe('One-click response', () => {
         expect(await within(drawer).findByText('Acting on endpoints needs the Active Response permission.')).toBeTruthy();
         expect(within(drawer).getByRole('button', { name: 'Isolate host' })).toBeDisabled();
         expect(within(drawer).queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+});
+
+describe('Incidents', () => {
+    it('lists incidents with their attack stages and closes one together with its open alerts', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /^Incidents/ }));
+        const row = await screen.findByRole('button', { name: /Unapproved AI process: lmstudio and 2 more/ });
+        expect(within(row).getByRole('list', { name: 'Attack stages in order' }).textContent).toBe('ExecutionCredential Access');
+        fireEvent.click(row);
+        const drawer = await screen.findByRole('dialog', { name: /Unapproved AI process: lmstudio and 2 more/ });
+        expect(await within(drawer).findByText(/still collecting/)).toBeTruthy();
+        fireEvent.click(within(drawer).getByRole('radio', { name: 'Benign' }));
+        expect(within(drawer).getByRole('checkbox', { name: /Also close its 1 open alert/ })).toBeChecked();
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Close incident as benign' }));
+        await waitFor(() => expect(calls('PATCH', '/api/security/soc/incidents/INC-1').length).toBe(1));
+        expect(JSON.parse(String(calls('PATCH', '/api/security/soc/incidents/INC-1')[0][1].body))).toEqual({ action: 'close', resolution: 'benign', closeAlerts: true });
     });
 });
 

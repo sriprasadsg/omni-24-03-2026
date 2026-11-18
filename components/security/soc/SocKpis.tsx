@@ -45,7 +45,7 @@ export const SocKpis: React.FC<{ data: SocSummary; rangeLabel: string }> = ({ da
                 sub={<>
                     <SeverityCounts counts={k.activeBySeverity} />
                     <SeveritySplit data={data} />
-                    <p className="mt-1.5">{k.open} open · {k.active - k.open} acknowledged</p>
+                    <p className="mt-1.5">{k.open} open · {k.active - k.open} acknowledged{data.counts.activeIncidents != null && ` · ${data.counts.activeIncidents} active incident${data.counts.activeIncidents === 1 ? '' : 's'}`}</p>
                 </>}>
                 <p className={bigValue}>{k.active}</p>
             </KpiTile>

@@ -89,6 +89,7 @@ def view(doc: Dict[str, Any], hosts: Optional[Dict[str, str]] = None, legacy: bo
         "closedAt": doc.get("closedAt"), "closedBy": doc.get("closedBy"), "closeNote": doc.get("closeNote"),
         "autoClosed": bool(doc.get("autoClosed")),
         "caseId": doc.get("caseId"),
+        "incidentId": doc.get("incidentId"),
         "aiTriage": doc.get("aiTriage") if isinstance(doc.get("aiTriage"), dict) else None,
         "origin": doc["source"] if isinstance(doc.get("source"), dict) else None,  # legacy alerts: {ip, hostname}
         "mitre": techniques_of(doc),
@@ -259,6 +260,7 @@ async def _counts(db, scope: Optional[str]) -> Dict[str, int]:
     hunts = {"tenantId": {"$in": [scope, "global"]}} if scope else {}
     return {
         "openCases": await db.security_cases.count_documents({**scope_filter(scope), "status": {"$nin": ["Resolved", "Closed"]}}),
+        "activeIncidents": await db.soc_incidents.count_documents({**scope_filter(scope), "status": {"$in": STATUS_QUERY["active"]}}),
         "siemRules": await raw.siem_rules.count_documents(rules),
         "activeHunts": await raw.xdr_hunts.count_documents({**hunts, "status": "active"}),
     }

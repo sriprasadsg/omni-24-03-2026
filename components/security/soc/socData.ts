@@ -22,6 +22,7 @@ export interface SocAlert {
     acknowledgedAt?: string | null; acknowledgedBy?: string | null; closedAt?: string | null; closedBy?: string | null;
     closeNote?: string | null; autoClosed?: boolean; caseId?: string | null; mitre: string[]; evidence: Record<string, unknown>;
     origin?: { ip?: string; hostname?: string } | null;
+    incidentId?: string | null;
     aiTriage?: AiTriage | null;
 }
 export type TriageStep = 'acknowledge' | 'close_false_positive' | 'close_benign' | 'isolate_host' | 'quarantine_file'
@@ -53,7 +54,7 @@ export interface SocSummary {
     mitre: { technique: string; name: string; tactic: string; count: number }[];
     sources: { type: string; label: string; lastAlertAt: string | null; total: number }[];
     coverage: { check: string; label: string; agents: number }[];
-    counts: { openCases?: number; siemRules?: number; activeHunts?: number };
+    counts: { openCases?: number; siemRules?: number; activeHunts?: number; activeIncidents?: number };
 }
 export interface AlertPage { items: SocAlert[]; total: number; limit: number; offset: number }
 export interface QueueQuery { status: QueueStatus; severity?: Severity | ''; type?: string; agentId?: string; q?: string; limit?: number; offset?: number }
@@ -168,6 +169,36 @@ export const responseImpact = (o: ResponseOption, ttl: BlockTtl): string => {
         default: return `Ends ${o.target.exe} (process ${o.target.pid}) on ${host}. Only that program is ended.`;
     }
 };
+
+export interface SocIncident {
+    id: string; tenantId?: string | null; agentId?: string | null; hostname?: string | null; title: string; severity: Severity;
+    status: AlertStatus; resolution: Resolution | null; alertCount: number; grouping: boolean; startedAt?: string | null;
+    lastAlertAt?: string | null; tactics: string[]; techniques: string[]; assignee?: string | null;
+    acknowledgedAt?: string | null; acknowledgedBy?: string | null; closedAt?: string | null; closedBy?: string | null;
+    closeNote?: string | null; caseId?: string | null; autonomyIncidentId?: string | null;
+}
+export interface IncidentDetail extends SocIncident { timeline: SocAlert[]; closedAlerts?: number }
+export interface IncidentPage { items: SocIncident[]; total: number; limit: number; offset: number }
+
+export const fetchIncidents = async (fetcher: Fetcher, status: QueueStatus, offset = 0): Promise<IncidentPage> => {
+    const res = await fetcher(`${SOC}/incidents?status=${status}&limit=50&offset=${offset}`);
+    if (!res.ok) throw await failure(res, 'Incidents could not be loaded');
+    const body = await res.json();
+    if (!Array.isArray(body?.items)) throw new Error('Incidents could not be loaded: unexpected answer from the server');
+    return body;
+};
+
+export const fetchIncident = async (fetcher: Fetcher, id: string): Promise<IncidentDetail> => {
+    const res = await fetcher(`${SOC}/incidents/${encodeURIComponent(id)}`);
+    if (!res.ok) throw await failure(res, 'The incident could not be loaded');
+    return res.json();
+};
+
+export const actOnIncident = (fetcher: Fetcher, id: string, body: { action: Exclude<AlertAction, 'archive'>; resolution?: Resolution; note?: string; closeAlerts?: boolean }) =>
+    send<IncidentDetail>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}`, 'PATCH', body, 'The incident was not changed');
+
+export const caseFromIncident = (fetcher: Fetcher, id: string) =>
+    send<{ case: { id: string; title: string } & Record<string, unknown>; created: boolean }>(fetcher, `${SOC}/incidents/${encodeURIComponent(id)}/case`, 'POST', undefined, 'No case was opened');
 
 // Severity is a status scale: fixed hues in both themes (validated with the dataviz validator for
 // colour-blind and normal-vision separation), always shown with an icon and a label.
