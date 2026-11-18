@@ -17,6 +17,14 @@ from fastapi import HTTPException
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import agent_installer_builders as m
+import agent_tls_trust
+
+
+@pytest.fixture(autouse=True)
+def _no_published_certificate_change(tmp_path, monkeypatch):
+    # A rollover published on the test host (/etc/omni/tls) must not leak into these tests.
+    monkeypatch.setattr(agent_tls_trust, "TRUST_FILE", tmp_path / "no-agent-trust.pem")
+    agent_tls_trust._cache.update(key=None, value=None)
 
 
 @pytest.fixture

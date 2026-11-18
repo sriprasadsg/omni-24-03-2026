@@ -33,10 +33,16 @@ def agent_ca_cert_pem() -> Optional[str]:
     else. Unset: nothing is pinned, and https:// agent URLs are checked against
     the endpoint's OS trust store (right for a CA-signed deployment). A
     misconfigured file fails the build rather than shipping an unpinned agent.
+    While a certificate change is published (agent_tls_trust), installers ship
+    its whole list, so a new install keeps working across the switch.
     """
     path = os.getenv("AGENT_CA_CERT_FILE", "").strip()
     if not path:
         return None
+    import agent_tls_trust
+    bundle = agent_tls_trust.installer_bundle()
+    if bundle:
+        return bundle.strip()
     try:
         pem = Path(path).read_text(encoding="ascii").strip()
     except (OSError, UnicodeDecodeError) as exc:

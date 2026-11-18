@@ -19,6 +19,7 @@ import cross_tenant
 import licensing
 import pending_agents
 import agent_capabilities
+import agent_tls_trust
 import asset_identity
 import network_rate
 from autonomous_ops import response_settings
@@ -565,7 +566,13 @@ async def report_heartbeat(
         except Exception as fb_err:
             logger.error("ERROR processing task feedback: %s", fb_err)
 
+    # Certificate changes (agent_tls_trust): store what the agent trusts; the reply may carry the new list.
+    try:
+        await agent_tls_trust.record(db, _hb_agent_filter, existing_agent, payload)
+    except Exception as exc:
+        logger.warning("Could not store the TLS trust report of %s: %s", agent_id, exc)
+
     # Verification data for the agent's uninstallers (see agent_uninstall_endpoints).
-    return {"success": True, **await response_settings.heartbeat_reply(db, _hb_tenant_id, (existing_agent or {}).get("id") or agent_id, permitted_caps),
+    return {"success": True, **agent_tls_trust.heartbeat_reply(payload), **await response_settings.heartbeat_reply(db, _hb_tenant_id, (existing_agent or {}).get("id") or agent_id, permitted_caps),
             "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter),
             "enabledCapabilities": sorted(permitted_caps)}

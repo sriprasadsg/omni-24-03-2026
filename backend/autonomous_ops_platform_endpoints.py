@@ -155,6 +155,21 @@ async def get_health_integrations(
     return {"items": await integration_status.status(get_database())}
 
 
+@router.get("/health/tls-rollover", summary="Agent readiness for a server certificate change")
+async def get_health_tls_rollover(
+    user=Depends(_require_platform_autonomy_control),
+    _session=Depends(_require_interactive_session),
+):
+    """The certificate list agents are asked to trust (scripts/tls_rollover.sh), the certificate nginx
+    serves, and for agents seen in the last 7 days how many are ready for the switch and why the others
+    are not. Fingerprints and dates only. Super Admin only, interactive session."""
+    import agent_tls_trust
+    try:
+        return await agent_tls_trust.readiness(get_database())
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
 @router.post("/health/integrations/{name}/test", summary="Test one configured integration")
 async def post_health_integration_test(
     name: str = Path(..., pattern="^[a-z]{2,20}$"),
