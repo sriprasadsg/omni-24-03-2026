@@ -106,6 +106,44 @@ async def test_an_alerting_rule_raises_one_soc_alert_and_windows_events_are_read
     assert "T1098" in win["mitre"] and alerts["New local account on a Linux host"]["agent_id"] == "ag1"
 
 
+def _sec(record: int, eid: int, minute: float, log: str = "Security", **data) -> dict:
+    return {"log": log, "source": "Microsoft-Windows-Security-Auditing", "event_id": eid, "record_id": record,
+            "time": (T0 + timedelta(minutes=minute)).strftime("%Y-%m-%dT%H:%M:%S.1234567Z"), "data": data}
+
+
+@pytest.mark.asyncio
+async def test_security_log_fields_from_agent_2_1_21_feed_the_windows_rules_once(db):
+    """protects=the 2.1.21 heartbeat's Security events (event data, record number) become events with the account,
+    source address and group; Administrators is known by its SID in any language; a resent record counts once and
+    the agent's recent_events are not read beside them; ten failed sign-ins in ten minutes hit the brute-force rule;
+    fails_when=4625s carry no account or address, a German "Administratoren" add is missed, a 7045 in both lists
+    counts twice; no_claim=what Windows writes to its own log"""
+    failures = [_sec(100 + i, 4625, i * 0.5, TargetUserName="admin", IpAddress="203.0.113.7", LogonType="3")
+                for i in range(12)]
+    security = [*failures,
+                _sec(200, 4732, 7, MemberName="-", MemberSid="S-1-5-21-1-2-3-1001", TargetUserName="Administratoren",
+                     TargetSid="S-1-5-32-544", SubjectUserName="eve"),
+                _sec(201, 1102, 8, SubjectUserName="eve"),
+                _sec(9001, 7045, 9, log="System", ServiceName="evilsvc", ImagePath="C:\\x.exe", AccountName="LocalSystem"),
+                _sec(202, 4625, 9.5, TargetUserName="bob", IpAddress="::1")]
+    recent = [{"source": "Service Control Manager", "event_id": 7045, "time": "2026-11-18T14:09:00Z",
+               "message": "A service was installed in the system."}]
+    await db.agents.insert_one({"id": "win2", "tenantId": "t1", "hostname": "PC-2", "meta": {"log_collection": {
+        "security_events": security, "recent_events": recent}}})
+    assert (await siem_pipeline.run_once(db))["events"] == 16
+    assert (await siem_pipeline.run_once(db))["events"] == 0
+    events = {e["key"]: e for e in await db.soc_log_events.find({"agentId": "win2"}, {"_id": 0}).to_list(50)}
+    assert len(events) == 16 and "win2|System|9001" in events
+    first = events["win2|Security|100"]
+    assert (first["action"], first["user"], first["srcIp"], first["logonType"]) == ("login_failed", "admin", "203.0.113.7", "3")
+    added = events["win2|Security|200"]
+    assert (added["action"], added["group"], added["user"]) == ("admin_group_add", "Administrators", "S-1-5-21-1-2-3-1001")
+    assert events["win2|Security|201"]["action"] == "log_cleared" and events["win2|Security|201"]["user"] == "eve"
+    assert events["win2|System|9001"]["process"] == "evilsvc" and events["win2|Security|202"]["srcIp"] is None
+    rules = {h["ruleId"] for h in await db.siem_hits.find({"agentId": "win2"}, {"_id": 0}).to_list(20)}
+    assert {"lib-win-logon-failures", "lib-win-admin-group", "lib-win-log-cleared", "lib-win-service-installed"} <= rules
+
+
 @pytest.mark.asyncio
 async def test_rule_states_say_what_runs_and_what_waits(db):
     """protects=a rule runs once its log source sent events in 7 days; a descriptive library rule waits for the source

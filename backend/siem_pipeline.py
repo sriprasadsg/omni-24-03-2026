@@ -3,8 +3,9 @@
 Intake (``run_once``, every 60 s from ``intake_loop``):
 * Linux: the syslog and auth.log lines agents ship (``logs``, service syslog/auth). sshd sign-ins, sudo, account
   creation and admin-group changes are recognised (``parse_linux``); other lines stay in ``logs`` only.
-* Windows: the recent events each heartbeat carries (``agents.meta.log_collection.recent_events``) whose event id a
-  rule can use (``WINDOWS_EVENTS``), each once (unique ``key``).
+* Windows: the Security-log events each heartbeat carries (``agents.meta.log_collection.security_events``, agent
+  2.1.21+: event data fields and the record number), or from older agents the recent System/Application events
+  (``recent_events``, message text), whose event id a rule can use (``WINDOWS_EVENTS``), each once (unique ``key``).
 Events go to ``soc_log_events`` (tenant, agent, host, source, time, action, user, source IP, process, message).
 
 Rules (``siem_rules``, the organization's and the platform library's): one with ``logic`` runs on events of its
@@ -41,6 +42,8 @@ WINDOWS_EVENTS = {4625: "login_failed", 4624: "login_success", 4720: "account_cr
                   4740: "account_locked"}
 WIN_USER = re.compile(r"Account Name:\s+([^\s\r\n]+)")
 WIN_IP = re.compile(r"Source Network Address:\s+([0-9a-fA-F.:]{3,45})")
+ADMINISTRATORS_SID = "S-1-5-32-544"  # the same in every Windows language
+LOCAL_ADDRESSES = ("-", "::1", "127.0.0.1")
 BATCH = 5000
 SOURCE_IDLE = timedelta(days=7)
 
@@ -81,6 +84,8 @@ def parse_windows(agent: Dict[str, Any], e: Dict[str, Any]) -> Optional[Dict[str
     action = WINDOWS_EVENTS.get(eid)
     if not action:
         return None
+    if isinstance(e.get("data"), dict):
+        return _windows_fields(agent, e, eid, action, e["data"])
     text = str(e.get("message") or "")
     user, ip = WIN_USER.findall(text), WIN_IP.search(text)
     return {"action": action, "outcome": "failure" if eid in (4625, 4740) else "success", "eventId": eid,
@@ -88,6 +93,34 @@ def parse_windows(agent: Dict[str, Any], e: Dict[str, Any]) -> Optional[Dict[str
             "timestamp": e.get("time"), "host": agent.get("hostname"), "source": "windows_security",
             "group": "Administrators" if action == "admin_group_add" and "Administrators" in text else None,
             "message": text[:500], "key": f"{agent['id']}|{e.get('source')}|{eid}|{e.get('time')}"}
+
+
+def _windows_fields(agent: Dict[str, Any], e: Dict[str, Any], eid: int, action: str,
+                    data: Dict[str, Any]) -> Dict[str, Any]:
+    """An event from the Security log's event data (agent 2.1.21+), keyed by its record number."""
+    def field(name: str) -> Optional[str]:
+        value = str(data.get(name) or "").strip()
+        return value if value and value != "-" else None
+
+    group = None
+    if action == "admin_group_add":
+        user = field("MemberName") or field("MemberSid")
+        group = "Administrators" if field("TargetSid") == ADMINISTRATORS_SID else field("TargetUserName")
+    elif eid == 1102:
+        user = field("SubjectUserName")
+    elif eid == 7045:
+        user = field("AccountName")
+    else:
+        user = field("TargetUserName")
+    ip = field("IpAddress")
+    detail = " ".join(f"{k}={v}" for k, v in sorted(data.items()) if str(v or "").strip() not in ("", "-"))
+    record = e.get("record_id")
+    return {"action": action, "outcome": "failure" if eid in (4625, 4740) else "success", "eventId": eid,
+            "user": user, "srcIp": ip if ip not in LOCAL_ADDRESSES else None, "logonType": field("LogonType"),
+            "process": field("ServiceName"), "timestamp": e.get("time"), "host": agent.get("hostname"),
+            "source": "windows_security", "group": group, "message": f"Event {eid}: {detail}"[:500],
+            "key": f"{agent['id']}|{e.get('log') or e.get('source')}|{record}" if record is not None
+            else f"{agent['id']}|{e.get('source')}|{eid}|{e.get('time')}"}
 
 
 def _ts(value: Any) -> datetime:
@@ -122,9 +155,14 @@ async def intake(db) -> List[Dict[str, Any]]:
                 new.append(event)
     if last is not None:
         await raw.siem_cursors.update_one({"id": "logs"}, {"$set": {"last": last}}, upsert=True)
-    async for agent in raw.agents.find({"meta.log_collection.recent_events": {"$exists": True}},
-                                       {"_id": 0, "id": 1, "tenantId": 1, "hostname": 1, "meta.log_collection.recent_events": 1}):
-        for e in (((agent.get("meta") or {}).get("log_collection") or {}).get("recent_events") or [])[:500]:
+    async for agent in raw.agents.find({"$or": [{"meta.log_collection.security_events": {"$exists": True}},
+                                                {"meta.log_collection.recent_events": {"$exists": True}}]},
+                                       {"_id": 0, "id": 1, "tenantId": 1, "hostname": 1,
+                                        "meta.log_collection.security_events": 1, "meta.log_collection.recent_events": 1}):
+        logs = ((agent.get("meta") or {}).get("log_collection") or {})
+        # an agent that reads the Security log sends 7045 there too, so its recent_events are not read twice
+        listed = logs["security_events"] if isinstance(logs.get("security_events"), list) else logs.get("recent_events")
+        for e in (listed or [])[:1000]:
             event = parse_windows(agent, e) if isinstance(e, dict) else None
             if event:
                 event.update(tenantId=agent.get("tenantId"), agentId=agent["id"])
