@@ -4,9 +4,10 @@
  *    reports the server's reason instead of a stand-in "Unknown" verdict that was stored on the case.
  *  - The threat-intel feed maps the API's snake_case fields (rows showed "undefined" / "Invalid Date").
  *  - Enable/Disable on a playbook shows the state the server answered with.
- *  - The 24-hour tile counts the last 24 hours; events that load after mount can be inspected.
+ *  - The event feed counts the last 24 hours; events that load after mount can be inspected.
  *  - A disabled playbook is marked, cannot be run, and is skipped by "Run playbook" on an event.
  *  - Empty events, lookups and playbooks say so.
+ * The screen opens on the SOC overview (SocConsole.test.tsx); the older event feed is its own tab.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -70,7 +71,7 @@ function renderScreen(overrides: Partial<React.ComponentProps<typeof SecurityDas
   return { ...view, props, rerenderWith: (more: Partial<typeof props>) => view.rerender(ui({ ...props, ...more })) };
 }
 
-const tile = (label: string) => screen.getByRole('group', { name: label });
+const openFeed = () => fireEvent.click(screen.getByRole('button', { name: /Event feed/ }));
 
 describe('VirusTotal lookups', () => {
   it('posts artifact_type and maps the snake_case answer', async () => {
@@ -101,6 +102,7 @@ describe('VirusTotal lookups', () => {
   it('a failed scan says why and leaves the case untouched', async () => {
     fetchMock.mockResolvedValue(json({ detail: 'VirusTotal is not configured.' }, 503));
     const { props } = renderScreen();
+    openFeed();
     fireEvent.click(screen.getByRole('button', { name: /Scan IP/ }));
     await waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('VirusTotal is not configured.'), 'error'));
     expect(props.onCaseUpdate).not.toHaveBeenCalled();
@@ -109,6 +111,7 @@ describe('VirusTotal lookups', () => {
   it('a lookup made here opens its report and joins the feed', async () => {
     fetchMock.mockResolvedValue(json({ id: 'scan-2', artifact: '203.0.113.9', artifact_type: 'ip', verdict: 'Harmless', detection_ratio: '0/90', scan_date: hoursAgo(0) }));
     const { props } = renderScreen();
+    openFeed();
     fireEvent.click(screen.getByRole('button', { name: /Scan IP/ }));
     expect(await screen.findByText('Threat Intelligence Scan')).toBeTruthy();
     expect(screen.getAllByText('203.0.113.9').length).toBeGreaterThan(1);
@@ -117,21 +120,24 @@ describe('VirusTotal lookups', () => {
 });
 
 describe('Security Operations screen', () => {
-  it('counts only the last 24 hours in the 24-hour tile', () => {
+  it('counts only the last 24 hours in the event feed', () => {
     renderScreen();
-    expect(within(tile('Events, last 24 hours')).getByText('1')).toBeTruthy();
-    expect(within(tile('Events, last 24 hours')).queryByText('2')).toBeNull();
+    openFeed();
+    const count = screen.getByText(/in the last 24 hours, 2 in the feed/);
+    expect(within(count).getByText('1')).toBeTruthy();
   });
 
   it('shows the details of events that load after mount', () => {
     const { rerenderWith } = renderScreen({ securityEvents: [] });
     rerenderWith({ securityEvents: [recent, old] });
+    openFeed();
     expect(screen.getByRole('button', { name: /Scan IP/ })).toBeTruthy();
     expect(screen.getAllByText('Mimikatz detected').length).toBeGreaterThan(1);
   });
 
   it('Scan IP is off for an event without an IP', () => {
     renderScreen({ securityEvents: [{ ...recent, source: { ip: 'N/A', hostname: 'host-a' } }] });
+    openFeed();
     expect(screen.getByRole('button', { name: /Scan IP/ })).toBeDisabled();
   });
 
@@ -141,12 +147,13 @@ describe('Security Operations screen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     expect(await screen.findByRole('button', { name: 'Enable' })).toBeTruthy();
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/playbooks/pb-1/toggle');
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain('/api/playbooks/pb-1/toggle');
   });
 
   it('Run playbook from an event skips disabled playbooks', () => {
     const off: Playbook = { ...playbook, id: 'pb-0', name: 'Old sweep', enabled: false };
     renderScreen({ playbooks: [off, playbook] });
+    openFeed();
     fireEvent.click(screen.getByRole('button', { name: 'Run playbook' }));
     expect(screen.getByText('Isolate host')).toBeTruthy();
     expect(screen.queryByText('Old sweep')).toBeNull();
@@ -161,6 +168,7 @@ describe('Security Operations screen', () => {
 
   it('says so when there are no events, lookups or playbooks', () => {
     renderScreen({ securityEvents: [], playbooks: [] });
+    openFeed();
     expect(screen.getByText('No security events')).toBeTruthy();
     expect(screen.getByText('No lookups yet')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
@@ -170,6 +178,7 @@ describe('Security Operations screen', () => {
   it('feed rows open their report', () => {
     const lookup = { id: 's1', artifact: 'evil.test', artifactType: 'domain' as const, source: 'VirusTotal', verdict: 'Suspicious' as const, detectionRatio: '3/90', scanDate: hoursAgo(2), reportUrl: '' };
     renderScreen({ threatIntelFeed: [lookup] });
+    openFeed();
     fireEvent.click(screen.getByRole('button', { name: 'Report for evil.test' }));
     expect(screen.getByText('Threat Intelligence Scan')).toBeTruthy();
   });

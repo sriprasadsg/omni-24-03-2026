@@ -37,7 +37,7 @@ export const DeltaBadge: React.FC<{ delta: number | null; rangeLabel: string }> 
     );
 };
 
-const KpiTile: React.FC<{ icon: React.ReactNode; label: string; badge?: React.ReactNode; sub?: React.ReactNode; spark?: React.ReactNode; children: React.ReactNode }> = ({ icon, label, badge, sub, spark, children }) => {
+export const KpiTile: React.FC<{ icon: React.ReactNode; label: string; badge?: React.ReactNode; sub?: React.ReactNode; spark?: React.ReactNode; children: React.ReactNode }> = ({ icon, label, badge, sub, spark, children }) => {
     const id = useId();
     return (
         <section aria-labelledby={id} className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card p-4 flex flex-col min-w-0">
@@ -53,7 +53,7 @@ const KpiTile: React.FC<{ icon: React.ReactNode; label: string; badge?: React.Re
     );
 };
 
-const NotMeasured: React.FC<{ why: string }> = ({ why }) => (
+export const NotMeasured: React.FC<{ why: string }> = ({ why }) => (
     <>
         <p className="flex items-center gap-2">
             <span className="font-mono text-[26px] leading-none text-gray-400 dark:text-gray-500">—</span>

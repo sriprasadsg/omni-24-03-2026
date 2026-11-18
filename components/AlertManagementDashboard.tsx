@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Alert, AlertSeverity } from '../types';
-import { fetchAlerts, bulkAcknowledgeAlerts, bulkDismissAlerts, bulkDeleteAlerts } from '../services/apiService';
+import { authFetch } from '../services/apiService';
+import { bulkAct, endpointName, fetchAlertQueue, SEVERITY_META, type SocAlert } from './security/soc/socData';
 import { scanArtifact, ThreatIntelScan } from '../services/threatIntelService';
 import { AlertTriangleIcon, CheckIcon, TrashIcon, XCircleIcon, CogIcon, SearchIcon, ShieldCheckIcon } from './icons';
 
@@ -32,14 +33,23 @@ const severityBadge = (severity: string) => {
     return map[severity] ?? map.Info;
 };
 
+// The same alerts the Security Operations Center shows (GET /api/alerts/queue), in this screen's shape.
+const QUEUE = '/api/alerts/queue';
+const toAlert = (a: SocAlert): Alert => ({
+    id: a.id, severity: (a.severity === 'info' ? 'Low' : SEVERITY_META[a.severity].label) as AlertSeverity, message: a.title,
+    source: a.origin?.ip || a.origin?.hostname || '', timestamp: a.lastSeenAt || a.createdAt || '',
+    acknowledged: a.status !== 'open', status: a.status, type: a.typeLabel,
+    hostname: a.hostname || (a.agentId ? endpointName(a) : undefined), tenantId: a.tenantId || undefined,
+});
+
 const statusBadge = (alert: Alert) => {
-    if (alert.status === 'dismissed') return 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
+    if (alert.status === 'closed') return 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
     if (alert.acknowledged || alert.status === 'acknowledged') return 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
     return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300';
 };
 
 const statusLabel = (alert: Alert) => {
-    if (alert.status === 'dismissed') return 'Dismissed';
+    if (alert.status === 'closed') return 'Closed';
     if (alert.acknowledged || alert.status === 'acknowledged') return 'Acknowledged';
     return 'Open';
 };
@@ -74,10 +84,10 @@ export const AlertManagementDashboard: React.FC = () => {
 
     useEffect(() => {
         setLoading(true);
-        fetchAlerts().then(data => {
-            setAlerts(data as Alert[]);
-            setLoading(false);
-        });
+        fetchAlertQueue(authFetch, { status: 'all', limit: 500 })
+            .then(page => setAlerts(page.items.map(toAlert)))
+            .catch(e => showToast(e instanceof Error ? e.message : 'Alerts could not be loaded', 'error'))
+            .finally(() => setLoading(false));
     }, []);
 
     const filtered = useMemo(() => {
@@ -91,7 +101,7 @@ export const AlertManagementDashboard: React.FC = () => {
                 if (!search.trim()) return true;
                 const q = search.toLowerCase();
                 return (a.message || '').toLowerCase().includes(q)
-                    || (a.source || '').toLowerCase().includes(q)
+                    || (a.type || '').toLowerCase().includes(q)
                     || (a.hostname || '').toLowerCase().includes(q);
             })
             .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99));
@@ -128,7 +138,7 @@ export const AlertManagementDashboard: React.FC = () => {
         const ids = Array.from(selected);
         setOperating('ack');
         try {
-            const res = await bulkAcknowledgeAlerts(ids);
+            const res = await bulkAct(authFetch, ids, 'acknowledge', undefined, QUEUE);
             applyLocalPatch(ids, { acknowledged: true, status: 'acknowledged' });
             showToast(`${res.modified} alert(s) acknowledged`);
         } catch (e) {
@@ -142,8 +152,9 @@ export const AlertManagementDashboard: React.FC = () => {
         const ids = Array.from(selected);
         setOperating('dismiss');
         try {
-            const res = await bulkDismissAlerts(ids);
-            applyLocalPatch(ids, { status: 'dismissed' });
+            // Dismissing closes the alert as benign; the SOC console shows the same resolution.
+            const res = await bulkAct(authFetch, ids, 'close', 'benign', QUEUE);
+            applyLocalPatch(ids, { status: 'closed', acknowledged: true });
             showToast(`${res.modified} alert(s) dismissed`);
         } catch (e) {
             showToast(e instanceof Error ? e.message : 'Failed', 'error');
@@ -152,15 +163,15 @@ export const AlertManagementDashboard: React.FC = () => {
         }
     };
 
-    const handleDelete = async () => {
+    const handleArchive = async () => {
         const ids = Array.from(selected);
-        if (!window.confirm(`Delete ${ids.length} alert(s)? This cannot be undone.`)) return;
-        setOperating('delete');
+        if (!window.confirm(`Archive ${ids.length} alert(s)? They leave this list and the SOC console; nothing is deleted.`)) return;
+        setOperating('archive');
         try {
-            const res = await bulkDeleteAlerts(ids);
+            const res = await bulkAct(authFetch, ids, 'archive', undefined, QUEUE);
             setAlerts(prev => prev.filter(a => !ids.includes(a.id)));
             setSelected(new Set());
-            showToast(`${res.deleted} alert(s) deleted`);
+            showToast(`${res.modified} alert(s) archived`);
         } catch (e) {
             showToast(e instanceof Error ? e.message : 'Failed', 'error');
         } finally {
@@ -202,7 +213,7 @@ export const AlertManagementDashboard: React.FC = () => {
                     onChange={e => setStatusFilter(e.target.value)}
                     className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 >
-                    {['All', 'Open', 'Acknowledged', 'Dismissed'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['All', 'Open', 'Acknowledged', 'Closed'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
                     {filtered.length} of {alerts.length} alert{alerts.length !== 1 ? 's' : ''}
@@ -232,12 +243,12 @@ export const AlertManagementDashboard: React.FC = () => {
                         Dismiss
                     </button>
                     <button
-                        onClick={handleDelete}
+                        onClick={handleArchive}
                         disabled={!!operating}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/40 dark:text-red-300 rounded-md hover:bg-red-200 disabled:opacity-50"
                     >
-                        {operating === 'delete' ? <CogIcon size={13} className="animate-spin" /> : <TrashIcon size={13} />}
-                        Delete
+                        {operating === 'archive' ? <CogIcon size={13} className="animate-spin" /> : <TrashIcon size={13} />}
+                        Archive
                     </button>
                     <button
                         onClick={() => setSelected(new Set())}
@@ -269,7 +280,7 @@ export const AlertManagementDashboard: React.FC = () => {
                                     </th>
                                     <th className="px-4 py-3">Severity</th>
                                     <th className="px-4 py-3">Message</th>
-                                    <th className="px-4 py-3">Source</th>
+                                    <th className="px-4 py-3">Type</th>
                                     <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3">Time</th>
                                     <th className="px-4 py-3">Reputation</th>
@@ -311,7 +322,7 @@ export const AlertManagementDashboard: React.FC = () => {
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                            {typeof alert.source === 'string' ? alert.source : (alert.source as any)?.hostname || '—'}
+                                            {alert.type || '—'}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(alert)}`}>

@@ -1,0 +1,193 @@
+/**
+ * Security Operations Center console (Security Overview) and Alert Management on the shared alerts:
+ *  1. The overview shows active alerts by severity, says response times are not measured until analysts
+ *     act, writes the trend out in words, names removed endpoints and lists approved AI processes.
+ *  2. Panels open the queue on a type or endpoint; the queue shows repeats and acknowledges in bulk.
+ *  3. The drawer closes an alert with a resolution and approves an AI process for its endpoint.
+ *  4. A pushed alert refreshes the overview; revoking an approval calls DELETE.
+ *  5. Alert Management reads /api/alerts/queue; Dismiss closes as benign, Archive never deletes.
+ */
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+
+const authFetch = vi.fn();
+vi.mock('../../services/apiService', () => ({
+    API_BASE: '/api', authFetch: (...a: unknown[]) => authFetch(...a),
+    togglePlaybook: vi.fn(), scanArtifactWithVirusTotal: vi.fn(),
+}));
+const socketHandlers: Record<string, (data: any) => void> = {};
+vi.mock('../../services/socketService', () => ({
+    socketService: { on: (ev: string, fn: (data: any) => void) => { socketHandlers[ev] = fn; }, off: vi.fn(), connected: true },
+}));
+vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
+
+import { SecurityDashboard } from '../../components/SecurityDashboard';
+import { AlertManagementDashboard } from '../../components/AlertManagementDashboard';
+import { formatDuration } from '../../components/security/soc/socData';
+import { UserContext } from '../../contexts/UserContext';
+import { TimeZoneProvider } from '../../contexts/TimeZoneContext';
+
+const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600_000).toISOString();
+const zero = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+
+const summary = () => ({
+    generatedAt: at(0), range: '24h', rangeSeconds: 86400, bucketSeconds: 3600,
+    kpis: {
+        active: 3, open: 2, activeBySeverity: { ...zero, critical: 1, high: 1, medium: 1 }, newInRange: 2, newPrevious: 1,
+        occurrencesInRange: 2, timeToAcknowledge: { seconds: null, count: 0 }, timeToClose: { seconds: null, count: 0 },
+        endpointsWithActive: 2, removedWithActive: 1, endpointsOnline: 1, endpoints: 2,
+    },
+    trend: Array.from({ length: 24 }, (_, i) => ({ t: at(24 - i), ...zero, ...(i === 23 ? { critical: 1, high: 1 } : {}) })),
+    byType: [{ type: 'runtime_security', label: 'Runtime threat', active: 1, inRange: 1, lastSeen: at(1) },
+             { type: 'fim_violation', label: 'File integrity', active: 1, inRange: 1, lastSeen: at(1) }],
+    endpoints: [
+        { agentId: 'ag-srv', hostname: 'Omniai-copy', online: true, known: true, active: 2, ...zero, critical: 1, high: 1, lastAlertAt: at(1) },
+        { agentId: 'agent-c6eb3d8bb3c0', hostname: 'agent-c6eb3d8bb3c0', online: false, known: false, active: 1, ...zero, medium: 1, lastAlertAt: at(30) },
+    ],
+    mitre: [{ technique: 'T1003.001', name: 'LSASS Memory', tactic: 'Credential Access', count: 1 }],
+    sources: [{ type: 'runtime_security', label: 'Runtime threat', lastAlertAt: at(1), total: 1 },
+              { type: 'malware_detected', label: 'Malware', lastAlertAt: null, total: 0 }],
+    coverage: [{ check: 'fim', label: 'File integrity', agents: 2 }],
+    counts: { openCases: 0, siemRules: 26, activeHunts: 19 },
+});
+
+const alert = (over: Record<string, unknown> = {}) => ({
+    id: 'al-1', source: 'security', type: 'shadow_ai_process', typeLabel: 'Unapproved AI process', severity: 'medium',
+    title: 'Unapproved AI process: lmstudio', description: "Local AI process 'lmstudio' (PID 7)", status: 'open', resolution: null,
+    agentId: 'ag-srv', hostname: 'Omniai-copy', createdAt: at(30), lastSeenAt: at(1), occurrences: 12, mitre: [],
+    evidence: { process: 'lmstudio', exe: '/opt/lmstudio' }, ...over,
+});
+const approval = { id: 'ap-1', process: 'ollama', agentId: 'ag-srv', hostname: 'Omniai-copy', reason: "The platform's own local LLM" };
+
+function route(url: string, init?: RequestInit) {
+    const u = new URL(url, 'http://x');
+    if (u.pathname === '/api/security/soc/summary') return ok(summary());
+    if (u.pathname === '/api/security/soc/approved-ai' && !init?.method) return ok({ items: [approval] });
+    if (u.pathname === '/api/security/soc/alerts' && !init?.method) return ok({ items: [alert()], total: 1, limit: 50, offset: 0 });
+    if (u.pathname === '/api/alerts/queue' && !init?.method) {
+        return ok({ items: [alert(), alert({ id: 'al-2', severity: 'info', title: 'Login at 05:00', type: 'ueba_anomaly', typeLabel: 'Unusual user behaviour', status: 'closed', resolution: 'benign' })], total: 2, limit: 500, offset: 0 });
+    }
+    if (u.pathname.endsWith('/bulk')) return ok({ matched: 1, modified: 1 });
+    if (u.pathname.endsWith('/approve')) return ok({ approval: { ...approval, id: 'ap-2', process: 'lmstudio' }, closed: 1 });
+    if (init?.method === 'PATCH') return ok(alert({ ...JSON.parse(String(init.body)), status: 'closed', resolution: 'false_positive' }));
+    return ok({ success: true });
+}
+
+const calls = (method: string, path: string) =>
+    authFetch.mock.calls.filter(([url, init]) => (init?.method ?? 'GET') === method && String(url).startsWith(path));
+
+function renderConsole() {
+    const user = { id: 'u', name: 'Ava', email: 'ava@x.test', role: 'Tenant Admin', tenantId: 't' } as any;
+    return render(
+        <TimeZoneProvider>
+            <UserContext.Provider value={{ currentUser: user, hasPermission: () => true } as any}>
+                <SecurityDashboard securityCases={[]} playbooks={[]} securityEvents={[]} users={[]} onCaseUpdate={vi.fn(async c => c)}
+                    onGeneratePlaybook={vi.fn()} onAnalyzeImpact={vi.fn()} threatIntelFeed={[]} />
+            </UserContext.Provider>
+        </TimeZoneProvider>,
+    );
+}
+
+beforeEach(() => { authFetch.mockReset(); authFetch.mockImplementation(async (url: string, init?: RequestInit) => route(url, init)); });
+
+describe('socData', () => {
+    it('writes response times the way analysts read them', () => {
+        expect(formatDuration(null)).toBe('—');
+        expect(formatDuration(45)).toBe('45 s');
+        expect(formatDuration(11_400)).toBe('3 h 10 min');
+        expect(formatDuration(3 * 86400 + 4 * 3600)).toBe('3 d 4 h');
+    });
+});
+
+describe('Security Operations Center overview', () => {
+    it('shows the live picture and says what is not measured yet', async () => {
+        renderConsole();
+        expect(await screen.findByRole('heading', { level: 1, name: 'Security Operations Center' })).toBeTruthy();
+        const active = (await screen.findByRole('heading', { name: 'Active alerts' })).closest('section')!;
+        expect(within(active).getByText('3')).toBeTruthy();
+        expect(within(active).getByText('2 open · 1 acknowledged')).toBeTruthy();
+        expect(screen.getByText('Not measured')).toBeTruthy();
+        expect(screen.getByText(/2 new alerts: 1 critical, 1 high\./)).toBeTruthy();
+        expect(screen.getByText('Removed endpoint (c6eb3d8b)')).toBeTruthy();
+        expect(screen.getByText('1 removed endpoint still has alerts')).toBeTruthy();
+        expect(screen.getByRole('link', { name: /T1003\.001/ }).getAttribute('href')).toBe('https://attack.mitre.org/techniques/T1003/001/');
+        expect(screen.getByText('ollama')).toBeTruthy();
+        expect(screen.getByText(/26 SIEM correlation rules/)).toBeTruthy();
+        expect(screen.getByRole('button', { name: /Alert queue/ }).textContent).toContain('3');
+    });
+
+    it('a pushed alert refreshes the overview, and the range picker reloads', async () => {
+        renderConsole();
+        await screen.findByRole('heading', { name: 'Active alerts' });
+        const before = calls('GET', '/api/security/soc/summary').length;
+        act(() => socketHandlers.security_alert?.({ id: 'x', severity: 'high' }));
+        await waitFor(() => expect(calls('GET', '/api/security/soc/summary').length).toBe(before + 1));
+        fireEvent.click(screen.getByRole('button', { name: '7d' }));
+        await waitFor(() => expect(calls('GET', '/api/security/soc/summary?range=7d').length).toBe(1));
+    });
+
+    it('removing an approval asks the server to stop approving the process', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: 'Stop approving ollama on Omniai-copy' }));
+        await waitFor(() => expect(calls('DELETE', '/api/security/soc/approved-ai/ap-1').length).toBe(1));
+    });
+});
+
+describe('Alert queue and drawer', () => {
+    it('an endpoint opens the queue on that endpoint; repeats show and bulk acknowledge posts the ids', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /^Omniai-copy/ }));
+        await waitFor(() => expect(calls('GET', '/api/security/soc/alerts').some(([u]) => String(u).includes('agentId=ag-srv'))).toBe(true));
+        const row = (await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' })).closest('tr')!;
+        expect(row.textContent).toContain('seen 12 times');
+        expect(row.textContent).toContain('Omniai-copy');
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Select Unapproved AI process: lmstudio' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/bulk').length).toBe(1));
+        expect(JSON.parse(String(calls('POST', '/api/security/soc/alerts/bulk')[0][1].body))).toEqual({ ids: ['al-1'], action: 'acknowledge' });
+    });
+
+    it('closes an alert with a resolution and note, and approves an AI process on its endpoint', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Alert queue/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' }));
+        const drawer = screen.getByRole('dialog');
+        fireEvent.click(within(drawer).getByRole('radio', { name: /False positive/ }));
+        fireEvent.change(within(drawer).getByRole('textbox', { name: /Note/ }), { target: { value: 'IT test box' } });
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Close as false positive' }));
+        await waitFor(() => expect(calls('PATCH', '/api/security/soc/alerts/al-1').length).toBe(1));
+        expect(JSON.parse(String(calls('PATCH', '/api/security/soc/alerts/al-1')[0][1].body)))
+            .toEqual({ action: 'close', resolution: 'false_positive', note: 'IT test box' });
+    });
+
+    it('approving sends the endpoint-only scope by default', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Alert queue/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve lmstudio' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/alerts/al-1/approve').length).toBe(1));
+        expect(JSON.parse(String(calls('POST', '/api/security/soc/alerts/al-1/approve')[0][1].body))).toEqual({ allEndpoints: false });
+    });
+});
+
+describe('Alert Management on the shared alerts', () => {
+    it('lists the queue, dismisses as benign and archives instead of deleting', async () => {
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        render(<AlertManagementDashboard />);
+        expect(await screen.findByText('Unapproved AI process: lmstudio')).toBeTruthy();
+        expect(calls('GET', '/api/alerts/queue').length).toBe(1);
+        expect(within(screen.getByRole('table')).getByText('Closed')).toBeTruthy();
+        fireEvent.click(screen.getAllByRole('checkbox')[1]);
+        fireEvent.click(screen.getByRole('button', { name: /Dismiss/ }));
+        await waitFor(() => expect(calls('POST', '/api/alerts/queue/bulk').length).toBe(1));
+        expect(JSON.parse(String(calls('POST', '/api/alerts/queue/bulk')[0][1].body))).toEqual({ ids: ['al-1'], action: 'close', resolution: 'benign' });
+        fireEvent.click(screen.getAllByRole('checkbox')[1]);
+        fireEvent.click(screen.getByRole('button', { name: /Archive/ }));
+        await waitFor(() => expect(calls('POST', '/api/alerts/queue/bulk').length).toBe(2));
+        expect(JSON.parse(String(calls('POST', '/api/alerts/queue/bulk')[1][1].body))).toEqual({ ids: ['al-1'], action: 'archive' });
+        expect(confirm.mock.calls[0][0]).toMatch(/nothing is deleted/);
+        confirm.mockRestore();
+    });
+});

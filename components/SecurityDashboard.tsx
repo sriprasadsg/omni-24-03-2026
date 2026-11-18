@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { SecurityCase, SecurityEvent, Playbook, Comment, ThreatIntelResult, User, SecurityView } from '../types';
-import { ActivityIcon, BoxIcon, BotIcon, BarChart3Icon, AlertTriangleIcon, ShieldAlertIcon } from './icons';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, AlertCircle, Bot, Box, LayoutDashboard, ShieldAlert } from 'lucide-react';
+import { SecurityCase, SecurityEvent, Playbook, Comment, ThreatIntelResult, User } from '../types';
 import { SecurityEventsFeed } from './SecurityEventsFeed';
 import { CaseManagement } from './CaseManagement';
 import { PlaybookManager } from './PlaybookManager';
@@ -8,13 +8,22 @@ import { AiInsights } from './AiInsights';
 import { CaseDetailModal } from './CaseDetailModal';
 import { useUser } from '../contexts/UserContext';
 import { ExecutePlaybookModal } from './ExecutePlaybookModal';
-import { SecurityMetrics } from './SecurityMetrics';
 import { GeneratePlaybookModal } from './GeneratePlaybookModal';
 import { ThreatIntelModal } from './ThreatIntelModal';
 import * as api from '../services/apiService';
+import { authFetch } from '../services/apiService';
+import { socketService } from '../services/socketService';
 import { ThreatIntelFeed } from './ThreatIntelFeed';
 import { showToast } from '../utils/toast';
-import { StatTile, bigNumber } from './StatTile';
+import { Skeleton } from './ui/skeleton';
+import { LiveStatus, PageHeader, ghostButton, useLiveData } from './network/NetworkKit';
+import { SOC_RANGES, fetchApprovals, fetchSocSummary, revokeApproval, type Approval, type SocAlert, type SocRange } from './security/soc/socData';
+import { SocKpis } from './security/soc/SocKpis';
+import { AlertTrend } from './security/soc/AlertTrend';
+import { DetectionHealth, EndpointsAtRisk, MitreTechniques, TopDetections, type QueueFocus } from './security/soc/SocPanels';
+import { AlertQueue } from './security/soc/AlertQueue';
+import { AlertDrawer } from './security/soc/AlertDrawer';
+import { segment, segmented } from './security/soc/SocKit';
 
 interface SecurityDashboardProps {
     securityCases: SecurityCase[];
@@ -27,6 +36,16 @@ interface SecurityDashboardProps {
     threatIntelFeed: ThreatIntelResult[];
 }
 
+type Tab = 'overview' | 'queue' | 'cases' | 'playbooks' | 'events';
+
+// New alerts are pushed (security_alert) as agents raise them; this poll catches anything a push missed.
+const POLL_MS = 30_000;
+const PUSH_REFRESH_MS = 5_000;
+
+/**
+ * Security Operations Center (the Security Overview screen): live alerts from every detection,
+ * the queue analysts work, cases, playbooks and the older event feed.
+ */
 export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     const {
         securityCases, playbooks, securityEvents,
@@ -35,7 +54,16 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     } = props;
 
     const { currentUser } = useUser();
-    const [activeView, setActiveView] = useState<SecurityView>('events');
+    const [tab, setTab] = useState<Tab>('overview');
+    const [range, setRange] = useState<SocRange>('24h');
+    const [focus, setFocus] = useState<QueueFocus | null>(null);
+    const [openAlert, setOpenAlert] = useState<SocAlert | null>(null);
+    const [queueKey, setQueueKey] = useState(0);
+    const [approvals, setApprovals] = useState<Approval[] | null>(null);
+    const [revoking, setRevoking] = useState<string | null>(null);
+    const [streamUp, setStreamUp] = useState(socketService.connected);
+    // Cases opened from alerts here, until App's own list has them.
+    const [casesFromAlerts, setCasesFromAlerts] = useState<SecurityCase[]>([]);
     const [viewingCase, setViewingCase] = useState<SecurityCase | null>(null);
     const [playbookToExecute, setPlaybookToExecute] = useState<Playbook | null>(null);
     const [isGeneratePlaybookModalOpen, setIsGeneratePlaybookModalOpen] = useState(false);
@@ -45,38 +73,64 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     // Lookups made on this screen, shown ahead of the feed App loaded.
     const [newLookups, setNewLookups] = useState<ThreatIntelResult[]>([]);
 
+    const fetcher = useCallback(() => fetchSocSummary(authFetch, range), [range]);
+    const live = useLiveData(fetcher, POLL_MS);
+    const { refresh, paused, data } = live;
+    const pausedRef = useRef(paused);
+    pausedRef.current = paused;
+    const rangeLong = SOC_RANGES.find(r => r.key === range)?.long ?? range;
+
+    const firstRun = useRef(true);
+    useEffect(() => {
+        if (firstRun.current) { firstRun.current = false; return; }
+        refresh();
+    }, [range, refresh]);
+
+    const loadApprovals = useCallback(() => {
+        fetchApprovals(authFetch).then(setApprovals).catch(() => setApprovals([]));
+    }, []);
+    useEffect(() => { loadApprovals(); }, [loadApprovals]);
+
+    useEffect(() => {
+        let last = 0;
+        const onPush = () => {
+            if (pausedRef.current || Date.now() - last < PUSH_REFRESH_MS) return;
+            last = Date.now();
+            refresh();
+            setQueueKey(k => k + 1);
+        };
+        socketService.on('security_alert', onPush);
+        const tick = setInterval(() => setStreamUp(socketService.connected), 5000);
+        return () => { socketService.off('security_alert', onPush); clearInterval(tick); };
+    }, [refresh]);
+
+    const cases = useMemo(
+        () => [...casesFromAlerts.filter(c => !securityCases.some(s => s.id === c.id)), ...securityCases],
+        [casesFromAlerts, securityCases],
+    );
+
     useEffect(() => {
         if (viewingCase) {
-            const updatedCase = securityCases.find(c => c.id === viewingCase.id);
+            const updatedCase = cases.find(c => c.id === viewingCase.id);
             if (updatedCase) {
-                setViewingCase(updatedCase);
+                if (updatedCase !== viewingCase) setViewingCase(updatedCase);
             } else {
                 setViewingCase(null);
             }
         }
-    }, [securityCases, viewingCase]);
+    }, [cases, viewingCase]);
 
     const shownPlaybooks = playbooks.map(p => (p.id in playbookEnabled ? { ...p, enabled: playbookEnabled[p.id] } : p));
     const shownThreatIntel = [...newLookups, ...threatIntelFeed.filter(t => !newLookups.some(n => n.id === t.id))];
-
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const eventsLast24h = securityEvents.filter(e => new Date(e.timestamp).getTime() >= dayAgo).length;
-    const openCases = securityCases.filter(c => c.status !== 'Resolved').length;
-    const newCases = securityCases.filter(c => c.status === 'New').length;
-    const criticalEvents = securityEvents.filter(e => e.severity === 'Critical').length;
-    const highEvents = securityEvents.filter(e => e.severity === 'High').length;
 
-    const handleViewCase = (caseItem: SecurityCase) => {
-      setViewingCase(caseItem);
-    };
-
-    const handleCloseCaseModal = () => {
-      setViewingCase(null);
-    };
+    const showQueue = (f: QueueFocus) => { setFocus(f); setTab('queue'); };
+    const alertsChanged = () => { refresh(); setQueueKey(k => k + 1); };
 
     const handleAddComment = async (caseId: string, content: string) => {
       if (!currentUser) return;
-      const targetCase = securityCases.find(c => c.id === caseId);
+      const targetCase = cases.find(c => c.id === caseId);
       if (!targetCase) return;
 
       const newComment: Comment = {
@@ -89,6 +143,15 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
       const updatedCase = { ...targetCase, comments: [...targetCase.comments, newComment] };
       const result = await onCaseUpdate(updatedCase);
       setViewingCase(result);
+    };
+
+    const handleCaseFromAlert = (caseItem: Record<string, unknown>) => {
+        const opened = caseItem as unknown as SecurityCase;
+        setCasesFromAlerts(prev => (prev.some(c => c.id === opened.id) ? prev : [opened, ...prev]));
+        setOpenAlert(null);
+        setTab('cases');
+        setViewingCase(opened);
+        alertsChanged();
     };
 
     const handleCreateCase = async (event: SecurityEvent) => {
@@ -108,16 +171,16 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             enrichmentData: [],
         };
         await onCaseUpdate(newCase);
-        setActiveView('cases');
+        setTab('cases');
     };
 
-    const handleRunPlaybook = (event: SecurityEvent) => {
+    const handleRunPlaybook = (_event: SecurityEvent) => {
         // A disabled playbook is never offered from an event.
         const runnable = shownPlaybooks.find(p => p.enabled !== false);
         if (runnable) {
             setPlaybookToExecute(runnable);
         } else {
-            setActiveView('playbooks');
+            setTab('playbooks');
         }
     };
 
@@ -136,7 +199,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             setThreatIntelResultForModal(result);
             setNewLookups(prev => [result, ...prev]);
 
-            const relatedCase = securityCases.find(c => c.relatedEvents.some(e => e.id === event.id));
+            const relatedCase = cases.find(c => c.relatedEvents.some(e => e.id === event.id));
             if (relatedCase) {
                 const isAlreadyEnriched = relatedCase.enrichmentData.some(e => e.artifact === artifact);
                 if (!isAlreadyEnriched) {
@@ -149,20 +212,75 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
         }
     };
 
-    const tabs: { id: SecurityView; label: string; icon: React.ReactNode; count?: number }[] = [
-        { id: 'events', label: 'Events', icon: <ActivityIcon size={15} />, count: securityEvents.length },
-        { id: 'cases', label: 'Cases', icon: <BoxIcon size={15} />, count: securityCases.length },
-        { id: 'playbooks', label: 'Playbooks', icon: <BotIcon size={15} />, count: playbooks.length },
-        { id: 'metrics', label: 'Metrics', icon: <BarChart3Icon size={15} /> },
+    const handleRevoke = async (approval: Approval) => {
+        setRevoking(approval.id);
+        try {
+            await revokeApproval(authFetch, approval.id);
+            showToast(`${approval.process} is no longer approved; its next detection raises an alert`, 'success');
+            loadApprovals();
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : 'The approval was not removed', 'error');
+        } finally {
+            setRevoking(null);
+        }
+    };
+
+    const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
+        { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} /> },
+        { id: 'queue', label: 'Alert queue', icon: <ShieldAlert size={15} />, count: data?.kpis?.active },
+        { id: 'cases', label: 'Cases', icon: <Box size={15} />, count: cases.length },
+        { id: 'playbooks', label: 'Playbooks', icon: <Bot size={15} />, count: playbooks.length },
+        { id: 'events', label: 'Event feed', icon: <Activity size={15} />, count: securityEvents.length },
     ];
+    const typeOptions = data?.sources?.map(s => ({ type: s.type, label: s.label })) ?? [];
+
+    const overview = () => {
+        if (!data) {
+            return live.error ? (
+                <div role="alert" className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-5 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" aria-hidden="true" />
+                    <div className="flex-1">
+                        <p className="font-medium text-red-800 dark:text-red-200">The security overview could not be loaded</p>
+                        <p className="mt-1 text-sm text-red-700 dark:text-red-300">{live.error}</p>
+                    </div>
+                    <button type="button" onClick={refresh} className={ghostButton}>Try again</button>
+                </div>
+            ) : (
+                <div className="space-y-3" aria-busy="true">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Skeleton key={i} variant="card" height={132} />)}</div>
+                    <Skeleton variant="card" height={320} />
+                </div>
+            );
+        }
+        return (
+            <div className="space-y-3">
+                <SocKpis data={data} rangeLabel={rangeLong} />
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,65fr)_minmax(0,35fr)] gap-3">
+                    <AlertTrend data={data} rangeLabel={rangeLong} />
+                    <TopDetections data={data} rangeLabel={rangeLong} onFocus={showQueue} />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <EndpointsAtRisk data={data} onFocus={showQueue} />
+                    <MitreTechniques data={data} />
+                </div>
+                <DetectionHealth data={data} approvals={approvals} onRevoke={handleRevoke} busyId={revoking} />
+            </div>
+        );
+    };
 
     const renderActiveView = () => {
-        switch (activeView) {
-            case 'metrics':
-                return <SecurityMetrics securityEvents={securityEvents} securityCases={securityCases} />;
+        switch (tab) {
+            case 'overview':
+                return overview();
+            case 'queue':
+                return <AlertQueue focus={focus} onClearFocus={() => setFocus(null)} types={typeOptions} reloadKey={queueKey} onOpen={setOpenAlert} onChanged={alertsChanged} />;
             case 'events':
                 return (
                     <div className="space-y-5">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            Events posted to the platform's event feed: <span className="font-semibold tabular-nums">{eventsLast24h}</span> in the last 24 hours, {securityEvents.length} in the feed.
+                            Agent detections are in the alert queue.
+                        </p>
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:h-[560px]">
                             <div className="lg:col-span-8 min-h-0">
                                 <SecurityEventsFeed events={securityEvents} onScanArtifact={handleScanArtifact} onCreateCase={handleCreateCase} onRunPlaybook={handleRunPlaybook} />
@@ -175,7 +293,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                     </div>
                 );
             case 'cases':
-                return <CaseManagement cases={securityCases} onViewCase={handleViewCase} />;
+                return <CaseManagement cases={cases} onViewCase={setViewingCase} />;
             case 'playbooks':
                 return <PlaybookManager playbooks={shownPlaybooks} onExecutePlaybook={setPlaybookToExecute} onGeneratePlaybook={() => setIsGeneratePlaybookModalOpen(true)} onTogglePlaybook={handleTogglePlaybook} />;
             default:
@@ -184,44 +302,43 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     };
 
     return (
-        <div className="space-y-6 fade-in">
-            <header>
-                <h2 className="text-[30px] font-semibold tracking-[-0.03em] text-gray-900 dark:text-white">Security overview</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Events your agents raise, the cases they become and the playbooks that respond.
-                </p>
-            </header>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                <StatTile icon={<ActivityIcon size={18} />} label="Events, last 24 hours" tone="primary" footnote={`${securityEvents.length} in the feed`}>
-                    <p className={`${bigNumber} text-gray-900 dark:text-white`}>{eventsLast24h}</p>
-                </StatTile>
-                <StatTile icon={<BoxIcon size={18} />} label="Open cases" tone="blue" footnote={newCases === 0 ? 'None waiting to be picked up' : `${newCases} not picked up yet`}>
-                    <p className={`${bigNumber} text-gray-900 dark:text-white`}>{openCases}</p>
-                </StatTile>
-                <StatTile icon={<ShieldAlertIcon size={18} />} label="Critical events" tone="red" footnote="In the feed">
-                    <p className={`${bigNumber} ${criticalEvents > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>{criticalEvents}</p>
-                </StatTile>
-                <StatTile icon={<AlertTriangleIcon size={18} />} label="High-severity events" tone="orange" footnote="In the feed">
-                    <p className={`${bigNumber} ${highEvents > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>{highEvents}</p>
-                </StatTile>
-            </div>
+        <div className="space-y-4 pb-8 fade-in">
+            <PageHeader
+                title="Security Operations Center"
+                subtitle="Alerts from your endpoints, who is handling them, and how detection is doing"
+                status={
+                    <span title={streamUp ? 'New alerts are pushed as agents raise them' : `Refreshing every ${POLL_MS / 1000} s; live push is not connected`}>
+                        <LiveStatus updatedAt={live.updatedAt} error={live.error} paused={paused} liveLabel={streamUp ? 'Stream: Live' : 'Live (polling)'} />
+                    </span>
+                }
+                paused={paused}
+                onTogglePause={() => live.setPaused(p => !p)}
+                onRefresh={alertsChanged}
+                refreshing={live.loading}
+            >
+                <div role="group" aria-label="Time range" className={segmented}>
+                    {SOC_RANGES.map(r => (
+                        <button key={r.key} type="button" aria-pressed={range === r.key} onClick={() => setRange(r.key)} className={`${segment(range === r.key)} font-mono`}>{r.label}</button>
+                    ))}
+                </div>
+            </PageHeader>
 
             <div className="border-b border-gray-200/80 dark:border-white/[0.07]">
                 <nav className="-mb-px flex gap-6 overflow-x-auto" aria-label="Security views">
-                    {tabs.map(tab => (
+                    {tabs.map(t => (
                         <button
-                            key={tab.id}
-                            onClick={() => setActiveView(tab.id)}
-                            aria-current={activeView === tab.id ? 'page' : undefined}
-                            className={`flex items-center gap-1.5 whitespace-nowrap py-3 border-b-2 text-sm font-medium transition-colors ${activeView === tab.id
+                            key={t.id}
+                            type="button"
+                            onClick={() => setTab(t.id)}
+                            aria-current={tab === t.id ? 'page' : undefined}
+                            className={`flex items-center gap-1.5 whitespace-nowrap py-3 border-b-2 text-sm font-medium transition-colors ${tab === t.id
                                 ? 'border-primary-500 text-gray-900 dark:border-primary-400 dark:text-white'
                                 : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}
                         >
-                            <span className={activeView === tab.id ? 'text-primary-600 dark:text-primary-400' : ''}>{tab.icon}</span>
-                            {tab.label}
-                            {tab.count !== undefined && (
-                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[11px] font-semibold tabular-nums ${activeView === tab.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{tab.count}</span>
+                            <span className={tab === t.id ? 'text-primary-600 dark:text-primary-400' : ''} aria-hidden="true">{t.icon}</span>
+                            {t.label}
+                            {t.count !== undefined && (
+                                <span className={`ml-0.5 px-1.5 py-px rounded-full text-[11px] font-semibold tabular-nums ${tab === t.id ? 'bg-primary-500/15 text-primary-700 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'}`}>{t.count}</span>
                             )}
                         </button>
                     ))}
@@ -230,9 +347,13 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
 
             {renderActiveView()}
 
+            {openAlert && (
+                <AlertDrawer alert={openAlert} onClose={() => setOpenAlert(null)} onCaseOpened={handleCaseFromAlert}
+                    onChanged={() => { alertsChanged(); loadApprovals(); }} />
+            )}
             <CaseDetailModal
                 isOpen={!!viewingCase}
-                onClose={handleCloseCaseModal}
+                onClose={() => setViewingCase(null)}
                 caseItem={viewingCase}
                 onAddComment={handleAddComment}
                 users={users}
@@ -248,7 +369,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 onClose={() => setPlaybookToExecute(null)}
                 playbook={playbookToExecute}
                 events={securityEvents}
-                cases={securityCases}
+                cases={cases}
             />
             <GeneratePlaybookModal
                 isOpen={isGeneratePlaybookModalOpen}
