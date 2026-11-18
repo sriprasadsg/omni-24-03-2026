@@ -222,6 +222,13 @@ async def get_incidents(
     return await soc_incidents.list_incidents(get_database(), soc_scope(current_user, tenant), status, limit, offset)
 
 
+@router.get("/campaigns", dependencies=[Depends(SECURITY_GUARD)])
+async def get_campaigns(days: int = Query(7, ge=1, le=30), current_user: TokenData = Depends(get_current_user)):
+    """The same hash, IP, technique or detection on two or more endpoints in the last days."""
+    import soc_campaigns
+    return {"items": await soc_campaigns.campaigns(get_database(), soc_scope(current_user), days), "days": days}
+
+
 @router.get("/incidents/{incident_id}", dependencies=[Depends(SECURITY_GUARD)])
 async def get_incident(incident_id: str, current_user: TokenData = Depends(get_current_user)):
     found = await soc_incidents.get_incident(get_database(), soc_scope(current_user), incident_id[:128])

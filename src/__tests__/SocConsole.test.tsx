@@ -97,6 +97,7 @@ function route(url: string, init?: RequestInit) {
     if (u.pathname === '/api/security/soc/watchlist') return ok({ items: [] });
     if (u.pathname === '/api/security/soc/rules/preview') return ok({ days: 7, checked: 40, matched: 35, examples: [{ id: 'x', title: 'UEBA Anomaly: Unusual Login Time' }] });
     if (u.pathname === '/api/security/soc/incidents/INC-1/triage') return ok({ summary: 'Three alerts look like one attack.', seriousness: 'high', nextSteps: ['open_case'], model: 'llama3.2:3b', at: at(0), by: 'ava' });
+    if (u.pathname === '/api/security/soc/campaigns') return ok({ items: [{ kind: 'hash', key: 'c', label: 'File cccccccccccc…', endpoints: [{ agentId: 'h1', hostname: 'PC-1' }, { agentId: 'h2', hostname: 'PC-2' }], alertCount: 2, severity: 'critical', active: 2, lastAt: at(1) }], days: 7 });
     if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
     if (u.pathname === '/api/security/soc/incidents/INC-1') return ok({ ...incident(), timeline: [alert()], ...(init?.method === 'PATCH' ? { status: 'closed', resolution: 'benign' } : {}) });
     if (u.pathname.endsWith('/triage')) return ok({ summary: 'A local AI tool runs on purpose.', likelyCause: 'Developer tooling.', seriousness: 'low',
@@ -247,6 +248,7 @@ describe('Incidents', () => {
         renderConsole();
         fireEvent.click(await screen.findByRole('button', { name: /^Incidents/ }));
         const row = await screen.findByRole('button', { name: /Unapproved AI process: lmstudio and 2 more/ });
+        expect(await screen.findByText(/on 2 endpoints \(PC-1, PC-2\)/)).toBeTruthy();
         expect(within(row).getByRole('list', { name: 'Attack stages in order' }).textContent).toBe('ExecutionCredential Access');
         fireEvent.click(row);
         const drawer = await screen.findByRole('dialog', { name: /Unapproved AI process: lmstudio and 2 more/ });

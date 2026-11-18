@@ -169,6 +169,34 @@ const IncidentDrawer: React.FC<{ id: string; onClose: () => void; onOpenAlert: (
     );
 };
 
+interface Campaign { kind: string; key: string; label: string; endpoints: { agentId: string; hostname: string }[]; alertCount: number; severity: SocIncident['severity']; active: number; lastAt?: string | null }
+const KIND_LABEL: Record<string, string> = { hash: 'Same file', ip: 'Same IP', technique: 'Same technique', detection: 'Same detection' };
+
+/** The same hash, IP, technique or detection on two or more endpoints in the last 7 days. */
+const Campaigns: React.FC<{ reloadKey: number }> = ({ reloadKey }) => {
+    const [items, setItems] = useState<Campaign[] | null>(null);
+    useEffect(() => {
+        authFetch('/api/security/soc/campaigns?days=7').then(r => (r.ok ? r.json() : { items: [] })).then(d => setItems(Array.isArray(d?.items) ? d.items : []))
+            .catch(() => setItems([]));
+    }, [reloadKey]);
+    if (!items || items.length === 0) return null;
+    return (
+        <section aria-label="Across endpoints" className="p-4 border-b border-gray-200/70 dark:border-white/[0.07]">
+            <h3 className={subhead}>Across endpoints (last 7 days)</h3>
+            <ul className="mt-2 space-y-2">
+                {items.slice(0, 6).map(c => (
+                    <li key={`${c.kind}-${c.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                        <SeverityBadge severity={c.severity} />
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{KIND_LABEL[c.kind] ?? c.kind}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{c.label}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300">on {c.endpoints.length} endpoints ({c.endpoints.map(e => e.hostname).join(', ')}) · {c.alertCount} alerts, {c.active} active · last {formatSince(c.lastAt)}</span>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+};
+
 /** Incidents: an endpoint's alerts less than an hour apart, most severe first. */
 export const IncidentsTab: React.FC<{ reloadKey: number; onOpenAlert: (a: SocAlert) => void; onCaseOpened: (c: Record<string, unknown>) => void; onChanged: () => void }> = ({ reloadKey, onOpenAlert, onCaseOpened, onChanged }) => {
     const [status, setStatus] = useState<QueueStatus>('active');
@@ -192,6 +220,7 @@ export const IncidentsTab: React.FC<{ reloadKey: number; onOpenAlert: (a: SocAle
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">An endpoint's alerts less than an hour apart form one incident.</p>
             </div>
+            <Campaigns reloadKey={reloadKey + bump} />
             {error && !page ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{error}</p>
                 : !page ? <p className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading incidents…</p>
                 : page.items.length === 0 ? <EmptyNote icon={<Layers className="w-5 h-5" />} title={status === 'active' ? 'No active incidents' : 'No incidents here'} />
