@@ -116,6 +116,11 @@ async def record_alert(db, alert: Dict[str, Any], group: Optional[str] = None) -
         await soc_rules.apply(db, alert)
     except Exception as e:
         logger.warning("SOC rules not applied to %s: %s", alert["id"], e)
+    try:  # threat-intel feeds listing one of its hashes or IPs (soc_context)
+        import soc_context
+        await soc_context.match_alert(db, alert)
+    except Exception as e:
+        logger.debug("SOC threat-intel match for %s skipped: %s", alert["id"], e)
     if alert.get("status") != "closed":
         try:  # the endpoint's incident (soc_incidents); a failure never loses the alert
             import soc_incidents

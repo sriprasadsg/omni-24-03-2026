@@ -1,7 +1,7 @@
 import React from 'react';
 import { Bot, Crosshair, ExternalLink, MonitorSmartphone, Radar, ShieldCheck, Trash2 } from 'lucide-react';
 import { EmptyNote, Panel, RankedList, ghostButton } from '../../network/NetworkKit';
-import { formatSince, type Approval, type SocSummary } from './socData';
+import { FEED_NAME, formatSince, type Approval, type SocSummary } from './socData';
 import { SeverityCounts, subhead } from './SocKit';
 
 export interface QueueFocus { type?: string; agentId?: string; label: string }
@@ -29,7 +29,7 @@ export const TopDetections: React.FC<{ data: SocSummary; rangeLabel: string; onF
 };
 
 export const EndpointsAtRisk: React.FC<{ data: SocSummary; onFocus: (f: QueueFocus) => void }> = ({ data, onFocus }) => (
-    <Panel title="Endpoints at risk" note="Endpoints with active alerts, most severe first">
+    <Panel title="Endpoints at risk" note="Endpoints with active alerts, by risk (0-100)">
         {data.endpoints.length ? (
             <ul className="divide-y divide-gray-100 dark:divide-white/[0.06] -my-2">
                 {data.endpoints.map(e => {
@@ -46,13 +46,25 @@ export const EndpointsAtRisk: React.FC<{ data: SocSummary; onFocus: (f: QueueFoc
                                     </span>
                                 </span>
                                 <SeverityCounts counts={e} className="justify-end" />
-                                <span className="font-mono tabular-nums text-sm font-semibold text-gray-900 dark:text-white w-8 text-right">{e.active}</span>
+                                <span className="font-mono tabular-nums text-sm font-semibold text-gray-900 dark:text-white w-10 text-right" title={`Risk ${e.risk ?? 0} of 100`}>{e.risk ?? e.active}<span className="sr-only"> risk</span></span>
                             </button>
                         </li>
                     );
                 })}
             </ul>
         ) : <EmptyNote icon={<MonitorSmartphone className="w-5 h-5" />} title="No endpoint has an active alert" />}
+        {data.users && data.users.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/[0.06]">
+                <h3 className={subhead}>Users at risk</h3>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                    {data.users.map(u => (
+                        <li key={u.user} className="rounded-lg px-2 py-1 text-xs bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] text-gray-700 dark:text-gray-300">
+                            {u.user} <span className="font-mono tabular-nums font-semibold">{u.risk}</span> · {u.active} alert{u.active === 1 ? '' : 's'}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
     </Panel>
 );
 
@@ -121,6 +133,11 @@ export const DetectionHealth: React.FC<{ data: SocSummary; approvals: Approval[]
                                 </li>
                             ))}
                         </ul>
+                        {data.threatIntel && (
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                Threat intel: {data.threatIntel.indicators} indicators{data.threatIntel.feeds.map(f => ` · ${FEED_NAME[f.source] || f.source}: ${f.needsKey ? 'needs a free abuse.ch key' : f.ok ? `updated ${formatSince(f.at)}` : 'last download failed'}`).join('')}
+                            </p>
+                        )}
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                             {data.counts.openCases ?? 0} open case{data.counts.openCases === 1 ? '' : 's'} · {data.counts.siemRules ?? 0} SIEM correlation rules · {data.counts.activeHunts ?? 0} active threat hunts
                         </p>

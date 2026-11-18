@@ -20,6 +20,7 @@ from soc_alerts import ACTIVE, HIDDEN, SEVERITIES, TYPE_LABELS, severity_of, sta
 # Range -> (seconds, bucket seconds)
 RANGES: Dict[str, tuple] = {"1h": (3600, 300), "24h": (86400, 3600), "7d": (604800, 21600), "30d": (2592000, 86400)}
 MAX_ROWS = 20000
+RISK_SORT_CAP = 2000
 TECHNIQUE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
 TECHNIQUE_NAMES = {t["id"]: (t["name"], tac["name"]) for tac in ATTACK_MATRIX["tactics"] for t in tac["techniques"]}
 # Checks an agent reports in availableCapabilities, and the alert types they raise.
@@ -90,6 +91,7 @@ def view(doc: Dict[str, Any], hosts: Optional[Dict[str, str]] = None, legacy: bo
         "autoClosed": bool(doc.get("autoClosed")),
         "caseId": doc.get("caseId"),
         "incidentId": doc.get("incidentId"),
+        "threatIntel": doc.get("threatIntel") if isinstance(doc.get("threatIntel"), list) else [],
         "rules": doc.get("rules") if isinstance(doc.get("rules"), list) else [],
         "suggestedResponse": doc.get("suggestedResponse") if isinstance(doc.get("suggestedResponse"), dict) else None,
         "aiTriage": doc.get("aiTriage") if isinstance(doc.get("aiTriage"), dict) else None,
@@ -140,9 +142,15 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
     agent_by_id = {g.get("id"): g for g in agents}
     per_agent: Dict[str, Counter] = defaultdict(Counter)
     last_alert: Dict[str, str] = {}
+    risks: Dict[str, List[int]] = defaultdict(list)
+    users: Dict[str, List[int]] = defaultdict(list)
     for a in active:
         key = a["agentId"] or ""
         per_agent[key][a["severity"]] += 1
+        risks[key].append(int(a.get("risk") or 0))
+        user = (a.get("evidence") or {}).get("user")
+        if isinstance(user, str) and user:
+            users[user].append(int(a.get("risk") or 0))
         seen = a["_seen"].isoformat() if a["_seen"] else ""
         last_alert[key] = max(last_alert.get(key, ""), seen)
     endpoints = []
@@ -153,9 +161,9 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
             "agentId": key or None, "hostname": agent.get("hostname") or (key or "No endpoint"),
             "online": bool(seen and now - seen <= ONLINE_WITHIN), "known": bool(agent),
             "active": sum(sev.values()), **{s: sev.get(s, 0) for s in SEVERITIES},
-            "lastAlertAt": last_alert.get(key) or None,
+            "lastAlertAt": last_alert.get(key) or None, "risk": _combined(risks[key]),
         })
-    endpoints.sort(key=lambda e: tuple(-e[s] for s in SEVERITIES) + (e["hostname"],))
+    endpoints.sort(key=lambda e: (-e["risk"],) + tuple(-e[s] for s in SEVERITIES) + (e["hostname"],))
 
     mitre = Counter(t for a in rows if id(a) in touched for t in a["mitre"])
     online = [g for g in agents if (s := parse_ts(g.get("lastSeen"))) and now - s <= ONLINE_WITHIN]
@@ -179,12 +187,18 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
         "trend": trend,
         "byType": sorted(by_type.values(), key=lambda t: (-t["active"], -t["inRange"], t["label"])),
         "endpoints": endpoints[:8],
+        "users": sorted(({"user": u, "risk": _combined(r), "active": len(r)} for u, r in users.items()), key=lambda x: -x["risk"])[:6],
         "mitre": [{"technique": t, "name": TECHNIQUE_NAMES.get(t, (t, ""))[0], "tactic": TECHNIQUE_NAMES.get(t, ("", ""))[1],
                    "count": n} for t, n in mitre.most_common(10)],
         "sources": sources or [],
         "coverage": coverage,
         "counts": counts or {},
     }
+
+
+def _combined(scores: List[int]) -> int:
+    ordered = sorted((s for s in scores if s > 0), reverse=True)
+    return int(min(100, round(ordered[0] + 0.15 * sum(ordered[1:5])))) if ordered else 0
 
 
 def scope_filter(scope: Optional[str]) -> Dict[str, Any]:
@@ -218,8 +232,9 @@ async def _hostnames(db, agent_ids: Iterable[Optional[str]]) -> Dict[str, str]:
 
 async def alert_queue(scope: Optional[str], status: str = "active", severity: Optional[str] = None,
                       alert_type: Optional[str] = None, agent_id: Optional[str] = None, q: Optional[str] = None,
-                      limit: int = 50, offset: int = 0) -> Dict[str, Any]:
-    """One page of the queue: active alerts first, then by severity, newest activity first."""
+                      limit: int = 50, offset: int = 0, sort: str = "severity") -> Dict[str, Any]:
+    """One page of the queue: active alerts first, then by severity (or by risk), newest activity first."""
+    import soc_context
     db = get_database()
     filt = queue_filter(scope, status, severity, alert_type, agent_id, q)
     sev_rank = {"$switch": {"branches": [{"case": {"$eq": [{"$toLower": "$severity"}, s]}, "then": i}
@@ -233,15 +248,19 @@ async def alert_queue(scope: Optional[str], status: str = "active", severity: Op
             "_seen": {"$ifNull": ["$lastSeenAt", {"$ifNull": ["$created_at", "$timestamp"]}]},
         }},
         {"$sort": {"_act": 1, "_sev": 1, "_seen": -1}},
-        {"$facet": {"items": [{"$skip": offset}, {"$limit": limit}], "total": [{"$count": "n"}]}},
+        {"$facet": {"items": [{"$skip": 0 if sort == "risk" else offset}, {"$limit": RISK_SORT_CAP if sort == "risk" else limit}],
+                    "total": [{"$count": "n"}]}},
     ]
     result = await db.security_alerts.aggregate(pipeline).to_list(1)
     page = result[0] if result else {"items": [], "total": []}
     docs = page.get("items", [])
     hosts = await _hostnames(db, (d.get("agent_id") or d.get("agentId") for d in docs))
     total = page["total"][0]["n"] if page.get("total") else 0
-    return {"items": [view(d, hosts, legacy=bool(d.get("_legacy"))) for d in docs], "total": total,
-            "limit": limit, "offset": offset}
+    items = await soc_context.annotate(db, [view(d, hosts, legacy=bool(d.get("_legacy"))) for d in docs])
+    if sort == "risk":  # riskiest first among the first RISK_SORT_CAP matches, then paged
+        items.sort(key=lambda a: (-a["risk"], -(parse_ts(a["lastSeenAt"]) or datetime.min.replace(tzinfo=timezone.utc)).timestamp()))
+        items = items[offset:offset + limit]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 async def _source_health(db, scope: Optional[str]) -> List[Dict[str, Any]]:
@@ -284,7 +303,13 @@ async def soc_summary(scope: Optional[str], range_key: str = "24h", now: Optiona
                                                                     "status": 1, "availableCapabilities": 1}).to_list(5000)
               if g.get("status") not in HIDDEN_AGENT_STATUSES]
     hosts = {g["id"]: g.get("hostname") or g["id"] for g in agents if g.get("id")}
-    alerts = [view(d, hosts, legacy=bool(d.get("_legacy"))) for d in docs]
+    import soc_context
+    alerts = await soc_context.annotate(db, [view(d, hosts, legacy=bool(d.get("_legacy"))) for d in docs], now)
     summary = build_summary(alerts, agents, range_key, now, await _source_health(db, scope), await _counts(db, scope))
     summary["truncated"] = len(docs) >= MAX_ROWS
+    try:
+        import soc_threat_intel
+        summary["threatIntel"] = await soc_threat_intel.feed_status(getattr(db, "_db", db))
+    except Exception:
+        summary["threatIntel"] = None
     return summary

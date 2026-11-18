@@ -18,6 +18,7 @@ from database import get_database
 from rbac_utils import is_super_admin, require_permission, verify_permission
 from tenant_context import get_tenant_id
 import soc_actions
+import soc_context
 import soc_incidents
 import soc_response
 import soc_rules
@@ -67,6 +68,13 @@ class IncidentActionIn(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class EndpointContextIn(BaseModel):
+    importance: Literal["low", "medium", "high", "critical"] = "medium"
+    owner: Optional[str] = Field(None, max_length=120)
+
+    model_config = {"extra": "forbid"}
+
+
 class RespondIn(BaseModel):
     action: Literal["isolate_host", "quarantine_file", "block_ip", "kill_process"]
     ttl: Optional[Literal["1h", "24h", "7d"]] = None
@@ -98,7 +106,8 @@ def soc_scope(current_user: Any, tenant_param: Optional[str] = None) -> Optional
 async def _run(coro):
     try:
         return await coro
-    except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError, soc_rules.RuleError) as e:
+    except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError, soc_rules.RuleError,
+            soc_context.ContextError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
 
@@ -117,9 +126,9 @@ async def get_soc_summary(
     return await soc_service.soc_summary(soc_scope(current_user, tenant), range_key)
 
 
-async def _queue(current_user, tenant, status, severity, alert_type, agent_id, q, limit, offset):
+async def _queue(current_user, tenant, status, severity, alert_type, agent_id, q, limit, offset, sort="severity"):
     return await soc_service.alert_queue(soc_scope(current_user, tenant), status, severity, alert_type, agent_id, q,
-                                         limit, offset)
+                                         limit, offset, sort)
 
 
 @router.get("/alerts", dependencies=[Depends(SECURITY_GUARD)])
@@ -132,10 +141,11 @@ async def get_soc_alerts(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0, le=100000),
     tenant: Optional[str] = Query(None, alias="tenantId", max_length=128),
+    sort: Literal["severity", "risk"] = "severity",
     current_user: TokenData = Depends(get_current_user),
 ):
-    """The alert queue: active first, then by severity, newest activity first."""
-    return await _queue(current_user, tenant, status, severity, alert_type, agent_id, q, limit, offset)
+    """The alert queue: active first, then by severity (or risk), newest activity first."""
+    return await _queue(current_user, tenant, status, severity, alert_type, agent_id, q, limit, offset, sort)
 
 
 @router.patch("/alerts/{alert_id}", dependencies=[Depends(SECURITY_GUARD)])
@@ -262,6 +272,29 @@ async def delete_rule(rule_id: str, current_user: TokenData = Depends(get_curren
     await _run(soc_rules.delete(get_database(), soc_scope(current_user), rule_id[:64]))
     await soc_actions._audit("soc.rule.delete", soc_scope(current_user), current_user, ruleId=rule_id[:64])
     return {"success": True}
+
+
+@router.get("/alerts/{alert_id}/context", dependencies=[Depends(SECURITY_GUARD)])
+async def get_alert_context(alert_id: str, current_user: TokenData = Depends(get_current_user)):
+    """The alert's endpoint (importance, owner, details), user, other active alerts there and threat-intel hits."""
+    return await _run(soc_context.alert_context(get_database(), soc_scope(current_user), alert_id[:128]))
+
+
+@router.put("/endpoints/{agent_id}/context", dependencies=[Depends(SECURITY_GUARD)])
+async def put_endpoint_context(agent_id: str, body: EndpointContextIn, current_user: TokenData = Depends(get_current_user)):
+    """Set how important an endpoint is and who owns it; risk scores use the importance at once."""
+    out = await _run(soc_context.set_context(get_database(), soc_scope(current_user), agent_id[:128], body.importance,
+                                             body.owner, current_user.username))
+    await soc_actions._audit("soc.endpoint.context", out["tenantId"], current_user, agentId=agent_id[:128],
+                             importance=out["importance"])
+    return out
+
+
+@router.get("/threat-intel", dependencies=[Depends(SECURITY_GUARD)])
+async def get_threat_intel_status(current_user: TokenData = Depends(get_current_user)):
+    """The abuse.ch feeds' last download and how many indicators are held."""
+    import soc_threat_intel
+    return await soc_threat_intel.feed_status(getattr(get_database(), "_db", get_database()))
 
 
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])

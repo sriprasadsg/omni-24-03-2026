@@ -87,6 +87,11 @@ function route(url: string, init?: RequestInit) {
     }
     if (u.pathname.endsWith('/response') && !init?.method) return ok(responseInfo());
     if (u.pathname.endsWith('/respond')) return ok({ actionId: 'AO-1', status: 'dispatched' });
+    if (u.pathname.endsWith('/context') && !init?.method) return ok({ risk: 76, user: null, indicators: { ip: '45.33.32.156' },
+        threatIntel: [{ value: '45.33.32.156', kind: 'ip', source: 'feodo', malware: 'botnet C2' }],
+        feeds: { indicators: 1, feeds: [{ source: 'feodo', ok: true, count: 1, at: at(1) }, { source: 'threatfox', ok: false, needsKey: true }] },
+        host: { agentId: 'ag-srv', enrolled: true, hostname: 'Omniai-copy', os: 'Linux', importance: 'medium', owner: null, otherActiveAlerts: 2 } });
+    if (u.pathname.includes('/endpoints/') && init?.method === 'PUT') return ok({ importance: 'critical', owner: 'IT desk' });
     if (u.pathname === '/api/security/soc/rules' && !init?.method) return ok({ items: [], canEdit: true });
     if (u.pathname === '/api/security/soc/rules/preview') return ok({ days: 7, checked: 40, matched: 35, examples: [{ id: 'x', title: 'UEBA Anomaly: Unusual Login Time' }] });
     if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
@@ -267,6 +272,25 @@ describe('Automation rules', () => {
         const body = JSON.parse(String(calls('POST', '/api/security/soc/rules').find(([u]) => !String(u).includes('preview'))![1].body));
         expect(body.conditions.types).toEqual(['runtime_security']);
         expect(body.actions.close).toBe('benign');
+    });
+});
+
+describe('Enrichment and risk', () => {
+    it('sorts the queue by risk and lets the endpoint importance and owner be set from the alert', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Alert queue/ }));
+        fireEvent.change(await screen.findByLabelText('Sort by'), { target: { value: 'risk' } });
+        await waitFor(() => expect(calls('GET', '/api/security/soc/alerts').some(([u]) => String(u).includes('sort=risk'))).toBe(true));
+        fireEvent.click(await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' }));
+        const drawer = screen.getByRole('dialog');
+        expect(await within(drawer).findByText('76')).toBeTruthy();
+        expect(within(drawer).getByText(/is listed by Feodo Tracker/)).toBeTruthy();
+        expect(within(drawer).getByText(/ThreatFox \(IPs, domains, hashes\) needs a free abuse\.ch key/)).toBeTruthy();
+        fireEvent.change(within(drawer).getByLabelText('Importance'), { target: { value: 'critical' } });
+        fireEvent.change(within(drawer).getByLabelText('Owner'), { target: { value: 'IT desk' } });
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }));
+        await waitFor(() => expect(calls('PUT', '/api/security/soc/endpoints/ag-srv/context').length).toBe(1));
+        expect(JSON.parse(String(calls('PUT', '/api/security/soc/endpoints/ag-srv/context')[0][1].body))).toEqual({ importance: 'critical', owner: 'IT desk' });
     });
 });
 

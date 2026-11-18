@@ -37,6 +37,7 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [closeAs, setCloseAs] = useState<Resolution>('resolved');
+    const [sort, setSort] = useState<'severity' | 'risk'>('severity');
     const [busy, setBusy] = useState(false);
     const seq = useRef(0);
 
@@ -46,10 +47,10 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
 
     useEffect(() => {
         const mine = ++seq.current;
-        fetchSocAlerts(authFetch, { status, severity, type: type || undefined, agentId: focus?.agentId, q: search, limit: PAGE, offset })
+        fetchSocAlerts(authFetch, { status, severity, type: type || undefined, agentId: focus?.agentId, q: search, limit: PAGE, offset, sort })
             .then(p => { if (mine === seq.current) { setPage(p); setError(null); } })
             .catch(e => { if (mine === seq.current) setError(e instanceof Error ? e.message : 'Alerts could not be loaded'); });
-    }, [status, severity, type, focus, search, offset, reloadKey]);
+    }, [status, severity, type, focus, search, offset, reloadKey, sort]);
 
     // A selection never outlives the rows it was made on.
     useEffect(() => { setSelected(new Set()); }, [status, severity, type, focus, search, offset]);
@@ -95,6 +96,11 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
                     <option value="">All detection types</option>
                     {types.map(t => <option key={t.type || 'other'} value={t.type}>{t.label}</option>)}
                 </select>
+                <label className="sr-only" htmlFor="soc-sort">Sort by</label>
+                <select id="soc-sort" value={sort} onChange={e => { setSort(e.target.value as 'severity' | 'risk'); setOffset(0); }} className={`${field} px-3`}>
+                    <option value="severity">Sort: severity</option>
+                    <option value="risk">Sort: risk</option>
+                </select>
                 <label className="relative block">
                     <span className="sr-only">Search alerts</span>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
@@ -135,7 +141,7 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
                 </EmptyNote>
             ) : (
                 <div className="relative overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-sm">
+                    <table className="w-full min-w-[780px] text-sm">
                         <thead>
                             <tr className="text-left">
                                 <th scope="col" className="w-10 px-4 py-2.5">
@@ -143,6 +149,7 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
                                         onChange={() => setSelected(allSelected ? new Set() : new Set(items.map(a => a.id)))} className="h-4 w-4 rounded" />
                                 </th>
                                 <th scope="col" className="px-2 py-2.5">Severity</th>
+                                <th scope="col" className="px-2 py-2.5">Risk</th>
                                 <th scope="col" className="px-2 py-2.5">Alert</th>
                                 <th scope="col" className="px-2 py-2.5">Endpoint</th>
                                 <th scope="col" className="px-2 py-2.5">Last seen</th>
@@ -156,6 +163,7 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
                                         <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggle(a.id)} aria-label={`Select ${a.title}`} className="h-4 w-4 rounded" />
                                     </td>
                                     <td className="px-2 py-2.5 align-top"><SeverityBadge severity={a.severity} /></td>
+                                    <td className="px-2 py-2.5 align-top font-mono tabular-nums text-gray-900 dark:text-white" title="Risk 0-100">{a.risk ?? '—'}{a.threatIntel && a.threatIntel.length > 0 && <span className="ml-1 text-[11px] font-sans font-medium text-red-700 dark:text-red-300">intel</span>}</td>
                                     <td className="px-2 py-2.5 align-top max-w-[28rem]">
                                         <button type="button" onClick={() => onOpen(a)} className="block max-w-full text-left font-medium text-gray-900 dark:text-white hover:text-primary-700 dark:hover:text-primary-300 truncate">
                                             {a.title}

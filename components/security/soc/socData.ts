@@ -24,6 +24,7 @@ export interface SocAlert {
     origin?: { ip?: string; hostname?: string } | null;
     incidentId?: string | null;
     rules?: { id: string; name: string }[]; suggestedResponse?: { action: string; rule: string } | null;
+    risk?: number; importance?: Importance; threatIntel?: ThreatIntelHit[];
     aiTriage?: AiTriage | null;
 }
 export type TriageStep = 'acknowledge' | 'close_false_positive' | 'close_benign' | 'isolate_host' | 'quarantine_file'
@@ -40,6 +41,25 @@ export const STEP_LABEL: Record<TriageStep, string> = {
 export const triageAlert = (fetcher: Fetcher, alertId: string) =>
     send<AiTriage>(fetcher, `/api/security/soc/alerts/${encodeURIComponent(alertId)}/triage`, 'POST', undefined, 'The AI explanation failed');
 export type SeverityCounts = Record<Severity, number>;
+export type Importance = 'low' | 'medium' | 'high' | 'critical';
+export const IMPORTANCE: Importance[] = ['low', 'medium', 'high', 'critical'];
+export interface ThreatIntelHit { value: string; kind: string; source: string; malware?: string | null }
+export interface FeedStatus { feeds: { source: string; ok: boolean; count?: number; at?: string; error?: string | null; needsKey?: boolean }[]; indicators: number }
+export interface AlertContextInfo {
+    risk: number; user?: string | null; indicators: { sha256?: string | null; ip?: string | null }; threatIntel: ThreatIntelHit[]; feeds: FeedStatus;
+    host: { agentId?: string | null; enrolled: boolean; hostname?: string | null; ip?: string | null; os?: string | null; lastSeen?: string | null;
+        status?: string | null; agentVersion?: string | null; importance: Importance; owner?: string | null; otherActiveAlerts: number };
+}
+export const fetchAlertContext = async (fetcher: Fetcher, alertId: string): Promise<AlertContextInfo> => {
+    const res = await fetcher(`/api/security/soc/alerts/${encodeURIComponent(alertId)}/context`);
+    if (!res.ok) throw await failure(res, 'The context could not be loaded');
+    const body = await res.json();
+    if (!body?.host) throw new Error('The context could not be loaded: unexpected answer from the server');
+    return body;
+};
+export const setEndpointContext = (fetcher: Fetcher, agentId: string, importance: Importance, owner: string) =>
+    send<{ importance: Importance; owner: string | null }>(fetcher, `/api/security/soc/endpoints/${encodeURIComponent(agentId)}/context`, 'PUT', { importance, owner: owner || null }, 'The endpoint was not updated');
+export const FEED_NAME: Record<string, string> = { feodo: 'Feodo Tracker (botnet IPs)', threatfox: 'ThreatFox (IPs, domains, hashes)' };
 export interface TrendPoint extends SeverityCounts { t: string }
 export interface SocSummary {
     generatedAt: string; range: SocRange; rangeSeconds: number; bucketSeconds: number; truncated?: boolean;
@@ -51,14 +71,16 @@ export interface SocSummary {
     };
     trend: TrendPoint[];
     byType: { type: string; label: string; active: number; inRange: number; lastSeen: string | null }[];
-    endpoints: ({ agentId: string | null; hostname: string; online: boolean; known: boolean; active: number; lastAlertAt: string | null } & SeverityCounts)[];
+    endpoints: ({ agentId: string | null; hostname: string; online: boolean; known: boolean; active: number; lastAlertAt: string | null; risk?: number } & SeverityCounts)[];
+    users?: { user: string; risk: number; active: number }[];
+    threatIntel?: FeedStatus | null;
     mitre: { technique: string; name: string; tactic: string; count: number }[];
     sources: { type: string; label: string; lastAlertAt: string | null; total: number }[];
     coverage: { check: string; label: string; agents: number }[];
     counts: { openCases?: number; siemRules?: number; activeHunts?: number; activeIncidents?: number };
 }
 export interface AlertPage { items: SocAlert[]; total: number; limit: number; offset: number }
-export interface QueueQuery { status: QueueStatus; severity?: Severity | ''; type?: string; agentId?: string; q?: string; limit?: number; offset?: number }
+export interface QueueQuery { status: QueueStatus; severity?: Severity | ''; type?: string; agentId?: string; q?: string; limit?: number; offset?: number; sort?: 'severity' | 'risk' }
 export interface Approval { id: string; tenantId?: string; process: string; agentId: string | null; hostname?: string | null; reason?: string; approvedBy?: string; approvedAt?: string }
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -90,6 +112,7 @@ const queueParams = (query: QueueQuery): string => {
     if (query.type) params.set('type', query.type);
     if (query.agentId) params.set('agentId', query.agentId);
     if (query.q?.trim()) params.set('q', query.q.trim());
+    if (query.sort === 'risk') params.set('sort', 'risk');
     return params.toString();
 };
 

@@ -556,6 +556,8 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(agent_uptime_rollup_loop(), "agent_uptime_rollup"))
     asyncio.create_task(_safe_bg_task(license_seat_maintenance_loop(), "license_seat_maintenance"))
     asyncio.create_task(_safe_bg_task(audit_maintenance_loop(), "audit_maintenance"))
+    from soc_threat_intel import feed_loop as _ti_feed_loop
+    asyncio.create_task(_safe_bg_task(_ti_feed_loop(), "threat_intel_feeds"))
 
     try:
         from scheduler import start_scheduler as start_deployment_scheduler

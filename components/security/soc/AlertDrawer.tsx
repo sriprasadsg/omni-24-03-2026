@@ -10,6 +10,7 @@ import {
 import { SeverityBadge, StatusText, field, primaryButton, subhead } from './SocKit';
 import { ResponsePanel } from './ResponsePanel';
 import { TriagePanel } from './TriagePanel';
+import { ContextPanel } from './ContextPanel';
 import { useUser } from '../../../contexts/UserContext';
 import type { TriageStep } from './socData';
 
@@ -191,6 +192,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                         </section>
                     )}
 
+                    {alert.source === 'security' && <ContextPanel alertId={alert.id} canEdit={hasPermission('manage:security_cases')} onChanged={() => onChanged(null)} />}
                     {alert.source === 'security' && (
                         <TriagePanel alertId={alert.id} triage={alert.aiTriage} canRun={hasPermission('manage:security_cases')}
                             onTriaged={t => setAlert(a => ({ ...a, aiTriage: t }))} onStep={goToStep} />
