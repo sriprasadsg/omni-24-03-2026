@@ -7,7 +7,7 @@ to generate a coverage heatmap.
 
 from database import get_database
 
-# Embedded compact ATT&CK matrix (14 tactics, 60 representative techniques: the common ones plus every
+# Embedded compact ATT&CK matrix (14 tactics, 61 representative techniques: the common ones plus every
 # technique a built-in detection or a SIEM rule names)
 # Full matrix: download from https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json
 ATTACK_MATRIX = {
@@ -31,6 +31,7 @@ ATTACK_MATRIX = {
             {"id": "T1543", "name": "Create or Modify System Process"},
             {"id": "T1547", "name": "Boot or Logon Autostart Execution"},
             {"id": "T1098", "name": "Account Manipulation"},
+            {"id": "T1136", "name": "Create Account"},
             {"id": "T1546", "name": "Event Triggered Execution"},
             {"id": "T1574", "name": "Hijack Execution Flow"},
         ]},

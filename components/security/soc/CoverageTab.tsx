@@ -10,7 +10,7 @@ import { segment, segmented, subhead } from './SocKit';
 const LEVEL: Record<CoverageLevel, { label: string; cell: string; icon: React.ElementType | null }> = {
     detected: { label: 'Detected on your endpoints', icon: ShieldCheck,
         cell: 'bg-[#1c5cab] text-white border-[#1c5cab] dark:bg-[#5598e7] dark:text-gray-950 dark:border-[#5598e7]' },
-    rule: { label: 'SIEM rule written, not covered', icon: FileText,
+    rule: { label: 'SIEM rule waiting for its logs', icon: FileText,
         cell: 'bg-[#86b6ef] text-gray-900 border-dashed border-[#1c5cab] dark:bg-[#184f95] dark:text-white dark:border-[#5598e7]' },
     none: { label: 'Not covered', icon: null,
         cell: 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-white/[0.03] dark:text-gray-400 dark:border-white/10' },
@@ -48,7 +48,7 @@ const Detail: React.FC<{ t: CoverageTechnique | null; tactic?: string; rangeLabe
                 <p className={subhead}>SIEM rules</p>
                 {t.ruleCount === 0 ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">None name this technique.</p> : (<>
                     <ul className="mt-1 space-y-0.5">
-                        {t.rules.map(r => <li key={`${r.name}-${r.technique}`} className="text-gray-800 dark:text-gray-200">{r.name} <span className="text-xs text-gray-500 dark:text-gray-400">({r.technique}{r.library ? ', platform library' : ''})</span></li>)}
+                        {t.rules.map(r => <li key={`${r.name}-${r.technique}`} className="text-gray-800 dark:text-gray-200">{r.name} <span className="text-xs text-gray-500 dark:text-gray-400">({r.technique}{r.library ? ', platform library' : ''}{r.state ? ` · ${r.state}` : ''})</span></li>)}
                     </ul>
                     {t.ruleCount > t.rules.length && <p className="text-xs text-gray-500 dark:text-gray-400">and {t.ruleCount - t.rules.length} more</p>}
                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{siemNote}</p>
@@ -87,8 +87,8 @@ export const CoverageTab: React.FC<{ range: SocRange; rangeLabel: string }> = ({
     if (!data) return <p className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading ATT&CK coverage…</p>;
     const shown = index[hovered ?? picked ?? ''] ?? null;
     const siemNote = data.siemLogs
-        ? `The SIEM received ${data.siemLogs} log${data.siemLogs === 1 ? '' : 's'} from you in the last ${data.siemLogDays} days; rules count as written, not as coverage.`
-        : `The SIEM has received no logs from you in the last ${data.siemLogDays} days, so these rules cannot fire yet.`;
+        ? `The SIEM recognised ${data.siemLogs} event${data.siemLogs === 1 ? '' : 's'} from you in the last ${data.siemLogDays} days. A running rule counts as coverage; one waiting for its log source does not.`
+        : `The SIEM has recognised no events from you in the last ${data.siemLogDays} days, so these rules cannot fire yet.`;
     const { totals } = data;
 
     return (

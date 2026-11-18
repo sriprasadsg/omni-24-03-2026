@@ -560,6 +560,8 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_ti_feed_loop(), "threat_intel_feeds"))
     from vuln_matcher import match_loop as _vuln_match_loop
     asyncio.create_task(_safe_bg_task(_vuln_match_loop(), "vulnerability_matching"))
+    from siem_pipeline import intake_loop as _siem_intake_loop
+    asyncio.create_task(_safe_bg_task(_siem_intake_loop(), "siem_pipeline"))
 
     try:
         from scheduler import start_scheduler as start_deployment_scheduler
@@ -616,7 +618,8 @@ async def run_startup_services() -> None:
     try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
-        asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port), name="syslog_receiver")
+        # Local senders only unless SYSLOG_HOST opens it: the receiver takes any datagram, unauthenticated.
+        asyncio.create_task(start_syslog_server(host=os.getenv("SYSLOG_HOST", "127.0.0.1"), port=_syslog_port), name="syslog_receiver")
         logger.info("[SIEM] UDP Syslog server started on port %d", _syslog_port)
     except Exception as _e:
         logger.warning("[SIEM] Syslog server not started: %s", _e)

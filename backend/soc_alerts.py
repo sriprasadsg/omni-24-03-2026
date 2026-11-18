@@ -34,6 +34,7 @@ TYPE_LABELS = {
     "malware_detected": "Malware",
     "persistence_mechanism": "Suspicious persistence",
     "etw_behavioral_detection": "Windows behaviour rule",
+    "siem_rule": "SIEM rule",
 }
 
 

@@ -25,7 +25,7 @@ const coverage = {
         { id: 'TA0003', name: 'Persistence', techniques: [
             tech('T1053', 'Scheduled Task/Job', 'detected', { seen: 4, active: 1, subTechniques: ['T1053.005'],
                 detections: [{ type: 'persistence_mechanism', label: 'Suspicious persistence', check: 'persistence_detection', technique: 'T1053.005', what: 'Windows scheduled tasks', endpoints: 2 }] }),
-            tech('T1098', 'Account Manipulation', 'rule', { ruleCount: 1, rules: [{ name: 'New credential on a service principal', technique: 'T1098.001', library: true }] }),
+            tech('T1098', 'Account Manipulation', 'rule', { ruleCount: 1, rules: [{ name: 'New credential on a service principal', technique: 'T1098.001', library: true, state: 'waiting for entra_id' }] }),
         ] },
         { id: 'TA0006', name: 'Credential Access', techniques: [tech('T1110', 'Brute Force', 'none')] },
     ],
@@ -42,7 +42,7 @@ describe('ATT&CK coverage', () => {
         expect(calls('GET', '/api/security/soc/mitre-coverage?range=7d')).toHaveLength(1);
         const legend = screen.getByRole('list', { name: 'Legend' });
         expect(within(legend).getByText('Detected on your endpoints')).toBeTruthy();
-        expect(within(legend).getByText('SIEM rule written, not covered')).toBeTruthy();
+        expect(within(legend).getByText('SIEM rule waiting for its logs')).toBeTruthy();
         expect(screen.getByRole('group', { name: 'Persistence: 1 of 2 detected' })).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'T1053 Scheduled Task/Job: Detected on your endpoints, 4 alerts' }));
@@ -51,8 +51,9 @@ describe('ATT&CK coverage', () => {
         expect(within(detail).getByText('Runs on 2 endpoints')).toBeTruthy();
         expect(within(detail).getByText('4 alerts, 1 still active')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'T1098 Account Manipulation: SIEM rule written, not covered' }));
-        expect(within(detail).getByText(/no logs from you in the last 7 days, so these rules cannot fire yet/)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'T1098 Account Manipulation: SIEM rule waiting for its logs' }));
+        expect(within(detail).getByText(/no events from you in the last 7 days, so these rules cannot fire yet/)).toBeTruthy();
+        expect(within(detail).getByText(/waiting for entra_id/)).toBeTruthy();
         expect(screen.getByText(/not an ATT&CK technique/)).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', { name: 'Table' }));

@@ -252,7 +252,7 @@ export type CoverageLevel = 'detected' | 'rule' | 'none';
 export interface CoverageTechnique {
     id: string; name: string; level: CoverageLevel; seen: number; active: number; ruleCount: number; subTechniques: string[];
     detections: { type: string; label: string; check: string; technique: string; what: string; endpoints: number }[];
-    rules: { name: string; severity?: string | null; technique: string; library: boolean }[];
+    rules: { name: string; severity?: string | null; technique: string; library: boolean; state?: string }[];
 }
 export interface MitreCoverage {
     generatedAt: string; range: SocRange; endpoints: number; siemLogs: number; siemLogDays: number;

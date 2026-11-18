@@ -174,7 +174,8 @@ class SiemEngine:
 
     async def _evaluate_rules(self, events: List[Dict[str, Any]], tenant_id: str):
         """Evaluate events against active correlation rules."""
-        rules = await self.db.siem_rules.find({"tenantId": tenant_id, "enabled": True}).to_list(length=1000)
+        # Rules carry tenant_id (the organization's or the platform library's), never tenantId.
+        rules = await self.db.siem_rules.find({"tenant_id": {"$in": [tenant_id, "platform-admin"]}, "enabled": True}).to_list(length=1000)
         
         for rule in rules:
             for event in events:
@@ -183,8 +184,11 @@ class SiemEngine:
 
     def _match_rule(self, event: Dict[str, Any], rule: Dict[str, Any]) -> bool:
         """Evaluate a single rule against a single event."""
-        # Simple AND-based matching defined in rule conditions
-        conditions = rule.get("conditions", {})
+        # Simple AND-based matching defined in rule conditions. A rule with executable logic runs in siem_pipeline;
+        # one with no conditions would otherwise match every event.
+        conditions = rule.get("conditions") or {}
+        if rule.get("logic") or not conditions:
+            return False
         for key, expected_value in conditions.items():
             if event.get(key) != expected_value:
                 return False
