@@ -98,8 +98,8 @@ def _linux_agent(**over):
     return agent
 
 
-def _graph(devices, agents):
-    out = build_topology(devices, agents, NOW)["elements"]
+def _graph(devices, agents, server=None):
+    out = build_topology(devices, agents, NOW, server)["elements"]
     return {n["data"]["id"]: n["data"] for n in out["nodes"]}, {(e["data"]["source"], e["data"]["target"]): e["data"] for e in out["edges"]}
 
 
@@ -278,3 +278,51 @@ def test_unfinished_trace_ends_at_the_server_marked_unreached_and_no_route_draws
     nodes, edges = _graph([], [_linux_agent()])
     assert not any(n.startswith("hop-") for n in nodes) and "routePath" not in nodes["agent-a-lin"]
     assert nodes["platform-server"]["details"]["reportingEndpoints"] == 1
+
+
+# ── the server is one of the agents, gateways from the trace ───────────────
+
+SERVER = {"hostname": "Omniai-copy", "names": {"omniai-copy", "omniai-copy.internal.cloudapp.net"}}
+
+
+def test_the_agent_on_the_server_is_the_server_every_route_ends_at():
+    """protects=in the platform's own view the agent running on the server host (Omniai-copy) is drawn
+    as the Omni-Agent server: routes end at it, it carries the server facts, and no second server node
+    appears; fails_when=the server shows twice or routes end at a separate box; no_claim=the host name
+    names the server on every deployment (OMNI_SERVER_HOSTNAMES adds names)"""
+    win = _windows_agent()
+    win["meta"]["network_discovery"]["route"] = _route((1, "192.168.0.1", 1.0), (2, "100.64.0.1", 4.2), (3, "57.154.210.55", 31.5))
+    nodes, edges = _graph([], [win, _linux_agent()], SERVER)
+    server = nodes["agent-a-lin"]
+    assert "platform-server" not in nodes
+    assert server["isPlatform"] is True and server["role"] == "Omni-Agent server" and server["kind"] == "agent"
+    assert server["label"] == "Omniai-copy\nOmni-Agent server (10.0.0.4)"
+    assert server["details"]["reportingEndpoints"] == 2 and server["details"]["serverIp"] == "57.154.210.55"
+    assert nodes["agent-a-win"]["routePath"][-1] == "agent-a-lin"
+    assert edges[("hop-100.64.0.1", "agent-a-lin")]["kind"] == "route"
+    assert "routePath" not in server
+
+
+def test_a_tenant_without_the_server_agent_sees_the_server_by_its_host_name():
+    """protects=a tenant map (the platform's agent is not in it) still names the server's host;
+    fails_when=the platform's own agent leaks into a tenant's map; no_claim=-"""
+    nodes, _ = _graph([], [_windows_agent()], SERVER)
+    assert nodes["platform-server"]["label"] == "Omni-Agent server\n(Omniai-copy)"
+    assert "agent-a-lin" not in nodes
+
+
+def test_hop_one_of_the_trace_is_the_gateway_router_or_firewall():
+    """protects=the first hop of an endpoint's trace is drawn as its gateway (with the MAC the neighbour
+    table holds for it), even where the .1/.254 guess finds nothing; fails_when=such an endpoint hangs
+    off the placeholder gateway; no_claim=-"""
+    lin = _linux_agent()
+    lin["meta"]["network_discovery"]["route"] = _route((1, "10.0.0.1", 0.5), (2, "51.10.5.89", 3.8), reached=False)
+    nodes, edges = _graph([], [lin])
+    assert nodes["gw-10.0.0.1"]["details"]["source"] == "First hop of Omniai-copy's route to the server"
+    assert ("gw-10.0.0.1", "agent-a-lin") in edges and "virtual-gateway" not in nodes
+    assert edges[("gw-10.0.0.1", "hop-51.10.5.89")]["kind"] == "route"
+
+    win = _windows_agent()
+    win["meta"]["network_discovery"]["route"] = _route((1, "192.168.0.1", 1.0), (2, "100.64.0.1", 4.2))
+    nodes, _ = _graph([], [win])
+    assert nodes["gw-192.168.0.1"]["details"]["macAddress"] == "60-32-b1-08-ba-d6"

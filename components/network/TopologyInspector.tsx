@@ -19,6 +19,8 @@ const KIND_NOTES: Record<string, string> = {
     server: 'The Omni-Agent server the endpoints report to. Routes traced by endpoints end here.',
 };
 
+const PLATFORM_AGENT = 'This computer is the Omni-Agent server: every agent reports to it, and the routes endpoints trace end here.';
+
 const SILENT_HOPS = 'These hops did not answer the trace. Routers, firewalls and cloud networks often drop trace probes; traffic still passes.';
 
 const UNNAMED_ISP = 'No provider is known for this public address yet. The server names it from MaxMind\'s GeoLite2-ASN database when that is installed and the tenant tracks agent locations.';
@@ -137,7 +139,7 @@ export const TopologyInspector: React.FC<InspectorProps> = ({ node, neighbours, 
     const Icon = ICONS[node.icon] || Monitor;
     const [title] = String(node.label || node.id).split('\n');
     const facts = deviceFacts(node.details);
-    const note = node.kind === 'isp' && !node.ispKnown ? UNNAMED_ISP : node.kind === 'hop' && !node.ip ? SILENT_HOPS : KIND_NOTES[node.kind];
+    const note = node.isPlatform ? PLATFORM_AGENT : node.kind === 'isp' && !node.ispKnown ? UNNAMED_ISP : node.kind === 'hop' && !node.ip ? SILENT_HOPS : KIND_NOTES[node.kind];
     const down = isDown(node.status);
 
     return (
@@ -167,7 +169,7 @@ export const TopologyInspector: React.FC<InspectorProps> = ({ node, neighbours, 
                 )}
                 {note && <p className="text-[13px] text-gray-600 dark:text-gray-300">{note}</p>}
                 {node.kind === 'agent' && <LiveTransfer metrics={node.metrics} />}
-                {node.kind === 'agent' && (path?.length
+                {node.kind === 'agent' && !node.isPlatform && (path?.length
                     ? <PathToServer path={path} onSelect={onSelect} />
                     : <section><h3 className={subhead}>Path to the server</h3><p className="mt-2 text-[13px] text-gray-500 dark:text-gray-400">Not traced yet. Agents from version 2.1.20 trace their route to the server every 15 minutes.</p></section>)}
                 {node.kind === 'agent' && onScan && <ScanNetwork key={node.id} onScan={onScan} />}

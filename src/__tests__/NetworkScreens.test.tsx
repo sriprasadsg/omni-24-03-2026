@@ -395,3 +395,26 @@ describe('route to the server, packets and LAN scan', () => {
         expect(await within(panel).findByText('Your role cannot start scans on endpoints.')).toBeTruthy();
     });
 });
+
+describe('the Omni-Agent server is one of the agents', () => {
+    it('explains the server agent and does not ask it for a path to itself', async () => {
+        const topo = routedTopology(new Date(Date.now() - 20_000).toISOString());
+        topo.elements.nodes = topo.elements.nodes.filter(n => n.data.id !== 'platform-server');
+        topo.elements.nodes.push({ data: { id: 'agent-a-lin', label: 'Omniai-copy\nOmni-Agent server (10.0.0.4)', ip: '10.0.0.4', kind: 'agent', agentId: 'a-lin',
+            isPlatform: true, role: 'Omni-Agent server', zone: 'Internal LAN', status: 'Up', icon: 'server', metrics: {}, details: { reportingEndpoints: 2 } } } as any);
+        (topo.elements as any).edges = topo.elements.edges.map(e => e.data.target === 'platform-server' ? { data: { ...e.data, target: 'agent-a-lin' } } : e)
+            .filter(e => e.data.source !== 'internet' || e.data.target !== 'agent-a-lin');
+        (topo.elements.nodes.find(n => n.data.id === 'agent-a-win')!.data as any).routePath[3] = 'agent-a-lin';
+        authFetch.mockImplementation(async (url: string) => url.includes('/traffic') ? ok(emptyTraffic) : ok(topo));
+        render(<NetworkTopologyMap refreshKey={0} />);
+        const table = await screen.findByRole('table', { name: /Nodes on the network map/ });
+        fireEvent.click(within(table).getByRole('button', { name: 'Omniai-copy' }));
+        const panel = await screen.findByRole('complementary', { name: 'Details for Omniai-copy' });
+        expect(panel.textContent).toContain('This computer is the Omni-Agent server');
+        expect(panel.textContent).toContain('Endpoints reporting2');
+        expect(panel.textContent).not.toContain('Path to the server');
+        fireEvent.click(within(table).getByRole('button', { name: 'EILT0197' }));
+        const endpoint = await screen.findByRole('complementary', { name: 'Details for EILT0197' });
+        expect(endpoint.textContent).toContain('Omniai-copy'); // its path ends at the server agent
+    });
+});

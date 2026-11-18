@@ -1,4 +1,6 @@
 from typing import Dict, Any, List, Optional
+import os
+import socket
 from datetime import datetime, timezone, timedelta
 import ipaddress
 import logging
@@ -114,7 +116,17 @@ def _provider(agent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "vpn": geo.get("vpn_heuristic") is True}
 
 
-def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
+def server_identity() -> Dict[str, Any]:
+    """This platform server's host names (OMNI_SERVER_HOSTNAMES adds more, comma separated), so the
+    agent running on the server itself can be drawn as the server."""
+    host = socket.gethostname()
+    names = {host, host.split(".")[0], socket.getfqdn()}
+    names.update(n.strip() for n in os.getenv("OMNI_SERVER_HOSTNAMES", "").split(","))
+    return {"hostname": host.split(".")[0], "names": {n.lower() for n in names if n}}
+
+
+def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], now: datetime,
+                   server: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Cytoscape.js elements: Internet -> gateways -> scanned devices, agent endpoints and their
     LAN neighbours, plus each online endpoint's latest outbound connections.
 
@@ -149,6 +161,10 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         return "virtual-gateway"
 
     live_agents = [a for a in agents if a.get("status") not in HIDDEN_AGENT_STATUSES and a.get("id")]
+    # The agent running on the platform server itself is the server every endpoint reports to.
+    server_names = (server or {}).get("names") or set()
+    server_agent = next((a for a in live_agents if str(a.get("hostname") or "").lower() in server_names), None)
+    platform_id = f"agent-{server_agent['id']}" if server_agent else PLATFORM_ID
     agent_ips = {a.get("ipAddress") for a in live_agents if a.get("ipAddress")}
     device_by_ip = {(d.get("ipAddress") or d.get("ip")): d for d in devices if d.get("ipAddress") or d.get("ip")}
 
@@ -213,15 +229,18 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
     gateway_isps: Dict[str, set] = {}
     hop_nodes: Dict[str, Dict[str, Any]] = {}
 
+    server_details: Dict[str, Any] = {}
+
     def platform_node() -> Dict[str, Any]:
-        """The Omni-Agent server every endpoint reports to."""
-        if PLATFORM_ID not in hop_nodes:
-            data = {"id": PLATFORM_ID, "label": "Omni-Agent server", "type": "Omni-Agent platform", "zone": "Internet",
-                    "role": "Platform", "status": "Up", "icon": "server", "kind": "server", "details": {}}
-            add_node(data)
+        """Facts about the Omni-Agent server every endpoint reports to. It is drawn as the server's own
+        agent when that agent is on this map, else as a node of its own."""
+        if platform_id == PLATFORM_ID and PLATFORM_ID not in node_ids:
+            host = (server or {}).get("hostname")
+            add_node({"id": PLATFORM_ID, "label": f"Omni-Agent server\n({host})" if host else "Omni-Agent server",
+                      "type": "Omni-Agent platform", "zone": "Internet", "role": "Platform", "status": "Up",
+                      "icon": "server", "kind": "server", "details": server_details})
             add_edge("internet", PLATFORM_ID, kind="link")
-            hop_nodes[PLATFORM_ID] = data
-        return hop_nodes[PLATFORM_ID]
+        return server_details
 
     def route_chain(agent_id: str, hostname: str, gateway_id: str, gateway_ip: Optional[str], own_ip: Optional[str],
                     route: Dict[str, Any]) -> List[str]:
@@ -229,7 +248,7 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         Hop 1 is the gateway already on the map; hops that did not answer are drawn as one gap node."""
         server = platform_node()
         if route["target"]:
-            server["details"].setdefault("address", route["target"])
+            server.setdefault("address", route["target"])
         hops = [h for h in route["hops"] if not (h["ip"] and h["ip"] == own_ip)]
         if hops and hops[0]["ip"] and hops[0]["ip"] == gateway_ip:
             hops = hops[1:]
@@ -259,8 +278,8 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
             if silent:
                 gap()
             if route["reached"] and i == len(hops) - 1:
-                server["details"].setdefault("serverIp", hop["ip"])
-                link(PLATFORM_ID, rtt=hop["rtt"])  # the last hop is the server itself
+                server.setdefault("serverIp", hop["ip"])
+                link(platform_id, rtt=hop["rtt"])  # the last hop is the server itself
                 continue
             hop_id = f"hop-{hop['ip']}"
             data = hop_nodes.get(hop_id)
@@ -276,8 +295,8 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
             link(hop_id, rtt=hop["rtt"])
         if silent:
             gap()
-        if prev != PLATFORM_ID:
-            link(PLATFORM_ID, unreached=True)  # the trace stopped before the server
+        if prev != platform_id:
+            link(platform_id, unreached=True)  # the trace stopped before the server
         return path
 
     def isp_node(agent: Dict[str, Any], hostname: str, online: bool) -> Optional[str]:
@@ -346,22 +365,35 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
                   "icon": "server" if is_server else "laptop", "status": "Up" if online else "Down",
                   "kind": "agent", "agentId": agent["id"], "metrics": metrics,
                   "details": {k: v for k, v in details.items() if _known(v)}}
+        if agent is server_agent:
+            agent_data.update({"isPlatform": True, "role": "Omni-Agent server", "icon": "server",
+                               "label": f"{hostname}\nOmni-Agent server ({ip or 'no address'})"})
         add_node(agent_data)
         server = platform_node()
         if online:
-            server["details"]["reportingEndpoints"] = server["details"].get("reportingEndpoints", 0) + 1
-        if agent.get("lastSeen") and str(agent["lastSeen"]) > str(server["details"].get("lastReport", "")):
-            server["details"]["lastReport"] = agent["lastSeen"]
+            server["reportingEndpoints"] = server.get("reportingEndpoints", 0) + 1
+        if agent.get("lastSeen") and str(agent["lastSeen"]) > str(server.get("lastReport", "")):
+            server["lastReport"] = agent["lastSeen"]
 
         entries = _neighbour_entries(meta.get("network_discovery"))
-        gateway_entry = next((e for e in entries if _same_24(_addr(e["ip"]), addr) and e["ip"] != ip
-                              and str(e["ip"]).rsplit(".", 1)[-1] in ("1", "254")), None)
+        route = None if agent is server_agent else _route(meta.get("network_discovery"))
+        # Hop 1 of a traced route is the endpoint's default gateway (its router or firewall): it beats the
+        # .1/.254 guess from the neighbour table, which still supplies the gateway's MAC address.
+        first = route["hops"][0] if route and route["hops"][0]["hop"] == 1 else None
+        first_ip = first["ip"] if first and first["ip"] and first["ip"] != ip and _addr(first["ip"]).is_private else None
+        if first_ip:
+            gateway_entry = next((e for e in entries if e["ip"] == first_ip), None) or {"ip": first_ip}
+            gateway_source = f"First hop of {hostname}'s route to the server"
+        else:
+            gateway_entry = next((e for e in entries if _same_24(_addr(e["ip"]), addr) and e["ip"] != ip
+                                  and str(e["ip"]).rsplit(".", 1)[-1] in ("1", "254")), None)
+            gateway_source = f"Neighbour table of {hostname}"
         if gateway_entry:
             gw_ip = gateway_entry["ip"]
             gateway_id = (device_by_ip.get(gw_ip) or {}).get("id") or f"gw-{gw_ip}"
             if gateway_id not in node_ids:
                 gw_details = {"macAddress": gateway_entry.get("mac"), "publicIp": agent.get("publicIp"),
-                              "source": f"Neighbour table of {hostname}"}
+                              "source": gateway_source}
                 add_node({"id": gateway_id, "label": f"Gateway\n({gw_ip})", "ip": gw_ip, "type": "router",
                           "zone": "Perimeter", "role": "Gateway", "status": "Up", "icon": "shield", "kind": "gateway",
                           "details": {k: v for k, v in gw_details.items() if _known(v)}})
@@ -374,7 +406,6 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
         provider_id = isp_node(agent, hostname, online)
         if provider_id:
             gateway_isps.setdefault(gateway_id, set()).add(provider_id)
-        route = _route(meta.get("network_discovery"))
         if route:
             gateway_ip = (gateway_entry or {}).get("ip") or (scan_gateway_ip if gateway_id == scan_gateway_id else None)
             agent_data["routePath"] = route_chain(agent["id"], hostname, gateway_id, gateway_ip, ip, route)
@@ -424,6 +455,10 @@ def build_topology(devices: List[Dict[str, Any]], agents: List[Dict[str, Any]], 
             add_edge(node_id, remote_id, kind="flow", connections=info["count"], ports=sorted(info["ports"]),
                      processes=sorted(info["processes"])[:5], seenAt=agent.get("lastSeen"))
 
+    if server_agent is not None and platform_id in node_ids:
+        server_node = next(n["data"] for n in nodes if n["data"]["id"] == platform_id)
+        server_node["details"].update(server_details)
+
     # 4. The provider sits between a gateway and the internet: Internet -> ISP -> gateway.
     for gateway_id, provider_ids in gateway_isps.items():
         direct = f"edge-internet-{gateway_id}"
@@ -452,4 +487,4 @@ class NetworkTopologyService:
         db = get_database()
         devices = await db.network_devices.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
         agents = await db.agents.find({"tenantId": tenant_id}, AGENT_PROJECTION).to_list(length=1000)
-        return build_topology(devices, agents, datetime.now(timezone.utc))
+        return build_topology(devices, agents, datetime.now(timezone.utc), server_identity())

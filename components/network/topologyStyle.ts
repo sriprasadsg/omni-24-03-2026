@@ -8,7 +8,7 @@ export const roleGroup = (d: any): RoleGroup => {
     if (!d) return 'device';
     if (d.type === 'cloud' || d.zone === 'Internet') return 'internet';
     if (d.zone === 'Perimeter' || d.role === 'Gateway') return 'perimeter';
-    if (d.role === 'Server') return 'server';
+    if (d.role === 'Server' || d.isPlatform) return 'server';
     return 'device';
 };
 
@@ -116,7 +116,7 @@ export const topologyStylesheet = (dark: boolean): any[] => {
         // Hops of a traced route are small waypoints; the Omni-Agent server they lead to stands out.
         { selector: 'node[kind = "hop"]', style: { width: 28, height: 28, 'font-size': 10 } },
         { selector: 'node[kind = "hop"][status = "Unknown"]', style: { 'border-style': 'dotted', opacity: 0.75 } },
-        { selector: 'node[kind = "server"]', style: { width: 50, height: 50, 'border-width': 2.5, 'font-weight': 600 } },
+        { selector: 'node[kind = "server"], node[?isPlatform]', style: { width: 54, height: 54, 'border-width': 3, 'font-weight': 700 } },
         {
             selector: 'node[status = "Down"], node[status = "down"]',
             style: { 'border-style': 'dashed', 'border-color': CRITICAL, 'border-width': 2 },
