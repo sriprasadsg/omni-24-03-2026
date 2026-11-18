@@ -12,8 +12,8 @@ class LogShipperCapability(BaseCapability):
     def __init__(self, config=None):
         super().__init__(config)
         self.os_type = platform.system().lower()
-        # Keep track of where we left off (simplified for demo)
-        self.pointer = 0
+        # Where each file was read up to (path -> byte offset)
+        self.pointers: Dict[str, int] = {}
 
     @property
     def capability_id(self) -> str:
@@ -23,48 +23,35 @@ class LogShipperCapability(BaseCapability):
     def capability_name(self) -> str:
         return "Raw OS Log Shipper"
 
+    # (source label, candidate paths): the general system log and the authentication log (sshd, sudo,
+    # useradd), which Debian and Ubuntu keep apart from it.
+    _LINUX_LOGS = (("syslog", ("/var/log/syslog", "/var/log/messages")), ("auth", ("/var/log/auth.log", "/var/log/secure")))
+    _MAX_LINES = 500  # per file and cycle; the newest are kept
+
     def _collect_linux_syslog(self) -> List[Dict[str, Any]]:
-        logs = []
-        try:
-            if os.path.exists('/var/log/syslog'):
-                path = '/var/log/syslog'
-            elif os.path.exists('/var/log/messages'):
-                path = '/var/log/messages'
-            else:
-                return logs
-
+        logs: List[Dict[str, Any]] = []
+        for source, paths in self._LINUX_LOGS:
+            path = next((p for p in paths if os.path.exists(p)), None)
+            if not path:
+                continue
             try:
-                # Need elevated privileges for these files
-                with open(path, 'r') as f:
-                    # Seek to pointer
-                    f.seek(0, 2) # End of file
-                    current_size = f.tell()
-                    
-                    if self.pointer == 0 or self.pointer > current_size:
-                        # First run or file rotated, just read the last 50 lines
-                        self.pointer = max(0, current_size - 5000) 
-                        
-                    f.seek(self.pointer)
+                with open(path, 'r', errors='replace') as f:
+                    f.seek(0, 2)
+                    size = f.tell()
+                    pointer = self.pointers.get(path, 0)
+                    if pointer == 0 or pointer > size:  # first run or the file rotated: start near the end
+                        pointer = max(0, size - 5000)
+                    f.seek(pointer)
                     lines = f.readlines()
-                    self.pointer = f.tell()
-
-                    for line in lines[-50:]: # Send max 50 at a time for demo
-                        line_str = line.strip()
-                        if line_str:
-                            logs.append({
-                                "source": "syslog",
-                                "raw_message": line_str,
-                                "collected_at": datetime.now(timezone.utc).isoformat()
-                            })
+                    self.pointers[path] = f.tell()
+                now = datetime.now(timezone.utc).isoformat()
+                logs.extend({"source": source, "raw_message": line.strip(), "collected_at": now}
+                            for line in lines[-self._MAX_LINES:] if line.strip())
             except PermissionError:
-                logs.append({
-                    "source": "syslog_shipper",
-                    "raw_message": "ERROR: Agent lacks permission to read /var/log/syslog. Please run as root.",
-                    "collected_at": datetime.now(timezone.utc).isoformat()
-                })
-                
-        except Exception as e:
-            print(f"[LogShipper] Error reading Linux logs: {e}")
+                logs.append({"source": f"{source}_shipper", "collected_at": datetime.now(timezone.utc).isoformat(),
+                             "raw_message": f"ERROR: Agent lacks permission to read {path}. Please run as root."})
+            except Exception as e:
+                print(f"[LogShipper] Error reading {path}: {e}")
         return logs
 
     # Security log needs SeSecurityPrivilege / admin; System and Application do not.
