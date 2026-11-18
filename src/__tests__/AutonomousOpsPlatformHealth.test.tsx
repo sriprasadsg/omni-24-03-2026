@@ -18,7 +18,7 @@ import { AutonomousOpsActivity } from '../../components/AutonomousOpsActivity';
 import { AutonomousOpsPlatformHealth } from '../../components/AutonomousOpsPlatformHealth';
 import { requestPlatformHealthFocus } from '../../components/AutonomousOpsHealthBanners';
 import {
-  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls, retentionReview, REVIEW_PATH,
+  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls, retentionReview, REVIEW_PATH, INTEGRATIONS_PATH,
   clock, minutesAgo, minutesAhead, AT_1402, AT_0915,
 } from './_platformHealthHarness';
 
@@ -379,6 +379,7 @@ describe('Platform health section: loading and error', () => {
     let calls = 0;
     mockAuthFetch.mockImplementation(async (url: string) => {
       if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
+      if (url.startsWith(INTEGRATIONS_PATH)) return jsonRes({ items: [] });
       calls += 1;
       return calls === 1 ? jsonRes({ detail: 'nope' }, 500) : jsonRes(healthDoc());
     });
@@ -429,6 +430,7 @@ describe('Platform health section: refresh cadence', () => {
     let calls = 0;
     mockAuthFetch.mockImplementation(async (url: string) => {
       if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
+      if (url.startsWith(INTEGRATIONS_PATH)) return jsonRes({ items: [] });
       calls += 1;
       return calls === 2 || calls === 3 ? jsonRes({ detail: 'down' }, 503) : jsonRes(healthDoc());
     });

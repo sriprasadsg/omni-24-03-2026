@@ -9,6 +9,7 @@ import {
 } from './AutonomousOpsHealthChips';
 import type { HealthChipKind } from './AutonomousOpsHealthChips';
 import { AutonomousOpsRetentionReview } from './AutonomousOpsRetentionReview';
+import { PlatformIntegrationsCard } from './PlatformIntegrationsCard';
 import { PauseCircleIcon } from './icons';
 
 export const HEALTH_POLL_MS = 30_000;
@@ -339,6 +340,8 @@ export const AutonomousOpsPlatformHealth: React.FC<PlatformHealthProps> = ({ ref
             )}
             {/* Retention runs in the backend and has its own fetch: it renders even when the health document failed or the watchdog is not installed. */}
             <AutonomousOpsRetentionReview refreshSignal={refreshSignal} />
+            {/* Wave 6: configured integrations and their live tests; its own fetch, like retention. */}
+            <PlatformIntegrationsCard />
         </section>
     );
 };
