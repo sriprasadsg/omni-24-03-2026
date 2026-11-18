@@ -93,6 +93,8 @@ function route(url: string, init?: RequestInit) {
         host: { agentId: 'ag-srv', enrolled: true, hostname: 'Omniai-copy', os: 'Linux', importance: 'medium', owner: null, otherActiveAlerts: 2 } });
     if (u.pathname.includes('/endpoints/') && init?.method === 'PUT') return ok({ importance: 'critical', owner: 'IT desk' });
     if (u.pathname === '/api/security/soc/rules' && !init?.method) return ok({ items: [], canEdit: true });
+    if (u.pathname === '/api/security/soc/watchlist' && init?.method === 'POST') return ok({ id: 'wl-1', value: '45.33.32.156', kind: 'ip', retroMatches: 3 });
+    if (u.pathname === '/api/security/soc/watchlist') return ok({ items: [] });
     if (u.pathname === '/api/security/soc/rules/preview') return ok({ days: 7, checked: 40, matched: 35, examples: [{ id: 'x', title: 'UEBA Anomaly: Unusual Login Time' }] });
     if (u.pathname === '/api/security/soc/incidents/INC-1/triage') return ok({ summary: 'Three alerts look like one attack.', seriousness: 'high', nextSteps: ['open_case'], model: 'llama3.2:3b', at: at(0), by: 'ava' });
     if (u.pathname === '/api/security/soc/incidents') return ok({ items: [incident()], total: 1, limit: 50, offset: 0 });
@@ -294,6 +296,18 @@ describe('Enrichment and risk', () => {
         fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }));
         await waitFor(() => expect(calls('PUT', '/api/security/soc/endpoints/ag-srv/context').length).toBe(1));
         expect(JSON.parse(String(calls('PUT', '/api/security/soc/endpoints/ag-srv/context')[0][1].body))).toEqual({ importance: 'critical', owner: 'IT desk' });
+    });
+});
+
+describe('Watchlist', () => {
+    it('adds an indicator and reports the retro-hunt result', async () => {
+        const { showToast } = await import('../../utils/toast');
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Automation/ }));
+        fireEvent.change(await screen.findByPlaceholderText('IP, SHA-256 or domain'), { target: { value: '45.33.32.156' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Watch' }));
+        await waitFor(() => expect(calls('POST', '/api/security/soc/watchlist').length).toBe(1));
+        await waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('3 past alerts in the last 90 days'), 'success'));
     });
 });
 

@@ -88,7 +88,8 @@ async def match_alert(db, alert: Dict[str, Any]) -> List[Dict[str, Any]]:
     import soc_response
     import soc_threat_intel
     ev = soc_response.evidence(alert)
-    hits = await soc_threat_intel.lookup(_raw(db), [ev.get("sha256"), ev.get("ip")])
+    import soc_watchlist
+    hits = await soc_threat_intel.lookup(_raw(db), [ev.get("sha256"), ev.get("ip")]) + await soc_watchlist.hits_for(db, alert)
     if hits:
         alert["threatIntel"] = hits
         await db.security_alerts.update_one({"id": alert["id"], "tenantId": alert.get("tenantId")}, {"$set": {"threatIntel": hits}})
@@ -110,7 +111,8 @@ async def alert_context(db, scope: Optional[str], alert_id: str) -> Dict[str, An
     import soc_response
     import soc_threat_intel
     ev = soc_response.evidence(doc)
-    hits = await soc_threat_intel.lookup(_raw(db), [ev.get("sha256"), ev.get("ip")])
+    import soc_watchlist
+    hits = await soc_threat_intel.lookup(_raw(db), [ev.get("sha256"), ev.get("ip")]) + await soc_watchlist.hits_for(db, doc)
     return {
         "risk": v["risk"],
         "host": {"agentId": agent_id, "enrolled": bool(agent), "hostname": (agent or {}).get("hostname"),

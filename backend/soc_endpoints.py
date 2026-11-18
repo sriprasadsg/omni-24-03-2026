@@ -24,6 +24,7 @@ import soc_response
 import soc_rules
 import soc_service
 import soc_triage
+import soc_watchlist
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ async def _run(coro):
     try:
         return await coro
     except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError, soc_rules.RuleError,
-            soc_context.ContextError) as e:
+            soc_context.ContextError, soc_watchlist.WatchlistError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
 
@@ -301,6 +302,33 @@ async def get_threat_intel_status(current_user: TokenData = Depends(get_current_
     """The abuse.ch feeds' last download and how many indicators are held."""
     import soc_threat_intel
     return await soc_threat_intel.feed_status(getattr(get_database(), "_db", get_database()))
+
+
+class WatchIn(BaseModel):
+    value: str = Field(..., max_length=253)
+    note: Optional[str] = Field(None, max_length=200)
+
+    model_config = {"extra": "forbid"}
+
+
+@router.get("/watchlist", dependencies=[Depends(SECURITY_GUARD)])
+async def get_watchlist(current_user: TokenData = Depends(get_current_user)):
+    return {"items": await soc_watchlist.list_items(get_database(), soc_scope(current_user))}
+
+
+@router.post("/watchlist", dependencies=[Depends(SECURITY_GUARD)])
+async def add_to_watchlist(body: WatchIn, current_user: TokenData = Depends(get_current_user)):
+    """Watch an IP, SHA-256 or domain: past 90 days of alerts are checked now, new ones as they arrive."""
+    out = await _run(soc_watchlist.add(get_database(), soc_scope(current_user), body.value, body.note, current_user.username))
+    await soc_actions._audit("soc.watchlist.add", out["tenantId"], current_user, value=out["value"], retroMatches=out["retroMatches"])
+    return out
+
+
+@router.delete("/watchlist/{item_id}", dependencies=[Depends(SECURITY_GUARD)])
+async def remove_from_watchlist(item_id: str, current_user: TokenData = Depends(get_current_user)):
+    await _run(soc_watchlist.remove(get_database(), soc_scope(current_user), item_id[:64]))
+    await soc_actions._audit("soc.watchlist.remove", soc_scope(current_user), current_user, itemId=item_id[:64])
+    return {"success": True}
 
 
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])
