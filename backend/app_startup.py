@@ -558,6 +558,8 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(audit_maintenance_loop(), "audit_maintenance"))
     from soc_threat_intel import feed_loop as _ti_feed_loop
     asyncio.create_task(_safe_bg_task(_ti_feed_loop(), "threat_intel_feeds"))
+    from vuln_matcher import match_loop as _vuln_match_loop
+    asyncio.create_task(_safe_bg_task(_vuln_match_loop(), "vulnerability_matching"))
 
     try:
         from scheduler import start_scheduler as start_deployment_scheduler
