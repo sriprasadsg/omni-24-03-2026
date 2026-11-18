@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from compliance_evidence_processor import COMPLIANCE_CHECK_MAPPINGS, process_automated_evidence  # noqa: E402
 
-AGENT_SOURCE = os.path.join(os.path.dirname(__file__), "..", "..", "agent-install", "omni-agent-rs", "src",
-                            "capabilities", "compliance.rs")
+AGENT_SOURCES = [os.path.join(os.path.dirname(__file__), "..", "..", "agent-install", "omni-agent-rs", "src",
+                              "capabilities", name) for name in ("compliance.rs", "compliance_macos.rs")]
 
 # Names the 2.1.x agent sends, and the older name of the same check whose controls they must share.
 RENAMED = {
@@ -29,14 +29,18 @@ RENAMED = {
 
 
 def _agent_check_names():
-    with open(AGENT_SOURCE, encoding="utf-8") as fh:
-        return re.findall(r'"check":\s*"([^"]+)"', fh.read())
+    names = []
+    for source in AGENT_SOURCES:
+        with open(source, encoding="utf-8") as fh:
+            names += re.findall(r'"check":\s*"([^"]+)"', fh.read())
+    return names
 
 
 def test_the_agent_source_is_read():
     names = _agent_check_names()
     assert len(names) >= 14, names
     assert "BitLocker Drive Encryption" in names
+    assert "Disk Encryption (FileVault)" in names
 
 
 def test_every_check_name_the_agent_sends_maps_to_controls():
@@ -51,6 +55,13 @@ def test_a_renamed_check_keeps_the_controls_of_its_older_name():
 
 def test_linux_disk_encryption_proves_the_same_controls_as_bitlocker():
     assert COMPLIANCE_CHECK_MAPPINGS["Disk Encryption (LUKS)"] == COMPLIANCE_CHECK_MAPPINGS["BitLocker Encryption"]
+
+
+def test_each_macos_check_proves_the_controls_of_its_windows_counterpart():
+    for mac, windows in {"Disk Encryption (FileVault)": "BitLocker Encryption",
+                         "Gatekeeper": "Device Guard/WDAC",
+                         "System Integrity Protection": "Exploit Protection"}.items():
+        assert COMPLIANCE_CHECK_MAPPINGS[mac] == COMPLIANCE_CHECK_MAPPINGS[windows], mac
 
 
 def test_a_passing_bitlocker_check_reaches_the_encryption_controls():

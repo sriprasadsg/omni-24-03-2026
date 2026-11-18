@@ -128,6 +128,14 @@ COMPLIANCE_CHECK_MAPPINGS: dict[str, list[str]] = {
         "A.8.1", "A.8.24", "164.312(a)(2)(iv)", "PCI-3.4", "PR.DS-1", "CC6.1",
         "CISSP-3.2", "CISSP-3.3", "SC-28", "CIS-3", "SWIFT-2.1", "SOX-SA-3",
     ],
+    # The macOS checks the Rust agent sends (compliance_macos.rs). FileVault proves what BitLocker
+    # does, Gatekeeper what application control (WDAC) does, SIP what exploit protection does.
+    "Disk Encryption (FileVault)": [
+        "A.8.1", "A.8.24", "164.312(a)(2)(iv)", "PCI-3.4", "PR.DS-1", "CC6.1",
+        "CISSP-3.2", "CISSP-3.3", "SC-28", "CIS-3", "SWIFT-2.1", "SOX-SA-3",
+    ],
+    "Gatekeeper": ["A.8.1", "A.8.3", "PR.IP-1", "CC7.2"],
+    "System Integrity Protection": ["A.8.1", "A.8.8", "PR.IP-1", "CC7.2"],
     # Linux Checks
     "UFW Firewall Enabled": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],
     "Firewall Status": ["A.8.22", "PCI-1.1", "PR.AC-5", "CC6.6"],
