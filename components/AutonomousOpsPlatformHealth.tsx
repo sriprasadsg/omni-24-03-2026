@@ -10,6 +10,7 @@ import {
 import type { HealthChipKind } from './AutonomousOpsHealthChips';
 import { AutonomousOpsRetentionReview } from './AutonomousOpsRetentionReview';
 import { PlatformIntegrationsCard } from './PlatformIntegrationsCard';
+import { PlatformCertificateChangeCard } from './PlatformCertificateChangeCard';
 import { PauseCircleIcon } from './icons';
 
 export const HEALTH_POLL_MS = 30_000;
@@ -342,6 +343,8 @@ export const AutonomousOpsPlatformHealth: React.FC<PlatformHealthProps> = ({ ref
             <AutonomousOpsRetentionReview refreshSignal={refreshSignal} />
             {/* Wave 6: configured integrations and their live tests; its own fetch, like retention. */}
             <PlatformIntegrationsCard />
+            {/* Wave 6: agent readiness for a server certificate change; its own fetch too. */}
+            <PlatformCertificateChangeCard />
         </section>
     );
 };

@@ -101,6 +101,8 @@ export const testAlertCalls = () =>
 export const REVIEW_PATH = '/api/platform/autonomous-ops/retention/review';
 // The Integrations card (Wave 6) has its own fetch too; it is never a health load.
 export const INTEGRATIONS_PATH = '/api/platform/autonomous-ops/health/integrations';
+// So does the Certificate change card.
+export const TLS_ROLLOVER_PATH = '/api/platform/autonomous-ops/health/tls-rollover';
 export const CONFIRM_PATH = '/api/platform/autonomous-ops/retention/confirm';
 
 export function retentionItem(over: Record<string, unknown> = {}) {

@@ -18,7 +18,7 @@ import { AutonomousOpsActivity } from '../../components/AutonomousOpsActivity';
 import { AutonomousOpsPlatformHealth } from '../../components/AutonomousOpsPlatformHealth';
 import { requestPlatformHealthFocus } from '../../components/AutonomousOpsHealthBanners';
 import {
-  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls, retentionReview, REVIEW_PATH, INTEGRATIONS_PATH,
+  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls, retentionReview, REVIEW_PATH, INTEGRATIONS_PATH, TLS_ROLLOVER_PATH,
   clock, minutesAgo, minutesAhead, AT_1402, AT_0915,
 } from './_platformHealthHarness';
 
@@ -380,6 +380,7 @@ describe('Platform health section: loading and error', () => {
     mockAuthFetch.mockImplementation(async (url: string) => {
       if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
       if (url.startsWith(INTEGRATIONS_PATH)) return jsonRes({ items: [] });
+      if (url.startsWith(TLS_ROLLOVER_PATH)) return jsonRes({ phase: 'none', served: null, next: [], probePort: null, counts: {}, notReady: [] });
       calls += 1;
       return calls === 1 ? jsonRes({ detail: 'nope' }, 500) : jsonRes(healthDoc());
     });
@@ -431,6 +432,7 @@ describe('Platform health section: refresh cadence', () => {
     mockAuthFetch.mockImplementation(async (url: string) => {
       if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
       if (url.startsWith(INTEGRATIONS_PATH)) return jsonRes({ items: [] });
+      if (url.startsWith(TLS_ROLLOVER_PATH)) return jsonRes({ phase: 'none', served: null, next: [], probePort: null, counts: {}, notReady: [] });
       calls += 1;
       return calls === 2 || calls === 3 ? jsonRes({ detail: 'down' }, 503) : jsonRes(healthDoc());
     });
