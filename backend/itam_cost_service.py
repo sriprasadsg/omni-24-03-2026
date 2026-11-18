@@ -14,6 +14,7 @@ result. A model whose salvage value exceeds the asset's purchase cost is marked,
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
+import itam_license_cost
 import rbac_defaults
 from itam_finance_service import (
     REASON_NO_DEPRECIATION_POLICY,
@@ -309,10 +310,13 @@ async def compute_tenant_costs(
     include_inactive: bool = False,
     now: Optional[datetime] = None,
     with_agents: bool = False,
+    with_licenses: bool = False,
 ) -> Dict[str, Any]:
     """Cost rows (D-08 order) and the summary for one tenant, from two collection reads and one clock read.
 
     with_agents adds one more read (agents by assetId) and an `agent` field on every in-scope row.
+    with_licenses adds two (licenses, license_assignments): a `licenses` block on the summary and a
+    `license` field on every in-scope row (itam_license_cost, Phase 79).
     Duplicate markers are computed over all of the tenant's assets, active or not, and only then
     filtered to the in-scope rows, so a row carries the same markers under either scope.
     """
@@ -337,13 +341,18 @@ async def compute_tenant_costs(
         agents = await load_agents_by_asset(db, tenant_id, (r["assetId"] for r in in_scope))
         for row in in_scope:
             row["agent"] = agents.get(row["assetId"])
-    return {
-        "rows": sort_cost_rows(in_scope),
-        "summary": summarize_cost_rows(
-            in_scope, tenant_id=tenant_id, now=now,
-            include_inactive=include_inactive, excluded_by_lifecycle=hidden,
-        ),
-    }
+    summary = summarize_cost_rows(
+        in_scope, tenant_id=tenant_id, now=now,
+        include_inactive=include_inactive, excluded_by_lifecycle=hidden,
+    )
+    if with_licenses:
+        spend = itam_license_cost.allocate(
+            await itam_license_cost.load_licenses(db, tenant_id), await itam_license_cost.load_assignments(db, tenant_id),
+            {a["id"] for a in assets if a.get("id")}, {r["assetId"] for r in in_scope})
+        summary["licenses"] = spend["summary"]
+        for row in in_scope:
+            row["license"] = itam_license_cost.row_allocation(spend["byAsset"], row["assetId"])
+    return {"rows": sort_cost_rows(in_scope), "summary": summary}
 
 
 async def compute_asset_cost_detail(
@@ -356,7 +365,7 @@ async def compute_asset_cost_detail(
     without includeDisposed) and this row always agree. asset_id is only compared in Python, never
     placed in a query.
     """
-    result = await compute_tenant_costs(db, tenant_id, include_inactive=True, with_agents=True, now=now)
+    result = await compute_tenant_costs(db, tenant_id, include_inactive=True, with_agents=True, with_licenses=True, now=now)
     for row in result["rows"]:
         if row["assetId"] == asset_id:
             return {**row, "computedAt": result["summary"]["computedAt"]}

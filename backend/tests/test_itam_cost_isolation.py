@@ -49,6 +49,7 @@ ASSETS = "/api/itam/costs/assets"
 KPIS = "/api/itam/kpis"
 REPORT_RUN = "/api/itam/reports/prebuilt/asset_value/run"
 REPORT_EXPORT = "/api/itam/reports/prebuilt/asset_value/export"
+COSTS_EXPORT = "/api/itam/reports/prebuilt/endpoint_costs/export"  # the Costs tab's export (Phase 80)
 
 TENANTS = ("tenant-a", "tenant-b")
 # Same names, tags, serial numbers and model id in both tenants; only ids, costs, policy and seats differ.
@@ -57,9 +58,14 @@ SHAPES = (
     {"n": 2, "name": "Server Two", "tag": "TAG-200", "serial": "SER-0002"},
 )
 DATA = {
-    "tenant-a": {"key": "a", "costs": (120000, 54321), "life": 3, "salvage": 10000, "seats": 7},
-    "tenant-b": {"key": "b", "costs": (345600, 87650), "life": 4, "salvage": 0, "seats": 30},
+    "tenant-a": {"key": "a", "costs": (120000, 54321), "life": 3, "salvage": 10000, "seats": 7,
+                 "license": (777777, "annual"), "seatOn": 0},
+    "tenant-b": {"key": "b", "costs": (345600, 87650), "life": 4, "salvage": 0, "seats": 30,
+                 "license": (33333, "monthly"), "seatOn": 1},
 }
+# Phase 79: each tenant's license has a cost; one seat sits on an asset, one on a user, the rest are idle.
+LICENSE_SPEND = {"tenant-a": {"spend": 777777, "asset": 111111, "user": 111111, "idle": 555555},
+                 "tenant-b": {"spend": 399996, "asset": 13334, "user": 13334, "idle": 373328}}
 
 
 def _ids(tenant):
@@ -84,9 +90,9 @@ def _foreign(tenant):
     o = _other(tenant)
     d = DATA[o]
     return {
-        "strings": [f"{d['key']}-asset-", f"agent-{d['key']}-", o]
+        "strings": [f"{d['key']}-asset-", f"agent-{d['key']}-", f"lic-{d['key']}", o]
         + [_dollars(c) for c in (*d["costs"], sum(d["costs"]), *_books(o), sum(_books(o)))],
-        "numbers": {*d["costs"], sum(d["costs"]), *_books(o), sum(_books(o))},
+        "numbers": {*d["costs"], sum(d["costs"]), *_books(o), sum(_books(o)), *LICENSE_SPEND[o].values()},
     }
 
 
@@ -138,7 +144,13 @@ async def two_tenants(mongo_db):
                      "hardwareKey": "serial:SER-0001", "lifecycleStatus": "deployed", "modelId": "model-std"})
         await mongo_db.assets.insert_many(docs)
         await mongo_db.licenses.insert_one(
-            {"tenantId": tenant, "id": f"lic-{d['key']}", "name": "Office suite", "seatCount": d["seats"]})
+            {"tenantId": tenant, "id": f"lic-{d['key']}", "name": "Office suite", "seatCount": d["seats"],
+             "costCents": d["license"][0], "costPeriod": d["license"][1]})
+        await mongo_db.license_assignments.insert_many([
+            {"tenantId": tenant, "id": f"la-{d['key']}-1", "licenseId": f"lic-{d['key']}", "targetType": "asset",
+             "targetId": ids[d["seatOn"]], "assignedAt": "2026-11-01T00:00:00.000+00:00"},
+            {"tenantId": tenant, "id": f"la-{d['key']}-2", "licenseId": f"lic-{d['key']}", "targetType": "user",
+             "targetId": f"user-{d['key']}", "assignedAt": "2026-11-02T00:00:00.000+00:00"}])
         await mongo_db.agents.insert_one(
             {"tenantId": tenant, "id": f"agent-{d['key']}-1", "assetId": ids[2], "hostname": "agent-box-host",
              "status": "Online", "lastSeen": "2026-11-16T10:00:00Z"})
@@ -202,9 +214,9 @@ class TestOwnerSwitch:
 
 # ── The full route matrix ────────────────────────────────────────────────────────────────────────────
 
-ROUTES = ("summary", "assets", "asset_detail", "kpis", "report_run", "report_export")
+ROUTES = ("summary", "assets", "asset_detail", "kpis", "report_run", "report_export", "costs_export")
 COST_AND_KPI = ("summary", "assets", "asset_detail", "kpis")
-REPORT_ROUTES = ("report_run", "report_export")
+REPORT_ROUTES = ("report_run", "report_export", "costs_export")
 
 
 class Result:
@@ -231,7 +243,7 @@ async def call(client, route, bearer, *, header=None, id_of="tenant-a"):
         return Result(await client.get(KPIS, headers=headers))
     if route == "report_run":
         return Result(await client.post(REPORT_RUN, headers=headers))
-    response = await client.post(REPORT_EXPORT, params={"format": "csv"}, headers=headers)
+    response = await client.post(COSTS_EXPORT if route == "costs_export" else REPORT_EXPORT, params={"format": "csv"}, headers=headers)
     csv_text = ""
     if response.status_code == 200:
         path = os.path.join(itam_reporting_service._REPORTS_DIR, response.json()["filename"])
@@ -248,17 +260,25 @@ def assert_own(route, result, tenant):
     assert result.status == 200, result.text
     d = DATA[tenant]
     body = result.json
+    spend = LICENSE_SPEND[tenant]
     if route == "summary":
         assert body["tenantId"] == tenant
         assert body["purchaseTotal"]["cents"] == sum(d["costs"])
         assert body["bookValueTotal"]["cents"] == sum(_books(tenant))
         assert body["coverage"]["total"] == 3
+        lic = body["licenses"]["recurringAnnual"]
+        assert (lic["spendCents"], lic["allocatedCents"], lic["unattributedCents"], lic["idleCents"]) == \
+            (spend["spend"], spend["asset"], spend["user"], spend["idle"])
     elif route == "assets":
         assert body["tenantId"] == tenant and body["total"] == 3
         assert {row["assetId"] for row in body["items"]} == set(_ids(tenant))
+        held = {row["assetId"]: row["license"]["recurringAnnualCents"] for row in body["items"]}
+        assert held == {i: (spend["asset"] if n == d["seatOn"] else None) for n, i in enumerate(_ids(tenant))}
     elif route == "asset_detail":
         assert body["assetId"] == _ids(tenant)[0]
         assert body["purchaseCostCents"] == d["costs"][0] and body["bookValueCents"] == _books(tenant)[0]
+        lines = body["license"]["lines"]
+        assert [line["licenseId"] for line in lines] == ([f"lic-{d['key']}"] if d["seatOn"] == 0 else [])
     elif route == "kpis":
         assert body["licenseUtilization"]["seatsTotal"] == d["seats"]
         assert body["assetValue"]["totalBookValueCents"] == sum(_books(tenant))
@@ -266,6 +286,11 @@ def assert_own(route, result, tenant):
         assert body["rowCount"] == 2
         assert {row["Purchase Cost"] for row in body["rows"]} == {_dollars(c) for c in d["costs"]}
         assert {row["Book Value"] for row in body["rows"]} == {_dollars(b) for b in _books(tenant)}
+    elif route == "costs_export":
+        assert body["rowCount"] == 3
+        for cents in (*d["costs"], *_books(tenant), spend["asset"]):
+            assert _dollars(cents) in result.text
+        assert "TAG-100" in result.text and "TAG-200" in result.text and "TAG-300" in result.text
     else:
         assert body["rowCount"] == 2
         for cents in (*d["costs"], *_books(tenant)):

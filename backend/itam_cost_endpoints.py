@@ -38,7 +38,7 @@ async def get_cost_summary(
     tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
-        result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed)
+        result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed, with_licenses=True)
         return result["summary"]
     except HTTPException:
         raise
@@ -64,7 +64,7 @@ async def list_cost_assets(
     tenant_id = await resolve_itam_tenant(request, current_user, get_database)
     db = get_database()
     try:
-        result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed, with_agents=True)
+        result = await compute_tenant_costs(db, tenant_id, include_inactive=includeDisposed, with_agents=True, with_licenses=True)
         rows = result["rows"]
         if agentOnly:
             rows = [r for r in rows if r.get("agent") is not None]

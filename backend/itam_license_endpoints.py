@@ -123,16 +123,31 @@ async def update_license(
     db = get_database()
 
     update_data = payload.model_dump(exclude_none=True)
-    if not update_data:
+    # COST-04: an explicit costCents null removes the cost and its basis together.
+    clear_cost = "costCents" in payload.model_fields_set and payload.costCents is None
+    if clear_cost:
+        update_data.pop("costPeriod", None)
+    if not update_data and not clear_cost:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+    if not clear_cost and ("costCents" in update_data or "costPeriod" in update_data):
+        stored = await db.licenses.find_one({"id": license_id}, {"_id": 0, "costCents": 1, "costPeriod": 1})
+        if stored is None:  # a license with no cost projects to {}
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="License not found")
+        merged = {**stored, **{k: update_data[k] for k in ("costCents", "costPeriod") if k in update_data}}
+        if (merged.get("costCents") is None) != (merged.get("costPeriod") is None):
+            raise HTTPException(status_code=422,
+                                detail="costCents and costPeriod go together: give both, or neither")
 
     from datetime import datetime, timezone
     update_data["updatedAt"] = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
 
     from pymongo import ReturnDocument
+    change: Dict[str, Any] = {"$set": update_data}
+    if clear_cost:
+        change["$unset"] = {"costCents": "", "costPeriod": ""}
     result = await db.licenses.find_one_and_update(
         {"id": license_id},
-        {"$set": update_data},
+        change,
         return_document=ReturnDocument.AFTER,
         projection={"_id": 0}
     )
@@ -143,7 +158,7 @@ async def update_license(
         action="itam_license.update",
         resource_type="itam_license",
         resource_id=license_id,
-        details=f"Updated fields: {', '.join(sorted(update_data.keys()))}",
+        details=f"Updated fields: {', '.join(sorted(update_data.keys()) + (['cost removed'] if clear_cost else []))}",
     )
     return result
 

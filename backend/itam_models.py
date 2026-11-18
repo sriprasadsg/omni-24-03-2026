@@ -10,11 +10,11 @@ from enum import Enum
 from typing import Dict, Any, List, Literal, Optional
 from bson import ObjectId  # Added for ObjectId reference in field_validator
 
-from pydantic import Field, ConfigDict, field_validator
+from pydantic import Field, ConfigDict, field_validator, model_validator
 from dependencies import PyObjectId
 import bson
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr
 
 # Asset Tag and Lifecycle Status Decisions (from Phase 56, Task 1 Option A)
 # These decisions are foundational and impact later phases (57-61).
@@ -315,6 +315,17 @@ class Asset(BaseModel):
         return _validate_iso8601_date(v)
 
 
+# COST-04 (Phase 79): what the whole license costs, in integer cents, and its billing basis. Both or neither:
+# a license without them is "not tracked" in the cost views, never 0 (itam_license_cost).
+LicenseCostPeriod = Literal["one_time", "monthly", "annual"]
+MAX_LICENSE_COST_CENTS = 10**13  # 100 billion in the currency's whole units
+
+
+def _cost_pair_complete(cost: Optional[int], period: Optional[str]) -> None:
+    if (cost is None) != (period is None):
+        raise ValueError("costCents and costPeriod go together: give both, or neither")
+
+
 # ITAM-LIC-01: License models (Phase 60).
 class LicenseCreate(CatalogEntityCreate):
     """Request contract for creating a new software license."""
@@ -323,19 +334,29 @@ class LicenseCreate(CatalogEntityCreate):
     isReassignable: bool = True
     manufacturerId: Optional[str] = None
     productKey: Optional[str] = None # Encrypted in real deployments
+    costCents: Optional[int] = Field(None, ge=0, le=MAX_LICENSE_COST_CENTS, strict=True)
+    costPeriod: Optional[LicenseCostPeriod] = None
 
     model_config = ConfigDict(extra="forbid")
 
     _validate_expiry_date = field_validator("expiryDate")(_validate_iso8601_date)
 
+    @model_validator(mode="after")
+    def _cost_with_basis(self):
+        _cost_pair_complete(self.costCents, self.costPeriod)
+        return self
+
 
 class LicenseUpdate(CatalogEntityUpdate):
-    """Request contract for updating an existing software license."""
+    """Request contract for updating an existing software license. costCents: null (sent explicitly)
+    removes the cost and its basis; the pair is checked against the stored license by the route."""
     seatCount: Optional[int] = Field(None, ge=0)
     expiryDate: Optional[str] = None
     isReassignable: Optional[bool] = None
     manufacturerId: Optional[str] = None
     productKey: Optional[str] = None
+    costCents: Optional[int] = Field(None, ge=0, le=MAX_LICENSE_COST_CENTS, strict=True)
+    costPeriod: Optional[LicenseCostPeriod] = None
 
     model_config = ConfigDict(extra="forbid")
 

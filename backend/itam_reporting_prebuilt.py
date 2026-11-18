@@ -331,6 +331,46 @@ async def _build_low_stock_consumables_rows(db, tenant_id: Optional[str]) -> Lis
 # (declared display headers)/defaultSort (human-readable order description)
 # and `builder` (the async row-building callable) — list_prebuilt_reports
 # strips `builder` before returning metadata to the Reports tab.
+_ENDPOINT_COSTS_COLUMNS = [
+    "Asset Tag", "Name", "Endpoint", "Lifecycle", "Purchase Cost", "Book Value",
+    "License Cost per Year", "One-Time License Cost", "Reason",
+]
+_NOT_TRACKED = "Not tracked"
+
+
+def _tracked(cents: Any) -> Any:
+    return _NOT_TRACKED if cents is None else f"${cents / 100:,.2f}"
+
+
+def _license_cell(license_row: Dict[str, Any], key: str) -> Any:
+    """A license figure as the Costs tab shows it: the amount, "Not tracked" when the asset's seats are on
+    licenses without a cost, an em dash when it holds no seat."""
+    if license_row.get(key) is not None:
+        return f"${license_row[key] / 100:,.2f}"
+    return _NOT_TRACKED if license_row.get("untrackedSeats") else _EM_DASH
+
+
+async def _build_endpoint_costs_rows(db, tenant_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Costs by endpoint (Phase 80, COST-08): exactly the rows of the ITAM Costs tab, from the same
+    itam_cost_service.compute_tenant_costs call as GET /api/itam/costs/assets (active assets, D-08 order),
+    with purchase cost, book value and the license cost allocated from seats on each asset."""
+    result = await itam_cost_service.compute_tenant_costs(db, tenant_id, with_agents=True, with_licenses=True)
+    return [
+        {
+            "Asset Tag": _dash(r["assetTag"]),
+            "Name": _dash(r["name"]),
+            "Endpoint": _dash((r.get("agent") or {}).get("hostname")),
+            "Lifecycle": _dash(r["lifecycleStatus"]),
+            "Purchase Cost": _tracked(r["purchaseCostCents"]),
+            "Book Value": _tracked(r["bookValueCents"]),
+            "License Cost per Year": _license_cell(r["license"], "recurringAnnualCents"),
+            "One-Time License Cost": _license_cell(r["license"], "oneTimeCents"),
+            "Reason": _dash(r["reason"]),
+        }
+        for r in result["rows"]
+    ]
+
+
 PREBUILT_REPORTS: Dict[str, Dict[str, Any]] = {
     "warranty_expiring": {
         "key": "warranty_expiring",
@@ -347,6 +387,14 @@ PREBUILT_REPORTS: Dict[str, Dict[str, Any]] = {
         "columns": _ASSET_VALUE_COLUMNS,
         "defaultSort": "Descending by computed book value",
         "builder": _build_asset_value_rows,
+    },
+    "endpoint_costs": {
+        "key": "endpoint_costs",
+        "title": "Costs by Endpoint",
+        "description": "Purchase cost, book value and allocated license cost per active asset, as on the Costs tab.",
+        "columns": _ENDPOINT_COSTS_COLUMNS,
+        "defaultSort": "Descending by computed book value",
+        "builder": _build_endpoint_costs_rows,
     },
     "checkout_activity": {
         "key": "checkout_activity",

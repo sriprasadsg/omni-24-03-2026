@@ -110,12 +110,14 @@ async def test_large_tenant_reads_are_bounded(mongo_db, monkeypatch):
     assert summary_db.counts.get("assets") == 1
     assert summary_db.counts.get("asset_models", 0) <= 1
     assert "agents" not in summary_db.counts
+    assert summary_db.counts.get("licenses") == 1 and summary_db.counts.get("license_assignments") == 1
     assert summary["coverage"]["total"] == IN_SCOPE
     assert summary["coverage"]["excludedByLifecycle"] == TENANT_S_DISPOSED
 
     list_db = _CountingDb(mongo_db)
     listing, list_seconds = await _get(monkeypatch, list_db, "/api/itam/costs/assets", {"page": 1, "page_size": 100})
-    assert list_db.counts == {"assets": 1, "asset_models": 1, "agents": 1}
+    # Phase 79: the license spend adds one read each of licenses and license_assignments.
+    assert list_db.counts == {"assets": 1, "asset_models": 1, "agents": 1, "licenses": 1, "license_assignments": 1}
     assert listing["total"] == IN_SCOPE and len(listing["items"]) == 100
     assert listing["hasNext"] is True
 

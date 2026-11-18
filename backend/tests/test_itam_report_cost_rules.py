@@ -228,7 +228,7 @@ class TestPrebuiltTenantResolution:
         _never_db(monkeypatch)
         async with _client(reporting_app, _owner()) as ac:
             for key in ("warranty_expiring", "checkout_activity", "overdue_audits",
-                        "license_utilization", "low_stock_consumables"):
+                        "license_utilization", "low_stock_consumables", "endpoint_costs"):
                 r = await ac.post(f"/api/itam/reports/prebuilt/{key}/run")
                 assert r.status_code == 400, key
 

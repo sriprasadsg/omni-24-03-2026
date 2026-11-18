@@ -197,7 +197,8 @@ class TestPaging:
         async with _client(app, _tenant_admin()) as ac:
             r = await ac.get(LIST_URL)
         assert r.status_code == 200, r.text
-        assert counts == {"assets": 1, "asset_models": 1, "agents": 1}
+        # Phase 79: the license spend adds one read each of licenses and license_assignments.
+        assert counts == {"assets": 1, "asset_models": 1, "agents": 1, "licenses": 1, "license_assignments": 1}
 
 
 class TestGuardAndTenant:

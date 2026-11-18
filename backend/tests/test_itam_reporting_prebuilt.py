@@ -84,12 +84,13 @@ def _iso(days_offset: float) -> str:
 
 
 class TestRegistry:
-    def test_all_six_reports_registered(self):
+    def test_all_seven_reports_registered(self):
+        # Phase 80 (COST-08) added endpoint_costs, the Costs tab's export.
         assert set(PREBUILT_REPORTS) == {
             "warranty_expiring", "asset_value", "checkout_activity",
-            "overdue_audits", "license_utilization", "low_stock_consumables",
+            "overdue_audits", "license_utilization", "low_stock_consumables", "endpoint_costs",
         }
-        assert len(PREBUILT_REPORTS) == 6
+        assert len(PREBUILT_REPORTS) == 7
 
 
 class TestAssetValueReport:
