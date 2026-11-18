@@ -59,7 +59,8 @@ export const SocKpis: React.FC<{ data: SocSummary; rangeLabel: string }> = ({ da
                 <p className={bigValue}>{k.newInRange}</p>
             </KpiTile>
 
-            <KpiTile icon={<Clock className="w-4 h-4" />} label="Response time">
+            <KpiTile icon={<Clock className="w-4 h-4" />} label="Response time"
+                sub={(k.ackOverdue || k.closeOverdue) ? <span className="font-medium text-red-700 dark:text-red-300">Overdue: {k.ackOverdue ?? 0} to acknowledge, {k.closeOverdue ?? 0} to close</span> : 'Nothing past its target'}>
                 {ack.count || close.count ? (
                     <dl className="grid grid-cols-2 gap-2">
                         {[{ label: 'To acknowledge', v: ack }, { label: 'To close', v: close }].map(({ label, v }) => (

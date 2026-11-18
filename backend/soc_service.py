@@ -183,7 +183,11 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
             "endpointsWithActive": sum(1 for e in endpoints if e["agentId"]),
             "removedWithActive": sum(1 for e in endpoints if e["agentId"] and not e["known"]),
             "endpointsOnline": len(online), "endpoints": len(agents),
+            "ackOverdue": sum(1 for a in active if (a.get("sla") or {}).get("ackBreached")),
+            "closeOverdue": sum(1 for a in active if (a.get("sla") or {}).get("closeBreached")),
         },
+        "workload": sorted(({"assignee": k, "active": len(v), "overdue": sum(1 for a in v if (a.get("sla") or {}).get("ackBreached") or (a.get("sla") or {}).get("closeBreached"))}
+                            for k, v in _by_assignee(active).items()), key=lambda w: (w["assignee"] is None, -w["active"])),
         "trend": trend,
         "byType": sorted(by_type.values(), key=lambda t: (-t["active"], -t["inRange"], t["label"])),
         "endpoints": endpoints[:8],
@@ -194,6 +198,13 @@ def build_summary(alerts: List[Dict[str, Any]], agents: List[Dict[str, Any]], ra
         "coverage": coverage,
         "counts": counts or {},
     }
+
+
+def _by_assignee(active: List[Dict[str, Any]]) -> Dict[Optional[str], List[Dict[str, Any]]]:
+    out: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
+    for a in active:
+        out[a.get("assignee") or None].append(a)
+    return out
 
 
 def _combined(scores: List[int]) -> int:

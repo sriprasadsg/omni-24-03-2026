@@ -142,6 +142,18 @@ export const DetectionHealth: React.FC<{ data: SocSummary; approvals: Approval[]
                             {data.counts.openCases ?? 0} open case{data.counts.openCases === 1 ? '' : 's'} · {data.counts.siemRules ?? 0} SIEM correlation rules · {data.counts.activeHunts ?? 0} active threat hunts
                         </p>
                     </div>
+                    {data.workload && data.workload.length > 0 && (
+                        <div>
+                            <h3 className={subhead}>Analyst workload</h3>
+                            <ul className="mt-2 flex flex-wrap gap-2">
+                                {data.workload.map(w => (
+                                    <li key={w.assignee ?? 'none'} className="rounded-lg px-2 py-1 text-xs bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] text-gray-700 dark:text-gray-300">
+                                        {w.assignee ?? 'Unassigned'} <span className="font-mono tabular-nums font-semibold">{w.active}</span>{w.overdue ? <span className="text-red-700 dark:text-red-300"> · {w.overdue} overdue</span> : ''}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                     <div>
                         <h3 className={subhead}>Approved AI processes</h3>
                         {approvals == null ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Loading…</p>

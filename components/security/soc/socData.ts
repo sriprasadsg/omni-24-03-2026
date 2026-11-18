@@ -25,6 +25,7 @@ export interface SocAlert {
     incidentId?: string | null;
     rules?: { id: string; name: string }[]; suggestedResponse?: { action: string; rule: string } | null;
     risk?: number; importance?: Importance; threatIntel?: ThreatIntelHit[];
+    sla?: { ackDue: string | null; closeDue: string; ackBreached: boolean; closeBreached: boolean } | null;
     aiTriage?: AiTriage | null;
 }
 export type TriageStep = 'acknowledge' | 'close_false_positive' | 'close_benign' | 'isolate_host' | 'quarantine_file'
@@ -67,12 +68,13 @@ export interface SocSummary {
         active: number; open: number; activeBySeverity: SeverityCounts; newInRange: number; newPrevious: number;
         occurrencesInRange: number; timeToAcknowledge: { seconds: number | null; count: number };
         timeToClose: { seconds: number | null; count: number };
-        endpointsWithActive: number; removedWithActive: number; endpointsOnline: number; endpoints: number;
+        endpointsWithActive: number; removedWithActive: number; endpointsOnline: number; endpoints: number; ackOverdue?: number; closeOverdue?: number;
     };
     trend: TrendPoint[];
     byType: { type: string; label: string; active: number; inRange: number; lastSeen: string | null }[];
     endpoints: ({ agentId: string | null; hostname: string; online: boolean; known: boolean; active: number; lastAlertAt: string | null; risk?: number } & SeverityCounts)[];
     users?: { user: string; risk: number; active: number }[];
+    workload?: { assignee: string | null; active: number; overdue: number }[];
     threatIntel?: FeedStatus | null;
     mitre: { technique: string; name: string; tactic: string; count: number }[];
     sources: { type: string; label: string; lastAlertAt: string | null; total: number }[];

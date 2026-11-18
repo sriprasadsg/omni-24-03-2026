@@ -64,10 +64,12 @@ async def annotate(db, alerts: List[Dict[str, Any]], now: Optional[datetime] = N
     """Set ``risk`` and ``importance`` on viewed alerts."""
     now = now or datetime.now(timezone.utc)
     ctx = await importance_map(db, ((a.get("tenantId"), a.get("agentId")) for a in alerts))
+    targets = {t: await sla_targets(db, t) for t in {a.get("tenantId") for a in alerts}}
     for a in alerts:
         imp = (ctx.get((a.get("tenantId"), a.get("agentId"))) or {}).get("importance")
         a["importance"] = imp or "medium"
         a["risk"] = risk(a, imp, now)
+        a["sla"] = sla_state(a, targets[a.get("tenantId")], now)
     return alerts
 
 
@@ -124,3 +126,50 @@ async def alert_context(db, scope: Optional[str], alert_id: str) -> Dict[str, An
         "threatIntel": hits,
         "feeds": await soc_threat_intel.feed_status(_raw(db)),
     }
+
+
+# ---------------------------------------------------------------- response-time targets (SLA)
+# Minutes to acknowledge and to close, per severity; a tenant can change them (soc_sla).
+SLA_DEFAULTS = {"acknowledge": {"critical": 15, "high": 60, "medium": 240, "low": 1440, "info": 2880},
+                "close": {"critical": 240, "high": 1440, "medium": 4320, "low": 10080, "info": 20160}}
+
+
+async def sla_targets(db, tenant: Optional[str]) -> Dict[str, Dict[str, int]]:
+    row = await _raw(db).soc_sla.find_one({"tenantId": tenant or "platform-admin"}, {"_id": 0}) or {}
+    return {k: {**SLA_DEFAULTS[k], **(row.get(k) or {})} for k in SLA_DEFAULTS}
+
+
+async def set_sla(db, scope: Optional[str], body: Dict[str, Any], who: str) -> Dict[str, Any]:
+    out = {}
+    for k in SLA_DEFAULTS:
+        given = body.get(k) or {}
+        if not isinstance(given, dict):
+            raise ContextError(f"{k} must map severities to minutes")
+        out[k] = {}
+        for sev, default in SLA_DEFAULTS[k].items():
+            v = given.get(sev, default)
+            if not isinstance(v, int) or not 1 <= v <= 525600:
+                raise ContextError(f"{k} {sev}: minutes from 1 to 525600")
+            out[k][sev] = v
+    if any(out["close"][s] < out["acknowledge"][s] for s in out["close"]):
+        raise ContextError("A close target cannot be shorter than its acknowledge target")
+    tenant = scope or "platform-admin"
+    await _raw(db).soc_sla.update_one({"tenantId": tenant}, {"$set": {**out, "tenantId": tenant, "updatedBy": who,
+                                                                      "updatedAt": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return out
+
+
+def sla_state(alert: Dict[str, Any], targets: Dict[str, Dict[str, int]], now: datetime) -> Optional[Dict[str, Any]]:
+    """Due times and breaches for an active alert (None for a closed one or one without a start time)."""
+    if alert.get("status") == "closed":
+        return None
+    start = parse_ts(alert.get("createdAt"))
+    if not start:
+        return None
+    from datetime import timedelta
+    sev = alert.get("severity") or "medium"
+    ack_due = start + timedelta(minutes=targets["acknowledge"].get(sev, 240))
+    close_due = start + timedelta(minutes=targets["close"].get(sev, 4320))
+    acked = alert.get("status") == "acknowledged" or bool(alert.get("acknowledgedAt"))
+    return {"ackDue": None if acked else ack_due.isoformat(), "closeDue": close_due.isoformat(),
+            "ackBreached": (not acked) and now > ack_due, "closeBreached": now > close_due}

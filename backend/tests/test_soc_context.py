@@ -113,3 +113,26 @@ async def test_new_alert_is_matched_and_ranks_by_risk_with_endpoint_importance(d
     ctx = await soc_context.alert_context(db, "t1", hit["id"])
     assert ctx["host"]["importance"] == "critical" and ctx["host"]["owner"] == "IT desk" and ctx["host"]["otherActiveAlerts"] == 0
     assert ctx["threatIntel"][0]["value"] == BAD_IP
+
+
+def test_sla_due_times_and_breaches_follow_the_targets():
+    """protects=an open critical alert past 15 min is overdue to acknowledge, an acknowledged one only counts its
+    close target, a closed one has none; fails_when=acknowledged alerts stay overdue; no_claim=-"""
+    t = {k: dict(v) for k, v in soc_context.SLA_DEFAULTS.items()}
+    start = (NOW - timedelta(minutes=30)).isoformat()
+    s = soc_context.sla_state({"status": "open", "severity": "critical", "createdAt": start}, t, NOW)
+    assert s["ackBreached"] and not s["closeBreached"]
+    s = soc_context.sla_state({"status": "acknowledged", "severity": "critical", "createdAt": start}, t, NOW)
+    assert s["ackDue"] is None and not s["ackBreached"]
+    assert soc_context.sla_state({"status": "closed", "createdAt": start}, t, NOW) is None
+
+
+@pytest.mark.asyncio
+async def test_sla_targets_are_per_tenant_and_checked(db):
+    """protects=a tenant's targets are stored and read back, bad values refused; fails_when=a close target shorter
+    than acknowledge is accepted; no_claim=-"""
+    with pytest.raises(soc_context.ContextError):
+        await soc_context.set_sla(db, "t1", {"acknowledge": {"high": 120}, "close": {"high": 60}}, "ana")
+    await soc_context.set_sla(db, "t1", {"acknowledge": {"critical": 5}}, "ana")
+    assert (await soc_context.sla_targets(db, "t1"))["acknowledge"]["critical"] == 5
+    assert (await soc_context.sla_targets(db, "t2"))["acknowledge"]["critical"] == 15

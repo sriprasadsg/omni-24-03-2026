@@ -26,6 +26,7 @@ import { AlertDrawer } from './security/soc/AlertDrawer';
 import { IncidentsTab } from './security/soc/IncidentsTab';
 import { RulesTab } from './security/soc/RulesTab';
 import { WatchlistPanel } from './security/soc/WatchlistPanel';
+import { SlaPanel } from './security/soc/SlaPanel';
 import { segment, segmented } from './security/soc/SocKit';
 
 interface SecurityDashboardProps {
@@ -282,7 +283,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             case 'queue':
                 return <AlertQueue focus={focus} onClearFocus={() => setFocus(null)} types={typeOptions} reloadKey={queueKey} onOpen={setOpenAlert} onChanged={alertsChanged} />;
             case 'rules':
-                return <div className="space-y-3"><RulesTab types={typeOptions} /><WatchlistPanel /></div>;
+                return <div className="space-y-3"><RulesTab types={typeOptions} /><SlaPanel /><WatchlistPanel /></div>;
             case 'events':
                 return (
                     <div className="space-y-5">

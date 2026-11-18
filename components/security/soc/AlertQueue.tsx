@@ -4,7 +4,7 @@ import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { EmptyNote, ghostButton } from '../../network/NetworkKit';
 import {
-    bulkAct, endpointName, fetchSocAlerts, formatSince, RESOLUTION_LABEL, SEVERITIES, SEVERITY_META,
+    bulkAct, endpointName, fetchSocAlerts, formatSince, formatWhen, RESOLUTION_LABEL, SEVERITIES, SEVERITY_META,
     type AlertPage, type QueueStatus, type Resolution, type Severity, type SocAlert,
 } from './socData';
 import { SeverityBadge, StatusText, field, segment, segmented } from './SocKit';
@@ -179,6 +179,9 @@ export const AlertQueue: React.FC<Props> = ({ focus, onClearFocus, types, reload
                                     <td className="px-2 py-2.5 align-top text-gray-600 dark:text-gray-300 whitespace-nowrap" title={a.lastSeenAt ?? undefined}>{formatSince(a.lastSeenAt)}</td>
                                     <td className="px-4 py-2.5 align-top">
                                         <StatusText status={a.status} resolution={a.resolution} />
+                                        {a.sla && (a.sla.ackBreached || a.sla.closeBreached
+                                            ? <span className="block text-[11px] font-medium text-red-700 dark:text-red-300">Overdue to {a.sla.ackBreached ? 'acknowledge' : 'close'}</span>
+                                            : <span className="block text-[11px] text-gray-500 dark:text-gray-400">{a.sla.ackDue ? `Acknowledge by ${formatWhen(a.sla.ackDue)}` : `Close by ${formatWhen(a.sla.closeDue)}`}</span>)}
                                         {a.assignee && <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[10rem]">{a.assignee}</span>}
                                     </td>
                                 </tr>

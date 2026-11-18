@@ -338,6 +338,19 @@ async def remove_from_watchlist(item_id: str, current_user: TokenData = Depends(
     return {"success": True}
 
 
+@router.get("/sla", dependencies=[Depends(SECURITY_GUARD)])
+async def get_sla(current_user: TokenData = Depends(get_current_user)):
+    """Minutes to acknowledge and to close, per severity, for the caller's organization."""
+    return await soc_context.sla_targets(get_database(), soc_scope(current_user))
+
+
+@router.put("/sla", dependencies=RULES_WRITE)
+async def put_sla(body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+    out = await _run(soc_context.set_sla(get_database(), soc_scope(current_user), body, current_user.username))
+    await soc_actions._audit("soc.sla.update", soc_scope(current_user), current_user, targets=out)
+    return out
+
+
 @router.get("/approved-ai", dependencies=[Depends(SECURITY_GUARD)])
 async def get_approved_ai(current_user: TokenData = Depends(get_current_user)):
     return {"items": await soc_actions.list_approvals(soc_scope(current_user))}

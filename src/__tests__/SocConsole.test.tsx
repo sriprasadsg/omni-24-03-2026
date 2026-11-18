@@ -37,7 +37,7 @@ const summary = () => ({
     kpis: {
         active: 3, open: 2, activeBySeverity: { ...zero, critical: 1, high: 1, medium: 1 }, newInRange: 2, newPrevious: 1,
         occurrencesInRange: 2, timeToAcknowledge: { seconds: null, count: 0 }, timeToClose: { seconds: null, count: 0 },
-        endpointsWithActive: 2, removedWithActive: 1, endpointsOnline: 1, endpoints: 2,
+        endpointsWithActive: 2, removedWithActive: 1, endpointsOnline: 1, endpoints: 2, ackOverdue: 1, closeOverdue: 0,
     },
     trend: Array.from({ length: 24 }, (_, i) => ({ t: at(24 - i), ...zero, ...(i === 23 ? { critical: 1, high: 1 } : {}) })),
     byType: [{ type: 'runtime_security', label: 'Runtime threat', active: 1, inRange: 1, lastSeen: at(1) },
@@ -57,7 +57,7 @@ const alert = (over: Record<string, unknown> = {}) => ({
     id: 'al-1', source: 'security', type: 'shadow_ai_process', typeLabel: 'Unapproved AI process', severity: 'medium',
     title: 'Unapproved AI process: lmstudio', description: "Local AI process 'lmstudio' (PID 7)", status: 'open', resolution: null,
     agentId: 'ag-srv', hostname: 'Omniai-copy', createdAt: at(30), lastSeenAt: at(1), occurrences: 12, mitre: [],
-    evidence: { process: 'lmstudio', exe: '/opt/lmstudio' }, ...over,
+    evidence: { process: 'lmstudio', exe: '/opt/lmstudio' }, sla: { ackDue: at(-0.1), closeDue: at(-10), ackBreached: true, closeBreached: false }, ...over,
 });
 const approval = { id: 'ap-1', process: 'ollama', agentId: 'ag-srv', hostname: 'Omniai-copy', reason: "The platform's own local LLM" };
 
@@ -142,6 +142,7 @@ describe('Security Operations Center overview', () => {
         expect(within(active).getByText('3')).toBeTruthy();
         expect(within(active).getByText('2 open · 1 acknowledged')).toBeTruthy();
         expect(screen.getByText('Not measured')).toBeTruthy();
+        expect(screen.getByText('Overdue: 1 to acknowledge, 0 to close')).toBeTruthy();
         expect(screen.getByText(/2 new alerts: 1 critical, 1 high\./)).toBeTruthy();
         expect(screen.getByText('Removed endpoint (c6eb3d8b)')).toBeTruthy();
         expect(screen.getByText('1 removed endpoint still has alerts')).toBeTruthy();
@@ -175,6 +176,7 @@ describe('Alert queue and drawer', () => {
         await waitFor(() => expect(calls('GET', '/api/security/soc/alerts').some(([u]) => String(u).includes('agentId=ag-srv'))).toBe(true));
         const row = (await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' })).closest('tr')!;
         expect(row.textContent).toContain('seen 12 times');
+        expect(row.textContent).toContain('Overdue to acknowledge');
         expect(row.textContent).toContain('Omniai-copy');
         fireEvent.click(screen.getByRole('checkbox', { name: 'Select Unapproved AI process: lmstudio' }));
         fireEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
