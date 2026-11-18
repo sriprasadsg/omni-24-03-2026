@@ -6,7 +6,7 @@ from typing import AsyncIterator, Optional
 
 import httpx
 
-from local_ip import ollama_default_url
+from local_ip import ollama_candidate_urls, ollama_default_url
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +88,15 @@ class OllamaProvider(AIProvider):
         return "Ollama (Local)"
 
     async def configure(self, settings: dict) -> bool:
-        self.base_url = settings.get("ollamaUrl") or ollama_default_url()
-        self.model_name = settings.get("ollamaModel", "llama3.2:3b")
+        """Use the first address where the model answers (see local_ip.ollama_candidate_urls)."""
+        wanted = settings.get("ollamaModel", "llama3.2:3b")
+        for url in ollama_candidate_urls(settings.get("ollamaUrl")):
+            self.base_url, self.model_name = url, wanted
+            if await self._probe():
+                return True
+        return False
+
+    async def _probe(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{self.base_url}/api/tags")
@@ -109,11 +116,11 @@ class OllamaProvider(AIProvider):
                     else:
                         logger.warning("Ollama running but no models available.")
                         return False
-                # Quick generation test to verify model actually runs
+                # One token proves the model runs; the first call also loads it, ~12 s on this CPU-only server.
                 test_resp = await client.post(
                     f"{self.base_url}/api/generate",
-                    json={"model": self.model_name, "prompt": "hi", "stream": False},
-                    timeout=15.0,
+                    json={"model": self.model_name, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
+                    timeout=60.0,
                 )
                 return test_resp.status_code == 200
         except Exception as exc:
