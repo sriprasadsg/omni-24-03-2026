@@ -110,6 +110,7 @@ describe('ITAMConsole', () => {
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Check-Out/In')).toBeInTheDocument();
     expect(screen.getByText('Procurement & Finance')).toBeInTheDocument();
+    expect(screen.getByText('Costs')).toBeInTheDocument();  // Phase 80 (COST-08)
     expect(screen.getByText('Licenses & Consumables')).toBeInTheDocument();
     expect(screen.getByText('Compliance')).toBeInTheDocument();
     expect(screen.getByText('Software Inventory')).toBeInTheDocument();
@@ -139,7 +140,6 @@ describe('ITAMConsole', () => {
     // KPI grid must appear first in document order (UI-SPEC visual-hierarchy note).
     const kpiHeading = screen.getByText('Total Asset Value');
     const prebuiltHeading = screen.getByText('Pre-built Reports');
-    // eslint-disable-next-line no-bitwise
     expect(kpiHeading.compareDocumentPosition(prebuiltHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

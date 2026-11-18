@@ -1048,6 +1048,9 @@ export interface ItamLicense {
   seatsAvailable?: number;
   isExpired?: boolean;
   daysUntilExpiry?: number | null;
+  // COST-04 (Phase 79): what the whole license costs, in cents, and its billing basis (both or neither).
+  costCents?: number | null;
+  costPeriod?: 'one_time' | 'monthly' | 'annual' | null;
 }
 
 export interface ItamLicenseAssignment {

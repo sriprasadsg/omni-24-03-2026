@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { fetchItamKpis, ItamKpis } from '../../services/apiService';
 import { DollarSignIcon, PieChartIcon, CalendarDaysIcon, AlertTriangleIcon } from '../icons';
+import { formatCents } from './money';
 
 // Phase 72 Plan 07: the Reports tab's KPI tile grid (ITAM-REP-04, D-16/D-17/D-18).
 // Clones CXODashboard.tsx's recharts usage — no new charting dependency.
@@ -40,9 +41,7 @@ interface ItamKpiPanelProps {
 // of the un-branded console renders with).
 const CHART_COLORS = ['#0891b2', '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6'];
 
-function formatCurrency(cents: number): string {
-  return `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
+const formatCurrency = (cents: number): string => formatCents(cents, { whole: true });
 
 interface KpiTileProps {
   title: string;

@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import { ItamLicense, ItamConsumable, ItamComponent } from '../../types';
 import {
-  fetchLicenses, createLicense, assignLicenseSeat, reclaimLicenseSeat, fetchLicenseAssignments,
+  fetchLicenses, createLicense, updateLicense, assignLicenseSeat, reclaimLicenseSeat, fetchLicenseAssignments,
   fetchConsumables, createConsumable, checkoutConsumable, checkinConsumable,
   fetchComponents, createComponent, attachComponent, detachComponent,
 } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
+import { NOT_TRACKED, PERIOD_LABEL, centsToAmount, formatCents, parseAmountToCents, type LicenseCostPeriod } from './money';
 
 type Section = 'licenses' | 'consumables' | 'components';
 
@@ -41,7 +42,9 @@ function LicensesSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', seatCount: '1', expiryDate: '' });
+  const [form, setForm] = useState({ name: '', seatCount: '1', expiryDate: '', cost: '', costPeriod: 'annual' as LicenseCostPeriod });
+  const [costTarget, setCostTarget] = useState<ItamLicense | null>(null);
+  const [costForm, setCostForm] = useState({ cost: '', costPeriod: 'annual' as LicenseCostPeriod });
   const [assignTarget, setAssignTarget] = useState<ItamLicense | null>(null);
   const [assignForm, setAssignForm] = useState({ targetType: 'user' as 'user' | 'asset', targetId: '' });
 
@@ -61,14 +64,45 @@ function LicensesSection() {
 
   async function handleCreate() {
     if (!form.name.trim()) return;
+    // COST-04: the cost is optional; when given it is whole cents with its billing basis.
+    const costCents = form.cost.trim() ? parseAmountToCents(form.cost) : undefined;
+    if (costCents === null) {
+      showToast('Enter the cost as an amount, e.g. 1299.99.', 'error');
+      return;
+    }
     try {
-      await createLicense({ name: form.name.trim(), seatCount: Number(form.seatCount) || 0, expiryDate: form.expiryDate || undefined });
+      await createLicense({
+        name: form.name.trim(), seatCount: Number(form.seatCount) || 0, expiryDate: form.expiryDate || undefined,
+        ...(costCents !== undefined ? { costCents, costPeriod: form.costPeriod } : {}),
+      });
       showToast('License created.', 'success');
       setAddOpen(false);
-      setForm({ name: '', seatCount: '1', expiryDate: '' });
+      setForm({ name: '', seatCount: '1', expiryDate: '', cost: '', costPeriod: 'annual' });
       load();
     } catch (e: any) {
       showToast(e?.message || "Couldn't save license.", 'error');
+    }
+  }
+
+  function openCost(license: ItamLicense) {
+    setCostTarget(license);
+    setCostForm({ cost: typeof license.costCents === 'number' ? centsToAmount(license.costCents) : '', costPeriod: license.costPeriod || 'annual' });
+  }
+
+  async function handleSetCost(remove = false) {
+    if (!costTarget) return;
+    const costCents = remove ? null : parseAmountToCents(costForm.cost);
+    if (!remove && costCents === null) {
+      showToast('Enter the cost as an amount, e.g. 1299.99.', 'error');
+      return;
+    }
+    try {
+      await updateLicense(costTarget.id, remove ? { costCents: null } : { costCents, costPeriod: costForm.costPeriod });
+      showToast(remove ? 'Cost removed: the license is not tracked in costs.' : 'Cost saved.', 'success');
+      setCostTarget(null);
+      load();
+    } catch (e: any) {
+      showToast(e?.message || "Couldn't save the cost.", 'error');
     }
   }
 
@@ -122,6 +156,7 @@ function LicensesSection() {
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Seats</th>
                 <th className="py-2 pr-4">Expiry</th>
+                <th className="py-2 pr-4">Cost</th>
                 <th className="py-2 pr-4" />
               </tr>
             </thead>
@@ -137,7 +172,13 @@ function LicensesSection() {
                       </span>
                     ) : '—'}
                   </td>
+                  <td className="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-300">
+                    {typeof l.costCents === 'number' && l.costPeriod
+                      ? <>{formatCents(l.costCents)} <span className="text-xs text-gray-500">{PERIOD_LABEL[l.costPeriod]}</span></>
+                      : <span className="text-xs text-gray-500">{NOT_TRACKED}</span>}
+                  </td>
                   <td className="py-2 pr-4 text-right whitespace-nowrap">
+                    <button onClick={() => openCost(l)} className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-xs font-medium mr-3" aria-label={`Set cost of ${l.name}`}>Set Cost</button>
                     <button onClick={() => setAssignTarget(l)} className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium mr-3">Assign Seat</button>
                     <button onClick={() => handleReclaimFirstSeat(l)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium">Reclaim Seat</button>
                   </td>
@@ -153,6 +194,28 @@ function LicensesSection() {
           <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="License name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
           <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="number" min={0} placeholder="Seat count" value={form.seatCount} onChange={(e) => setForm({ ...form, seatCount: e.target.value })} aria-label="Seat Count" />
           <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} aria-label="Expiry Date" />
+          <div className="flex gap-2">
+            <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" inputMode="decimal" placeholder="Cost of the whole license (optional)" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} aria-label="Cost" />
+            <select className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-2 text-sm text-gray-900 dark:text-white" value={form.costPeriod} onChange={(e) => setForm({ ...form, costPeriod: e.target.value as LicenseCostPeriod })} aria-label="Billing Basis">
+              {(Object.keys(PERIOD_LABEL) as LicenseCostPeriod[]).map(p => <option key={p} value={p}>{PERIOD_LABEL[p]}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-gray-500">Leave the cost empty to keep the license out of cost figures (shown as {NOT_TRACKED.toLowerCase()}).</p>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!costTarget} onClose={() => setCostTarget(null)} title={costTarget ? `Cost of ${costTarget.name}` : 'Cost'} confirmLabel="Save Cost" onConfirm={() => handleSetCost()}>
+        <div className="space-y-3 mb-4">
+          <div className="flex gap-2">
+            <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" inputMode="decimal" placeholder="Cost of the whole license" value={costForm.cost} onChange={(e) => setCostForm({ ...costForm, cost: e.target.value })} aria-label="Cost" />
+            <select className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-2 text-sm text-gray-900 dark:text-white" value={costForm.costPeriod} onChange={(e) => setCostForm({ ...costForm, costPeriod: e.target.value as LicenseCostPeriod })} aria-label="Billing Basis">
+              {(Object.keys(PERIOD_LABEL) as LicenseCostPeriod[]).map(p => <option key={p} value={p}>{PERIOD_LABEL[p]}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-gray-500">The cost is split over the license's seats; seats on assets count toward those endpoints in the Costs tab.</p>
+          {typeof costTarget?.costCents === 'number' && (
+            <button type="button" onClick={() => handleSetCost(true)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium">Remove cost</button>
+          )}
         </div>
       </Modal>
 

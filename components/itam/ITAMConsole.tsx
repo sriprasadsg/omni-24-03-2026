@@ -11,6 +11,7 @@ import { CompliancePanel } from './CompliancePanel';
 import { SoftwareInventoryPanel } from './SoftwareInventoryPanel';
 import { ReportsPanel } from './ReportsPanel';
 import { ItamKpiPanel } from './ItamKpiPanel';
+import { CostsPanel } from './CostsPanel';
 import { ActivityLogPanel } from './ActivityLogPanel';
 import { BulkImportExportPanel } from './BulkImportExportPanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -29,7 +30,7 @@ const DEFAULT_ITAM_SETTINGS: ItamSettings = {
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const ALLOWED_LOGO_PREFIXES = ['https://', 'http://', 'data:image/'];
 
-type Tab = 'catalog' | 'lifecycle' | 'finance' | 'purchaseOrders' | 'requests' | 'licenses' | 'compliance' | 'software' | 'reports' | 'activity' | 'data' | 'settings';
+type Tab = 'catalog' | 'lifecycle' | 'finance' | 'costs' | 'purchaseOrders' | 'requests' | 'licenses' | 'compliance' | 'software' | 'reports' | 'activity' | 'data' | 'settings';
 
 // Tab ids are stable identifiers kept in English — only the displayed labelKey lookup
 // (routed through useItamT() below) is translated, never the id or the aria-current
@@ -38,6 +39,7 @@ const TABS: { id: Tab; labelKey: string }[] = [
   { id: 'catalog', labelKey: 'tabs.catalog' },
   { id: 'lifecycle', labelKey: 'tabs.lifecycle' },
   { id: 'finance', labelKey: 'tabs.finance' },
+  { id: 'costs', labelKey: 'tabs.costs' },
   { id: 'purchaseOrders', labelKey: 'tabs.purchaseOrders' },
   { id: 'requests', labelKey: 'tabs.requests' },
   { id: 'licenses', labelKey: 'tabs.licenses' },
@@ -135,6 +137,8 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, isPlatformVie
         {tab === 'catalog' && <CatalogPanel />}
         {tab === 'lifecycle' && <LifecyclePanel tenants={tenants} isSuperAdminView={isSuperAdminView} tenantId={tenantId} />}
         {tab === 'finance' && <FinancePanel tenants={tenants} isSuperAdminView={isSuperAdminView} tenantId={tenantId} />}
+        {/* Phase 80 (COST-08): inside the ITAM catalogue, so no new sidebar item or permission. */}
+        {tab === 'costs' && <CostsPanel tenantId={tenantId} needsTenant={needsTenant} onGoToTenants={onGoToTenants} />}
         {tab === 'purchaseOrders' && <PurchaseOrdersPanel />}
         {tab === 'requests' && <RequestsPanel />}
         {tab === 'licenses' && <LicensesPanel />}
