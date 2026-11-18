@@ -89,6 +89,7 @@ def view(doc: Dict[str, Any], hosts: Optional[Dict[str, str]] = None, legacy: bo
         "closedAt": doc.get("closedAt"), "closedBy": doc.get("closedBy"), "closeNote": doc.get("closeNote"),
         "autoClosed": bool(doc.get("autoClosed")),
         "caseId": doc.get("caseId"),
+        "aiTriage": doc.get("aiTriage") if isinstance(doc.get("aiTriage"), dict) else None,
         "origin": doc["source"] if isinstance(doc.get("source"), dict) else None,  # legacy alerts: {ip, hostname}
         "mitre": techniques_of(doc),
         "evidence": _evidence(doc),

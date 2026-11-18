@@ -84,6 +84,8 @@ function route(url: string, init?: RequestInit) {
     }
     if (u.pathname.endsWith('/response') && !init?.method) return ok(responseInfo());
     if (u.pathname.endsWith('/respond')) return ok({ actionId: 'AO-1', status: 'dispatched' });
+    if (u.pathname.endsWith('/triage')) return ok({ summary: 'A local AI tool runs on purpose.', likelyCause: 'Developer tooling.', seriousness: 'low',
+        why: 'Known program.', nextSteps: ['approve_process', 'close_benign'], model: 'llama3.2:3b', at: at(0), by: 'ava@x.test' });
     if (u.pathname.endsWith('/bulk')) return ok({ matched: 1, modified: 1 });
     if (u.pathname.endsWith('/approve')) return ok({ approval: { ...approval, id: 'ap-2', process: 'lmstudio' }, closed: 1 });
     if (init?.method === 'PATCH') return ok(alert({ ...JSON.parse(String(init.body)), status: 'closed', resolution: 'false_positive' }));
@@ -222,6 +224,22 @@ describe('One-click response', () => {
         expect(await within(drawer).findByText('Acting on endpoints needs the Active Response permission.')).toBeTruthy();
         expect(within(drawer).getByRole('button', { name: 'Isolate host' })).toBeDisabled();
         expect(within(drawer).queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+});
+
+describe('AI triage', () => {
+    it('explains on request, labels it as a suggestion, and a step only points at the control', async () => {
+        renderConsole();
+        fireEvent.click(await screen.findByRole('button', { name: /Alert queue/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Unapproved AI process: lmstudio' }));
+        const drawer = screen.getByRole('dialog');
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Explain this alert' }));
+        expect(await within(drawer).findByText('A local AI tool runs on purpose.')).toBeTruthy();
+        expect(within(drawer).getByText(/AI suggestion: check it before acting\. llama3\.2:3b on this server/)).toBeTruthy();
+        const before = authFetch.mock.calls.length;
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Close as benign' }));
+        expect(within(drawer).getByRole('radio', { name: /Benign/ })).toBeChecked();
+        expect(authFetch.mock.calls.length).toBe(before);
     });
 });
 

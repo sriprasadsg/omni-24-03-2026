@@ -112,6 +112,11 @@ async def record_alert(db, alert: Dict[str, Any], group: Optional[str] = None) -
     await db.security_alerts.insert_one(alert)
     alert.pop("_id", None)
     await _push(alert)
+    try:  # a new critical alert gets an AI triage in the background (soc_triage)
+        import soc_triage
+        soc_triage.schedule_auto(alert)
+    except Exception as e:
+        logger.debug("SOC auto-triage not scheduled: %s", e)
     return alert
 
 

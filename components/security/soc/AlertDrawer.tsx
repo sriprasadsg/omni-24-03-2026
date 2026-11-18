@@ -9,6 +9,9 @@ import {
 } from './socData';
 import { SeverityBadge, StatusText, field, primaryButton, subhead } from './SocKit';
 import { ResponsePanel } from './ResponsePanel';
+import { TriagePanel } from './TriagePanel';
+import { useUser } from '../../../contexts/UserContext';
+import type { TriageStep } from './socData';
 
 const mono = 'font-mono text-[12px] break-all';
 const CLOSE_AS: { key: Resolution; hint: string }[] = [
@@ -57,6 +60,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
     const [approveAll, setApproveAll] = useState(false);
     const [reason, setReason] = useState('');
     const panelRef = useRef<HTMLDivElement>(null);
+    const { hasPermission } = useUser();
     const closeRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => setAlert(initial), [initial]);
@@ -103,6 +107,19 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
         const res = await approveAiProcess(authFetch, alert.id, approveAll, reason.trim() || undefined);
         return { ...alert, status: 'closed', resolution: 'approved', closeNote: res.approval.reason || null } as SocAlert;
     }, 'Process approved; its alerts are closed');
+
+    // A suggested step points at the console's own control; nothing runs until the person uses it.
+    const goToStep = (step: TriageStep) => {
+        if (step === 'close_false_positive' || step === 'close_benign') setCloseAs(step === 'close_benign' ? 'benign' : 'false_positive');
+        const target = {
+            acknowledge: 'soc-act-acknowledge', open_case: 'soc-act-case', approve_process: 'soc-act-approve',
+            close_false_positive: 'soc-act-close', close_benign: 'soc-act-close', isolate_host: 'soc-respond-isolate_host',
+            quarantine_file: 'soc-respond-quarantine_file', block_ip: 'soc-respond-block_ip', investigate: 'soc-drawer-title',
+        }[step];
+        const el = document.getElementById(target);
+        if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (el instanceof HTMLButtonElement && !el.disabled) el.focus();
+    };
 
     const active = alert.status !== 'closed';
     const process = typeof alert.evidence.process === 'string' ? alert.evidence.process : null;
@@ -172,13 +189,17 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                         </section>
                     )}
 
+                    {alert.source === 'security' && (
+                        <TriagePanel alertId={alert.id} triage={alert.aiTriage} canRun={hasPermission('manage:security_cases')}
+                            onTriaged={t => setAlert(a => ({ ...a, aiTriage: t }))} onStep={goToStep} />
+                    )}
                     {alert.source === 'security' && <ResponsePanel alertId={alert.id} onChanged={() => onChanged(null)} />}
 
                     <section className="space-y-3">
                         <h3 className={subhead}>Handle the alert</h3>
                         <div className="flex flex-wrap gap-2">
                             {alert.status === 'open' && (
-                                <button type="button" className={primaryButton} disabled={!!busy} onClick={() => act('acknowledge', 'Alert acknowledged')}>
+                                <button id="soc-act-acknowledge" type="button" className={primaryButton} disabled={!!busy} onClick={() => act('acknowledge', 'Alert acknowledged')}>
                                     <Check className="w-4 h-4" aria-hidden="true" />Acknowledge
                                 </button>
                             )}
@@ -186,7 +207,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                                 ? <button type="button" className={ghostButton} disabled={!!busy} onClick={() => act('unassign', 'Alert unassigned')}><UserMinus className="w-4 h-4" aria-hidden="true" />Unassign</button>
                                 : <button type="button" className={ghostButton} disabled={!!busy} onClick={() => act('assign', 'Alert assigned to you')}><UserPlus className="w-4 h-4" aria-hidden="true" />Assign to me</button>)}
                             {alert.source === 'security' && (
-                                <button type="button" className={ghostButton} disabled={!!busy} onClick={openCase}>
+                                <button id="soc-act-case" type="button" className={ghostButton} disabled={!!busy} onClick={openCase}>
                                     <Briefcase className="w-4 h-4" aria-hidden="true" />{alert.caseId ? 'Show case' : 'Open a case'}
                                 </button>
                             )}
@@ -213,7 +234,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                                     <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={2000} rows={2}
                                         className={`${field} mt-1 h-auto w-full px-3 py-2`} />
                                 </label>
-                                <button type="button" className={`${ghostButton} mt-3`} disabled={!!busy}
+                                <button id="soc-act-close" type="button" className={`${ghostButton} mt-3`} disabled={!!busy}
                                     onClick={() => act('close', `Alert closed as ${RESOLUTION_LABEL[closeAs].toLowerCase()}`, { resolution: closeAs, note: note.trim() || undefined })}>
                                     Close as {RESOLUTION_LABEL[closeAs].toLowerCase()}
                                 </button>
@@ -232,7 +253,7 @@ export const AlertDrawer: React.FC<Props> = ({ alert: initial, onClose, onChange
                                     <span className="text-xs text-gray-600 dark:text-gray-300">Reason (optional)</span>
                                     <input value={reason} onChange={e => setReason(e.target.value)} maxLength={500} className={`${field} mt-1 w-full px-3`} />
                                 </label>
-                                <button type="button" className={`${ghostButton} mt-3`} disabled={!!busy} onClick={approve}>
+                                <button id="soc-act-approve" type="button" className={`${ghostButton} mt-3`} disabled={!!busy} onClick={approve}>
                                     <Bot className="w-4 h-4" aria-hidden="true" />Approve {process}
                                 </button>
                             </fieldset>

@@ -20,6 +20,7 @@ from tenant_context import get_tenant_id
 import soc_actions
 import soc_response
 import soc_service
+import soc_triage
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def soc_scope(current_user: Any, tenant_param: Optional[str] = None) -> Optional
 async def _run(coro):
     try:
         return await coro
-    except (soc_actions.ActionError, soc_response.ResponseError) as e:
+    except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
 
@@ -146,6 +147,13 @@ async def approve_ai_process(alert_id: str, body: ApproveIn, current_user: Token
     """Approve the AI process an alert names, on its endpoint or all endpoints; its alerts close as approved."""
     return await _run(soc_actions.approve_ai(soc_scope(current_user), alert_id[:128], current_user,
                                              body.allEndpoints, body.reason))
+
+
+@router.post("/alerts/{alert_id}/triage", dependencies=[Depends(SECURITY_GUARD)])
+async def triage_alert(alert_id: str, current_user: TokenData = Depends(get_current_user)):
+    """Ask the platform's local AI model to explain the alert; the answer is stored on the alert."""
+    who = getattr(current_user, "username", None) or "a person"
+    return await _run(soc_triage.triage(soc_scope(current_user), alert_id[:128], who))
 
 
 @router.get("/alerts/{alert_id}/response", dependencies=[Depends(SECURITY_GUARD)])

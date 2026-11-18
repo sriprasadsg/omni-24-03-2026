@@ -22,7 +22,21 @@ export interface SocAlert {
     acknowledgedAt?: string | null; acknowledgedBy?: string | null; closedAt?: string | null; closedBy?: string | null;
     closeNote?: string | null; autoClosed?: boolean; caseId?: string | null; mitre: string[]; evidence: Record<string, unknown>;
     origin?: { ip?: string; hostname?: string } | null;
+    aiTriage?: AiTriage | null;
 }
+export type TriageStep = 'acknowledge' | 'close_false_positive' | 'close_benign' | 'isolate_host' | 'quarantine_file'
+    | 'block_ip' | 'open_case' | 'approve_process' | 'investigate';
+export interface AiTriage {
+    summary: string; likelyCause?: string; seriousness?: 'low' | 'medium' | 'high' | 'critical' | null; why?: string;
+    nextSteps: TriageStep[]; model: string; at: string; by: string;
+}
+export const STEP_LABEL: Record<TriageStep, string> = {
+    acknowledge: 'Acknowledge', close_false_positive: 'Close as false positive', close_benign: 'Close as benign',
+    isolate_host: 'Isolate host', quarantine_file: 'Quarantine file', block_ip: 'Block IP', open_case: 'Open a case',
+    approve_process: 'Approve the process', investigate: 'Look into it further',
+};
+export const triageAlert = (fetcher: Fetcher, alertId: string) =>
+    send<AiTriage>(fetcher, `/api/security/soc/alerts/${encodeURIComponent(alertId)}/triage`, 'POST', undefined, 'The AI explanation failed');
 export type SeverityCounts = Record<Severity, number>;
 export interface TrendPoint extends SeverityCounts { t: string }
 export interface SocSummary {

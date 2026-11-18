@@ -78,7 +78,7 @@ export const ResponsePanel: React.FC<{ alertId: string; onChanged: () => void }>
                         const Icon = ICON[o.action] ?? Network;
                         return (
                             <li key={o.action} className="flex flex-wrap items-center gap-2">
-                                <button type="button" className={ghostButton} disabled={!o.available || !info.canRespond || busy} onClick={() => setConfirming(o)}>
+                                <button id={`soc-respond-${o.action}`} type="button" className={ghostButton} disabled={!o.available || !info.canRespond || busy} onClick={() => setConfirming(o)}>
                                     <Icon className="w-4 h-4" aria-hidden="true" />{o.label}
                                 </button>
                                 {o.action === 'block_ip' && o.available && (
