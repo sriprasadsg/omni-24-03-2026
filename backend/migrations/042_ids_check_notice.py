@@ -1,4 +1,4 @@
-"""Migration 037: tell tenants that the IDS/IPS compliance control was corrected (88.1, stage 1).
+"""Migration 042: tell tenants that the IDS/IPS compliance control was corrected (88.1, stage 1).
 
 Until now ``ids_ips_enabled`` passed whenever a tenant had any ``security_alerts`` row from the last 7 days, which
 proved no IDS at all. It now passes only for a reporting network sensor, so the control fails for every tenant
@@ -38,5 +38,5 @@ async def up(db: AsyncIOMotorDatabase) -> None:
         await pending_agents._post_in_app(db, tenant_id, TITLE, MESSAGE, "warning",
                                           {"kind": KIND, "audience": pending_agents.TENANT_ADMIN_AUDIENCE})
         posted.append(tenant_id)
-    logger.info("migration 037: IDS/IPS correction notice posted to %d tenants: %s",
+    logger.info("migration 042: IDS/IPS correction notice posted to %d tenants: %s",
                 len(posted), ", ".join(posted) or "none")

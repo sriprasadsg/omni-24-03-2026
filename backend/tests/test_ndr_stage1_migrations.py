@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
-sensors_migration = importlib.import_module("migrations.036_ndr_sensors")
-notice_migration = importlib.import_module("migrations.037_ids_check_notice")
+sensors_migration = importlib.import_module("migrations.041_ndr_sensors")
+notice_migration = importlib.import_module("migrations.042_ids_check_notice")
 
 
 async def test_036_indexes_the_sensor_collections_and_is_safe_to_run_twice(mongo_db):

@@ -1,4 +1,4 @@
-"""Migration 036: network sensor indexes, and the end of the fake NDR collections (88.1, stage 1).
+"""Migration 041: network sensor indexes, and the end of the fake NDR collections (88.1, stage 1).
 
 * ``ndr_sensors``: unique (tenantId, sensorId).
 * ``ndr_sensor_stats``: unique (tenantId, sensorId, sampledAt), which also serves "newest samples of a sensor",
@@ -31,7 +31,7 @@ async def up(db: AsyncIOMotorDatabase) -> None:
         if name not in existing:
             continue
         if await db[name].count_documents({}, limit=1):
-            logger.warning("migration 036: %s still holds documents and was kept; archive it, then drop it", name)
+            logger.warning("migration 041: %s still holds documents and was kept; archive it, then drop it", name)
             continue
         await db.drop_collection(name)
-        logger.info("migration 036: dropped the empty collection %s", name)
+        logger.info("migration 041: dropped the empty collection %s", name)
