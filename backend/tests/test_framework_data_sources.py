@@ -26,9 +26,9 @@ SKIP_PREFIXES = ("test_", "seed", "fix_", "debug", "clear_", "cleanup")
 # real data leaves it, and nothing may join it.
 STILL_UNWRITTEN = {
     "network_topology", "compliance_policies", "security_baselines", "api_keys",
-    "dr_runbooks", "iam_policies", "employees", "gdpr_records",
-    "ai_governance_assessments", "ai_risk_assessments", "pqc_configs", "ueba_events",
-    "privacy_records", "model_registry", "approvals", "network_segments", "code_repositories",
+    "dr_runbooks", "iam_policies", "employees",
+    "ai_risk_assessments", "pqc_configs", "ueba_events",
+    "privacy_records", "model_registry", "network_segments", "code_repositories",
 }
 
 

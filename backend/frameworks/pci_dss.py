@@ -328,7 +328,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
             if jit > 0:
                 return "pass", f"{jit} JIT access requests tracked"
             # Approval workflows as compensating control
-            approvals = await db.approvals.count_documents({})
+            approvals = await db.approval_requests.count_documents({})
             if approvals > 0:
                 return "partial", f"No JIT records; {approvals} approval workflows as compensating control"
             return "fail", "No JIT access or approval workflow data"

@@ -16,7 +16,7 @@ async def evaluate_controls(db) -> List[Dict[str, Any]]:
     results = await evaluate_from_db(db, "gdpr")
 
     dpa_count = await db.dpa_agreements.count_documents({})
-    gdpr_count = await db.gdpr_records.count_documents({})
+    gdpr_count = await db.processing_activities.count_documents({})
     consent_count = await db.consent_records.count_documents({})
 
     for r in results:

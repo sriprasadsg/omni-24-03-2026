@@ -134,7 +134,7 @@ async def evaluate_controls(db) -> List[Dict[str, Any]]:
     """Evaluate EU AI Act controls with AI governance evidence from DB."""
     results = await evaluate_from_db(db, "eu_ai_act")
 
-    ai_gov_count = await db.ai_governance_assessments.count_documents({})
+    ai_gov_count = await db.ai_governance_scans.count_documents({})
     risk_count = await db.ai_risk_assessments.count_documents({})
     log_count = await db.audit_logs.count_documents({})
 
