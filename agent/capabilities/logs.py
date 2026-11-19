@@ -3,9 +3,23 @@ Log Collection Capability
 Gathers and forwards logs from the host system
 """
 from .base import BaseCapability
+import logging
+import os
 import platform
 import subprocess
+from datetime import datetime, timezone
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
+TAIL_BYTES = 16384
+
+
+def tail_lines(path: str, count: int) -> List[str]:
+    """The last lines of a file without reading all of it (web logs grow to gigabytes)."""
+    with open(path, 'rb') as f:
+        f.seek(0, os.SEEK_END)
+        f.seek(max(0, f.tell() - TAIL_BYTES))
+        return f.read().decode('utf-8', 'replace').splitlines()[-count:]
 
 class LogsCapability(BaseCapability):
     
@@ -106,20 +120,16 @@ class LogsCapability(BaseCapability):
                 "/var/log/apache2/access.log",
                 "/var/log/apache2/error.log"
             ]
-            import os
             for path in web_log_paths:
                 if os.path.exists(path):
                     try:
-                        with open(path, 'r') as f:
-                            all_lines = f.readlines()
-                            last_lines = all_lines[-5:]
-                            for line in last_lines:
-                                logs.append({
-                                    "timestamp": datetime.now().isoformat(),
-                                    "level": "INFO",
-                                    "source": f"web_log:{os.path.basename(path)}",
-                                    "message": line.strip()[:200]
-                                })
+                        for line in tail_lines(path, 5):
+                            logs.append({
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "level": "INFO",
+                                "source": f"web_log:{os.path.basename(path)}",
+                                "message": line.strip()[:200]
+                            })
                     except Exception as e:
                         logger.warning(f"Failed to read log {path}: {e}")
             
