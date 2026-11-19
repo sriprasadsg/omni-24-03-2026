@@ -1,0 +1,52 @@
+# Fleet (open-source device management on osquery) for the platform's Fleet connector; installed by
+# scripts/oss/oss.sh apply fleet into /opt/omni-oss/fleet, which holds the generated .env and TLS key.
+# MySQL 8.0 (GPL) is the database Fleet supports; Valkey (BSD, the open-source Redis fork) is its cache.
+# Fleet serves TLS itself on loopback (https://localhost:8412) because osquery only talks TLS.
+services:
+  mysql:
+    image: docker.io/library/mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?root password required}
+      MYSQL_DATABASE: fleet
+      MYSQL_USER: fleet
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?fleet password required}
+    command: ["--innodb-buffer-pool-size=256M", "--max-connections=100"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u fleet -p\"$$MYSQL_PASSWORD\" --silent"]
+      interval: 10s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - mysql:/var/lib/mysql
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb"]
+  fleet:
+    image: docker.io/fleetdm/fleet:v4.94.0
+    restart: unless-stopped
+    command: ["sh", "-c", "fleet prepare db --no-prompt && exec fleet serve"]
+    environment:
+      FLEET_MYSQL_ADDRESS: mysql:3306
+      FLEET_MYSQL_DATABASE: fleet
+      FLEET_MYSQL_USERNAME: fleet
+      FLEET_MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      FLEET_REDIS_ADDRESS: valkey:6379
+      FLEET_SERVER_ADDRESS: 0.0.0.0:8080
+      FLEET_SERVER_CERT: /certs/fleet.crt
+      FLEET_SERVER_KEY: /certs/fleet.key
+      FLEET_LOGGING_JSON: "true"
+      FLEET_OSQUERY_HOST_IDENTIFIER: uuid
+    ports:
+      - "127.0.0.1:8412:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+    volumes:
+      - ./certs:/certs:ro
+volumes:
+  mysql:
+    driver: local

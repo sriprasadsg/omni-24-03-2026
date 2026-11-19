@@ -1,0 +1,67 @@
+# authentik (open-source identity provider) for the platform's SCIM and log-source checks; installed by
+# scripts/oss/oss.sh apply authentik into /opt/omni-oss/authentik, which holds the generated .env.
+# Changes from authentik's own compose.yml (2026.8.5): ports on loopback only, and the worker gets neither root nor
+# the Docker socket (only managed outposts need them, and the socket is root on the host). The platform's own
+# certificate is mounted so the SCIM pushes to https://10.0.0.4 are verified, not trusted blindly.
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 30s
+      retries: 5
+      start_period: 20s
+      timeout: 5s
+    volumes:
+      - database:/var/lib/postgresql/data
+  server:
+    image: ghcr.io/goauthentik/server:2026.8.5
+    command: server
+    restart: unless-stopped
+    shm_size: 512mb
+    env_file: [.env]
+    environment: &ak_env
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+      AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
+      REQUESTS_CA_BUNDLE: /omni/ca-bundle.pem
+      SSL_CERT_FILE: /omni/ca-bundle.pem
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9443:9443"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+      - ./custom-templates:/templates
+      - ./omni:/omni:ro
+  worker:
+    image: ghcr.io/goauthentik/server:2026.8.5
+    command: worker
+    restart: unless-stopped
+    shm_size: 512mb
+    env_file: [.env]
+    environment: *ak_env
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+      - ./certs:/certs
+      - ./custom-templates:/templates
+      - ./omni:/omni:ro
+volumes:
+  database:
+    driver: local
