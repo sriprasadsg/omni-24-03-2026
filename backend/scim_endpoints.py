@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 import rbac_defaults
 import scim_groups
+import scim_schemas
 import scim_service
 from auth_types import TokenData
 from authentication_service import get_current_user
@@ -134,20 +135,41 @@ async def service_provider_config(caller: Dict[str, Any] = Depends(scim_caller))
     }, media_type=MEDIA)
 
 
+def _error(status: int, detail: str) -> JSONResponse:
+    return JSONResponse(ScimError(status, detail).body(), status_code=status, media_type=MEDIA)
+
+
 @router.get("/ResourceTypes")
 async def resource_types(request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
-    base = _base(request)
-    types = [{"schemas": ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"], "id": n, "name": n, "endpoint": f"/{n}s",
-              "schema": s, "meta": {"resourceType": "ResourceType", "location": f"{base}/ResourceTypes/{n}"}}
-             for n, s in (("User", USER_SCHEMA), ("Group", GROUP_SCHEMA))]
+    types = [scim_schemas.resource_type(n, _base(request)) for n in ("User", "Group")]
     return JSONResponse(scim_service.list_response(types, 2, 1), media_type=MEDIA)
 
 
+@router.get("/ResourceTypes/{name}")
+async def resource_type(name: str, request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    found = scim_schemas.resource_type(name, _base(request))
+    return JSONResponse(found, media_type=MEDIA) if found else _error(404, f"No resource type {name[:80]}")
+
+
 @router.get("/Schemas")
-async def schemas(caller: Dict[str, Any] = Depends(scim_caller)):
-    items = [{"schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"], "id": s, "name": n}
-             for n, s in (("User", USER_SCHEMA), ("Group", GROUP_SCHEMA))]
+async def schemas(request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    items = [scim_schemas.schema(s, _base(request)) for s in (USER_SCHEMA, GROUP_SCHEMA)]
     return JSONResponse(scim_service.list_response(items, 2, 1), media_type=MEDIA)
+
+
+@router.get("/Schemas/{schema_id}")
+async def schema(schema_id: str, request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    found = scim_schemas.schema(schema_id, _base(request))
+    return JSONResponse(found, media_type=MEDIA) if found else _error(404, f"No schema {schema_id[:120]}")
+
+
+@router.api_route("/ServiceProviderConfig", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+@router.api_route("/ResourceTypes", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+@router.api_route("/ResourceTypes/{name}", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+@router.api_route("/Schemas", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+@router.api_route("/Schemas/{schema_id}", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+async def read_only_discovery(caller: Dict[str, Any] = Depends(scim_caller)):
+    return _error(405, "Discovery endpoints are read-only")
 
 
 @router.get("/Users")
@@ -233,3 +255,9 @@ async def patch_group(group_id: str, request: Request, caller: Dict[str, Any] = 
 @router.delete("/Groups/{group_id}")
 async def delete_group(group_id: str, caller: Dict[str, Any] = Depends(scim_caller)):
     return await _answer(scim_groups.delete_group(get_database(), caller["tenantId"], group_id[:80], _actor(caller)))
+
+
+# Last, so it only catches what no route above matched: a SCIM error body instead of FastAPI's {"detail": ...}.
+@router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
+async def not_found(path: str, caller: Dict[str, Any] = Depends(scim_caller)):
+    return _error(404, "No such SCIM endpoint")

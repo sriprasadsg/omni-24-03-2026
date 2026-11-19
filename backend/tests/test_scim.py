@@ -188,6 +188,37 @@ async def test_filters_paging_discovery_and_bad_requests_answer_in_scim_form(env
 
 
 @pytest.mark.asyncio
+async def test_discovery_describes_the_attributes_and_unknown_paths_answer_in_scim_form(env):
+    """protects=/Schemas and /Schemas/{id} list each attribute with its type and whether it is required (userName for
+    User, displayName for Group), /ResourceTypes/{id} answers, discovery refuses writes with 405, and an unknown id
+    or path is a 404 with a SCIM error body, all behind the token; fails_when=a client (scim2-tester, an identity
+    provider) cannot learn that userName is required, or gets FastAPI's {"detail"} instead of a SCIM error;
+    no_claim=attributes=/excludedAttributes= projection on Users (not supported yet)"""
+    ac, _, tokens = env
+    h = _h(tokens["t-a"])
+    listed = (await ac.get(f"{BASE}/Schemas", headers=h)).json()
+    assert listed["totalResults"] == 2 and {r["name"] for r in listed["Resources"]} == {"User", "Group"}
+    user = (await ac.get(f"{BASE}/Schemas/{scim_service.USER_SCHEMA}", headers=h)).json()
+    attrs = {a["name"]: a for a in user["attributes"]}
+    assert attrs["userName"]["required"] is True and attrs["userName"]["uniqueness"] == "server"
+    assert attrs["groups"]["mutability"] == "readOnly" and {a["name"] for a in attrs["name"]["subAttributes"]} == {"formatted", "givenName", "familyName"}
+    assert user["meta"]["location"].endswith(f"/Schemas/{scim_service.USER_SCHEMA}")
+    group = (await ac.get(f"{BASE}/Schemas/{scim_service.GROUP_SCHEMA}", headers=h)).json()
+    assert [a["name"] for a in group["attributes"] if a["required"]] == ["displayName"]
+    rt = (await ac.get(f"{BASE}/ResourceTypes/Group", headers=h)).json()
+    assert (rt["endpoint"], rt["schema"]) == ("/Groups", scim_service.GROUP_SCHEMA)
+    for method, path in (("GET", "/Schemas/urn:nope"), ("GET", "/ResourceTypes/Device"), ("GET", "/Devices"), ("DELETE", "/Nope/1")):
+        r = await ac.request(method, f"{BASE}{path}", headers=h)
+        assert r.status_code == 404 and r.json()["schemas"] == [scim_service.ERROR_SCHEMA], path
+    for method, path in (("POST", "/Schemas"), ("PUT", f"/Schemas/{scim_service.USER_SCHEMA}"), ("PATCH", "/ResourceTypes/User"),
+                         ("DELETE", "/ServiceProviderConfig")):
+        r = await ac.request(method, f"{BASE}{path}", headers=h)
+        assert r.status_code == 405 and r.json()["status"] == "405", path
+    assert (await ac.get(f"{BASE}/Schemas/{scim_service.USER_SCHEMA}")).status_code == 401
+    assert (await ac.get(f"{BASE}/Devices")).status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_tokens_are_stored_hashed_capped_and_migration_043_runs_twice(mongo_db):  # noqa: F811
     """protects=only a SHA-256 of a token is kept, at most 5 active per organization, and the migration's indexes
     (unique hash) apply twice; fails_when=a database read reveals a usable token; no_claim=-"""
