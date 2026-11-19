@@ -4,13 +4,13 @@ import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { field, primaryButton, subhead } from './SocKit';
 
-export type PagingProvider = 'pagerduty' | 'opsgenie' | 'teams' | 'slack';
+export type PagingProvider = 'pagerduty' | 'opsgenie' | 'teams' | 'slack' | 'ntfy';
 type Gate = 'critical' | 'high';
 interface OnCall { always: boolean; timezone?: string; days?: number[]; start?: string; end?: string }
 export interface PageRecord { id: string; alertId: string; title?: string; reason: 'new' | 'ack_breach' | 'test'; status: string; sentAt: string; error?: string | null; resolveError?: string | null }
 export interface PagingConfig {
     configured: boolean; provider?: PagingProvider; enabled?: boolean; minSeverity?: Gate; breachSeverity?: Gate; pageBreaches?: boolean;
-    region?: 'us' | 'eu'; onCall?: OnCall; webhookHost?: string; suppressed?: number;
+    region?: 'us' | 'eu'; onCall?: OnCall; webhookHost?: string; hasToken?: boolean; suppressed?: number;
     lastResult?: { at: string; ok: boolean; error?: string | null }; recentPages?: PageRecord[];
 }
 
@@ -20,6 +20,7 @@ const PROVIDERS: { key: PagingProvider; label: string; secret: string }[] = [
     { key: 'opsgenie', label: 'Opsgenie', secret: 'API key (API integration)' },
     { key: 'teams', label: 'Microsoft Teams', secret: 'Workflow webhook URL' },
     { key: 'slack', label: 'Slack', secret: 'Incoming webhook URL' },
+    { key: 'ntfy', label: 'ntfy (open source)', secret: 'Topic URL, such as https://ntfy.sh/your-topic' },
 ];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const REASON: Record<PageRecord['reason'], string> = { new: 'New alert', ack_breach: 'Not acknowledged in time', test: 'Test' };
@@ -27,17 +28,17 @@ const STATUS: Record<string, string> = { sending: 'Sending', triggered: 'Paged',
 const localZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } };
 const detail = async (res: Response, fallback: string) => { const d = await res.json().catch(() => ({})); return typeof d?.detail === 'string' ? d.detail : fallback; };
 
-/** Pages the on-call through PagerDuty or Opsgenie, or posts to Teams or Slack, for critical alerts and missed acknowledge targets. */
+/** Pages the on-call through PagerDuty or Opsgenie, or posts to Teams, Slack or an ntfy topic, for critical alerts and missed acknowledge targets. */
 export const PagingPanel: React.FC = () => {
     const [cfg, setCfg] = useState<PagingConfig | null>(null);
-    const [form, setForm] = useState({ provider: 'pagerduty' as PagingProvider, secret: '', region: 'us', minSeverity: 'critical' as Gate,
+    const [form, setForm] = useState({ provider: 'pagerduty' as PagingProvider, secret: '', token: '', region: 'us', minSeverity: 'critical' as Gate,
         breachSeverity: 'high' as Gate, pageBreaches: true, enabled: true, always: true, timezone: localZone(), days: [0, 1, 2, 3, 4], start: '09:00', end: '17:00' });
     const [busy, setBusy] = useState(false);
     const adopt = (c: PagingConfig) => {
         setCfg(c);
         if (!c.configured) return;
         const on = c.onCall ?? { always: true };
-        setForm(f => ({ ...f, provider: c.provider ?? f.provider, secret: '', region: c.region ?? 'us', minSeverity: c.minSeverity ?? 'critical',
+        setForm(f => ({ ...f, provider: c.provider ?? f.provider, secret: '', token: '', region: c.region ?? 'us', minSeverity: c.minSeverity ?? 'critical',
             breachSeverity: c.breachSeverity ?? 'high', pageBreaches: c.pageBreaches ?? true, enabled: c.enabled ?? true, always: on.always,
             timezone: on.timezone ?? f.timezone, days: on.days ?? f.days, start: on.start ?? f.start, end: on.end ?? f.end }));
     };
@@ -51,7 +52,7 @@ export const PagingPanel: React.FC = () => {
         setBusy(true);
         const onCall = form.always ? { always: true } : { always: false, timezone: form.timezone, days: form.days, start: form.start, end: form.end };
         const body = { provider: form.provider, region: form.region, minSeverity: form.minSeverity, breachSeverity: form.breachSeverity,
-            pageBreaches: form.pageBreaches, enabled: form.enabled, onCall, ...(form.secret.trim() ? { secret: form.secret.trim() } : {}) };
+            pageBreaches: form.pageBreaches, enabled: form.enabled, onCall, ...(form.secret.trim() ? { secret: form.secret.trim(), ...(form.provider === 'ntfy' ? { token: form.token.trim() } : {}) } : {}) };
         const res = await authFetch(PATH, { method: 'PUT', body: JSON.stringify(body) });
         if (res.ok) { adopt(await res.json()); showToast('Paging saved', 'success'); } else showToast(await detail(res, 'Paging not saved'), 'error');
         setBusy(false);
@@ -90,6 +91,12 @@ export const PagingPanel: React.FC = () => {
                     <input type="password" autoComplete="off" value={form.secret} onChange={e => set('secret', e.target.value)}
                         placeholder={keeps ? `Saved${cfg.webhookHost ? ` (${cfg.webhookHost})` : ''}; leave blank to keep` : ''} className={`${field} w-full px-2`} />
                 </label>
+                {form.provider === 'ntfy' && (
+                    <label className={`${label} space-y-1`}><span className="block">Access token (only for a protected topic)</span>
+                        <input type="password" autoComplete="off" value={form.token} onChange={e => set('token', e.target.value)}
+                            placeholder={keeps && cfg.hasToken ? 'Saved; enter it again with a new topic URL' : 'tk_…'} className={`${field} w-full px-2`} />
+                    </label>
+                )}
                 {form.provider === 'opsgenie' && (
                     <label className={`${label} space-y-1`}><span className="block">Opsgenie region</span>
                         <select value={form.region} onChange={e => set('region', e.target.value)} className={`${field} w-full px-2`}>

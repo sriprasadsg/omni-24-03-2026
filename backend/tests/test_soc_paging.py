@@ -233,3 +233,29 @@ async def test_the_test_page_raises_a_console_alert_that_resolves_when_closed(wo
     await db.security_alerts.update_one({"id": out["alertId"]}, {"$set": {"status": "closed"}})
     await sp.sweep(db, NOW)
     assert calls[1]["body"]["event_action"] == "resolve"
+
+
+@pytest.mark.asyncio
+async def test_ntfy_pushes_to_the_topic_with_its_token_and_resolves(world):
+    """protects=ntfy (open source) gets a JSON publish at the server root naming the topic, priority 5 for critical and
+    the access token as a Bearer header; the token is encrypted and never read back; a URL that is not one topic or a
+    malformed token is refused; closing the alert posts a resolved push; fails_when=the token is readable, the push
+    goes to the topic URL as plain text, or a page without its topic; no_claim=how the ntfy app shows it"""
+    db, calls, _ = world
+    token = "tk_" + "a1B2c3D4e5" * 2 + "f6G7h8J9k"
+    for bad in ({"secret": "https://ntfy.sh/"}, {"secret": "https://ntfy.sh/a/b"}, {"secret": "https://ntfy.sh/x", "token": "tk_short"}):
+        with pytest.raises(sp.PagingError):
+            await sp.save_config(db, T, {"provider": "ntfy", **bad}, "admin@t")
+    out = await _setup(db, provider="ntfy", secret="https://ntfy.sh/omni-oncall-7f3k", token=token)
+    assert out["provider"] == "ntfy" and out["webhookHost"] == "ntfy.sh" and out["hasToken"] is True and "token" not in out
+    assert token not in json.dumps(await db.soc_paging.find_one({"tenantId": T}), default=str)
+    assert (await sp.page(db, (await _alert(db, id="nt"))["id"], T, "new"))["paged"]
+    push = calls[-1]
+    assert push["url"] == "https://ntfy.sh/" and push["headers"]["authorization"] == f"Bearer {token}"
+    assert push["body"]["topic"] == "omni-oncall-7f3k" and push["body"]["priority"] == 5
+    assert push["body"]["title"] == "[CRITICAL] mimikatz.exe started on EILT0197" and "Alert nt" in push["body"]["message"]
+    await db.security_alerts.update_one({"id": "nt"}, {"$set": {"status": "closed"}})
+    await sp.sweep(db, NOW)
+    assert calls[-1]["body"]["title"] == "Resolved: mimikatz.exe started" and calls[-1]["body"]["priority"] == 3
+    out = await sp.save_config(db, T, {"provider": "ntfy", "secret": "https://ntfy.sh/omni-oncall-7f3k"}, "admin@t")
+    assert out["hasToken"] is False  # a new URL without a token clears the old token

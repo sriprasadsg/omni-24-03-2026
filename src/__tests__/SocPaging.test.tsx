@@ -65,6 +65,23 @@ describe('PagingPanel', () => {
             onCall: { always: false, timezone: 'Europe/London', days: [0, 1, 2, 3], start: '22:00', end: '06:00' } });
     });
 
+    it('sends an ntfy topic URL with its access token, and says a saved token is kept only with its URL', async () => {
+        authFetch.mockImplementation(async (url: string, init?: { method?: string }) =>
+            (init?.method === 'PUT' ? ok({ ...saved, provider: 'ntfy', webhookHost: 'ntfy.sh', hasToken: true })
+                : ok({ ...saved, provider: 'ntfy', webhookHost: 'ntfy.sh', hasToken: true })));
+        render(<PagingPanel />);
+        expect(await screen.findByLabelText('Access token (only for a protected topic)')).toHaveProperty('placeholder', 'Saved; enter it again with a new topic URL');
+        expect(screen.getByLabelText('Topic URL, such as https://ntfy.sh/your-topic')).toHaveProperty('placeholder', 'Saved (ntfy.sh); leave blank to keep');
+        fireEvent.click(screen.getByRole('button', { name: 'Save paging' }));
+        await waitFor(() => expect(sent('PUT')).toHaveLength(1));
+        expect(JSON.parse(sent('PUT')[0][1].body)).not.toHaveProperty('token');  // a blank URL keeps both
+        fireEvent.change(screen.getByLabelText('Topic URL, such as https://ntfy.sh/your-topic'), { target: { value: 'https://ntfy.sh/omni-7f3k' } });
+        fireEvent.change(screen.getByLabelText('Access token (only for a protected topic)'), { target: { value: ' tk_abc ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save paging' }));
+        await waitFor(() => expect(sent('PUT')).toHaveLength(2));
+        expect(JSON.parse(sent('PUT')[1][1].body)).toMatchObject({ provider: 'ntfy', secret: 'https://ntfy.sh/omni-7f3k', token: 'tk_abc' });
+    });
+
     it('says how to resolve a test page, and why one was not sent', async () => {
         let answer = { alertId: 'a9', paged: true };
         authFetch.mockImplementation(async (url: string) => (url.endsWith('/test') ? ok(answer) : ok(saved)));

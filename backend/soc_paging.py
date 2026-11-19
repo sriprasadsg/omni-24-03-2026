@@ -1,16 +1,17 @@
 """Paging for critical alerts (Wave 3).
 
-An organization sends its on-call a page through PagerDuty (Events API v2 routing key) or Opsgenie (API key), or a
-post to a Microsoft Teams or Slack channel (webhook URL). Two things page:
+An organization sends its on-call a page through PagerDuty (Events API v2 routing key) or Opsgenie (API key), a
+post to a Microsoft Teams or Slack channel (webhook URL), or a push to an ntfy topic (open source: ntfy.sh or the
+organization's own ntfy server, its topic URL plus an access token when the topic is protected). Two things page:
   * a new alert at or above the paging severity (``minSeverity``, critical by default), as soon as it is recorded;
   * an open alert at or above ``breachSeverity`` still unacknowledged past its acknowledge target (soc_context SLA),
     found by the sweep that runs every minute.
 Each alert pages once (``soc_pages``, unique per alert). Closing, archiving or merging the alert, by any path,
-resolves the PagerDuty incident or closes the Opsgenie alert on the next sweep, and posts a "resolved" line to Teams
-or Slack. Only alerts created after paging was switched on page, so an old backlog never does.
+resolves the PagerDuty incident or closes the Opsgenie alert on the next sweep, and posts a "resolved" line to Teams,
+Slack or ntfy. Only alerts created after paging was switched on page, so an old backlog never does.
 
 Settings live in ``soc_paging``, one row per organization: the key or webhook URL is encrypted at rest
-(encryption_service) and never returned. On-call hours are a weekly window in the organization's time zone; outside
+(encryption_service) and never returned, and so is an ntfy access token. On-call hours are a weekly window in the organization's time zone; outside
 it nothing pages, and an alert still unacknowledged past its target pages once the window opens. At most
 MAX_PER_HOUR pages per organization an hour; the rest are counted as suppressed.
 """
@@ -24,17 +25,22 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
+import self_hosted
 from soc_alerts import SEVERITIES, TYPE_LABELS, status_of
 from soc_service import parse_ts
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = ("pagerduty", "opsgenie", "teams", "slack")
-PROVIDER_NAMES = {"pagerduty": "PagerDuty", "opsgenie": "Opsgenie", "teams": "Microsoft Teams", "slack": "Slack"}
+PROVIDERS = ("pagerduty", "opsgenie", "teams", "slack", "ntfy")
+PROVIDER_NAMES = {"pagerduty": "PagerDuty", "opsgenie": "Opsgenie", "teams": "Microsoft Teams", "slack": "Slack", "ntfy": "ntfy"}
+URL_PROVIDERS = ("teams", "slack", "ntfy")
 PAGERDUTY_EVENTS = "https://events.pagerduty.com/v2/enqueue"
 OPSGENIE = {"us": "https://api.opsgenie.com/v2/alerts", "eu": "https://api.eu.opsgenie.com/v2/alerts"}
 PD_SEVERITY = {"critical": "critical", "high": "error", "medium": "warning", "low": "info", "info": "info"}
 OG_PRIORITY = {"critical": "P1", "high": "P2", "medium": "P3", "low": "P4", "info": "P5"}
+NTFY_PRIORITY = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+NTFY_PATH = re.compile(r"^/[-_A-Za-z0-9]{1,64}$")  # https://ntfy.sh/<topic>
+NTFY_TOKEN = re.compile(r"^tk_[A-Za-z0-9]{29}$")
 ROUTING_KEY = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 GENIE_KEY = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -111,7 +117,8 @@ async def save_config(db, tenant: str, body: Dict[str, Any], who: str) -> Dict[s
     existing = await raw.soc_paging.find_one({"tenantId": tenant}, {"_id": 0}) or {}
     secret = (body.get("secret") or "").strip()
     if not secret and existing.get("provider") != provider:
-        raise PagingError(f"The {PROVIDER_NAMES[provider]} {'webhook URL' if provider in ('teams', 'slack') else 'key'} is required")
+        what = "topic URL" if provider == "ntfy" else "webhook URL" if provider in URL_PROVIDERS else "key"
+        raise PagingError(f"The {PROVIDER_NAMES[provider]} {what} is required")
     doc = {"tenantId": tenant, "provider": provider, **severities, "enabled": bool(body.get("enabled", True)),
            "pageBreaches": bool(body.get("pageBreaches", True)), "onCall": _on_call_hours(body.get("onCall")),
            "region": "eu" if body.get("region") == "eu" else "us", "updatedBy": who, "updatedAt": _now().isoformat()}
@@ -120,13 +127,25 @@ async def save_config(db, tenant: str, body: Dict[str, Any], who: str) -> Dict[s
             raise PagingError("A PagerDuty routing key is the 32-character integration key of an Events API v2 integration")
         if provider == "opsgenie" and not GENIE_KEY.match(secret):
             raise PagingError("An Opsgenie API key looks like 01234567-89ab-cdef-0123-456789abcdef")
-        if provider in ("teams", "slack"):
+        token = (body.get("token") or "").strip()
+        if provider == "ntfy":
+            try:
+                await self_hosted.check_url(secret)
+            except ValueError as exc:
+                raise PagingError(f"Topic URL refused: {exc}")
+            if not NTFY_PATH.match(httpx.URL(secret).path):
+                raise PagingError("An ntfy topic URL is the server and one topic, such as https://ntfy.sh/omni-oncall-7f3k")
+            if token and not NTFY_TOKEN.match(token):
+                raise PagingError("An ntfy access token starts with tk_ and has 32 characters")
+        elif provider in URL_PROVIDERS:
             try:
                 await validate_webhook_url(secret)
             except ValueError as exc:
                 raise PagingError(f"Webhook URL refused: {exc}")
+        if provider in URL_PROVIDERS:
             doc["webhookHost"] = httpx.URL(secret).host
         doc["secret"] = get_encryption_service().encrypt(secret)
+        doc["token"] = get_encryption_service().encrypt(token) if provider == "ntfy" and token else None
     if doc["enabled"] and not (existing.get("enabled") and existing.get("enabledAt")):
         doc["enabledAt"] = doc["updatedAt"]  # only alerts created from now on page
     await raw.soc_paging.update_one({"tenantId": tenant}, {"$set": doc}, upsert=True)
@@ -138,6 +157,7 @@ async def get_config(db, tenant: str) -> Dict[str, Any]:
     cfg = await raw.soc_paging.find_one({"tenantId": tenant}, {"_id": 0, "secret": 0})
     if not cfg:
         return {"configured": False}
+    cfg["hasToken"] = bool(cfg.pop("token", None))
     pages = await raw.soc_pages.find({"tenantId": tenant}, {"_id": 0, "tenantId": 0}).sort("sentAt", -1).limit(10).to_list(10)
     return {"configured": True, **cfg, "recentPages": pages}
 
@@ -191,6 +211,19 @@ async def _send(cfg: Dict[str, Any], action: str, alert: Dict[str, Any], reason:
                     "details": {k: str(v) for k, v in _details(alert, reason).items() if v is not None}}
         else:
             url, body = f"{base}/{dedup}/close?identifierType=alias", {"source": "Omni-Agent", "note": "Closed in Omni-Agent"}
+    elif provider == "ntfy":
+        base, _, topic = secret.rpartition("/")
+        url = base + "/"  # JSON publishing goes to the server root and names the topic
+        headers = {"Authorization": f"Bearer {get_encryption_service().decrypt(cfg['token'])}"} if cfg.get("token") else {}
+        if action == "trigger":
+            d = _details(alert, reason)
+            body = {"topic": topic, "title": _summary(alert, reason)[:250], "tags": ["rotating_light"],
+                    "priority": NTFY_PRIORITY.get(alert.get("severity"), 4),
+                    "message": f"Endpoint: {d['endpoint'] or 'none'} · raised {d['raised']}\nAlert {d['alertId']}: {d['where']}"}
+        else:
+            res = status_of(alert)
+            body = {"topic": topic, "title": f"Resolved: {alert.get('title') or 'Security alert'}"[:250], "priority": 3,
+                    "tags": ["white_check_mark"], "message": f"Closed in Omni-Agent ({res[1] or res[0]}). Alert {alert.get('id')}"}
     else:
         url, headers = secret, {}
         if action == "trigger":
@@ -202,7 +235,7 @@ async def _send(cfg: Dict[str, Any], action: str, alert: Dict[str, Any], reason:
             body = _chat_body(provider, f"Resolved: {alert.get('title') or 'Security alert'}",
                               [f"Closed in Omni-Agent ({res[1] or res[0]}). Alert {alert.get('id')}"])
     try:
-        async with _client() as c:
+        async with _client(**({"verify": self_hosted.verify(url)} if provider == "ntfy" else {})) as c:
             r = await c.post(url, json=body, headers=headers)
     except httpx.HTTPError as exc:
         return False, f"{PROVIDER_NAMES[provider]} could not be reached ({type(exc).__name__})"
