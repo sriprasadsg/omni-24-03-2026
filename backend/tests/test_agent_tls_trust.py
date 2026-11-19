@@ -104,8 +104,10 @@ class _Agents:
     def __init__(self, rows):
         self.rows = rows
 
-    def find(self, *_args):
-        return _Cursor(self.rows)
+    def find(self, _query, projection):
+        # Applies the projection as MongoDB would, so a field the query forgets is missing here too.
+        keep = [k for k, v in projection.items() if v]
+        return _Cursor([{k: r[k] for k in keep if k in r} for r in self.rows])
 
 
 class _Db:

@@ -183,7 +183,7 @@ async def readiness(db, now: Optional[datetime] = None) -> Dict[str, Any]:
         return out
     raw = getattr(db, "_db", db)  # platform view: every organization's agents
     cursor = raw.agents.find({}, {"_id": 0, "id": 1, "hostname": 1, "tenantId": 1, "platform": 1, "version": 1,
-                                  "lastSeen": 1, "tlsTrust": 1, "tlsProbe": 1})
+                                  "lastSeen": 1, "tlsTrust": 1, "tlsProbe": 1, "tlsVia": 1})
     counts: Dict[str, int] = {}
     for agent in await cursor.to_list(length=10000):
         seen = _seen_at(agent)
