@@ -1,5 +1,5 @@
 ---
-status: partial
+status: diagnosed
 phase: 88-plan-based-licensing-network-enrollment-rules
 source: [88-01-SUMMARY.md, 88-02-SUMMARY.md, 88-03-SUMMARY.md, 88-04-SUMMARY.md, 88-05-SUMMARY.md, 88-06-SUMMARY.md, 88-07-SUMMARY.md, 88-08-SUMMARY.md, 88-09-SUMMARY.md, 88-10-SUMMARY.md, 88-11-SUMMARY.md, 88-12-SUMMARY.md, 88-13-SUMMARY.md, 88-14-SUMMARY.md, 88-15-SUMMARY.md, 88-16-SUMMARY.md]
 started: 2026-11-19T14:38:10Z
@@ -426,5 +426,11 @@ blocked: 1
   reason: "Claude (headless run, at the user's choice): 'Couldn't allow this network: widenTo may be at most a /24 (IPv4). Try again.' shows the API field name widenTo"
   severity: minor
   test: 5
-  artifacts: []
-  missing: []
+  root_cause: "backend/network_rules.py validate_widen() words its five refusals for the API caller, each starting with the request field name widenTo; pending_agents turns them into the 422 detail and the UI shows it verbatim (88-UI-SPEC line 360)"
+  artifacts:
+    - path: "backend/network_rules.py"
+      issue: "EntryError messages at lines 91, 93, 96, 98, 100 begin with 'widenTo'"
+  missing:
+    - "Plain-word refusals naming the limit (/24 IPv4, /48 IPv6) or the observed address, never the field name"
+    - "A test asserting no refusal contains 'widenTo'"
+  debug_session: ".planning/debug/88-uat-range-refusal-wording.md"
