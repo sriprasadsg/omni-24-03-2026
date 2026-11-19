@@ -18,7 +18,8 @@ export default function AdvancedHuntingDashboard() {
   const [timeRange, setTimeRange] = useState('24');
   const [limit, setLimit] = useState('100');
   const [results, setResults] = useState<HuntResult[]>([]);
-  const [huntStats, setHuntStats] = useState<{ count: number; ms: number } | null>(null);
+  const [huntStats, setHuntStats] = useState<{ count: number; ms: number; truncated: boolean } | null>(null);
+  const [columns, setColumns] = useState<string[]>([]);
   const [huntLoading, setHuntLoading] = useState(false);
   const [huntError, setHuntError] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -50,10 +51,18 @@ export default function AdvancedHuntingDashboard() {
         headers: authHeaders(),
         body: JSON.stringify({ query, time_range_hours: parseInt(timeRange), limit: parseInt(limit) }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResults([]);
+        setColumns([]);
+        setHuntStats(null);
+        setHuntError(typeof data.detail === 'string' ? data.detail : 'The query could not run.');
+        return;
+      }
       const rows: HuntResult[] = Array.isArray(data.results) ? data.results : [];
       setResults(rows);
-      setHuntStats({ count: rows.length, ms: data.elapsed_ms ?? Date.now() - t0 });
+      setColumns(Array.isArray(data.columns) ? data.columns : []);
+      setHuntStats({ count: rows.length, ms: data.elapsed_ms ?? Date.now() - t0, truncated: !!data.truncated });
     } catch {
       setHuntError('Failed to run hunt query.');
     } finally {
@@ -110,7 +119,7 @@ export default function AdvancedHuntingDashboard() {
     finally { setTplLoading(false); }
   };
 
-  const resultColumns = results.length > 0 ? Object.keys(results[0]).slice(0, 6) : [];
+  const resultColumns = columns.length > 0 ? columns : results.length > 0 ? Object.keys(results[0]) : [];
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'hunt', label: 'Hunt', icon: <Play size={14} /> },
@@ -152,9 +161,12 @@ export default function AdvancedHuntingDashboard() {
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="w-full h-40 bg-slate-900 text-green-400 font-mono text-sm p-3 rounded border border-slate-700 focus:border-blue-500 focus:outline-none resize-y"
-              placeholder="SecurityEvent | where EventID == 4625 | where TimeGenerated > ago(1h)"
+              placeholder="SecurityEvent | where EventID == 4625 | summarize Failures=count() by Account, Computer"
               spellCheck={false}
             />
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              Tables: SecurityEvent, SigninLogs, Syslog, IdsAlerts, SocEvents, SecurityAlert, AgentLogs. Operators: where, project, summarize, order by, take, top, distinct, count.
+            </p>
             <div className="flex flex-wrap gap-3 mt-3 items-center justify-between">
               <div className="flex gap-3">
                 <div className="flex items-center gap-2">
@@ -197,6 +209,7 @@ export default function AdvancedHuntingDashboard() {
             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400">
               <span className="text-green-600 dark:text-green-400 font-medium">{huntStats.count} results</span>
               <span>in {huntStats.ms}ms</span>
+              {huntStats.truncated && <span className="text-yellow-600 dark:text-yellow-400">Row limit reached; narrow the query or raise the limit</span>}
             </div>
           )}
 
@@ -212,7 +225,7 @@ export default function AdvancedHuntingDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {results.slice(0, 200).map((row, i) => (
+                    {results.map((row, i) => (
                       <tr key={i} className="border-t border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700/50">
                         {resultColumns.map(col => (
                           <td key={col} className="px-3 py-2 text-gray-700 dark:text-slate-300 truncate max-w-xs" title={String(row[col] ?? '')}>

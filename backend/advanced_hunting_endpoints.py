@@ -9,6 +9,9 @@ from typing import Optional, List
 import re
 import uuid
 from auth_roles import platform_scope_roles
+import kql_engine
+from kql_parser import KqlError
+from soc_endpoints import soc_scope
 
 router = APIRouter(prefix="/api/advanced-hunting", tags=["Advanced Hunting"])
 
@@ -35,60 +38,74 @@ class RunQueryRequest(BaseModel):
 
 QUERY_TEMPLATES = [
     {
-        "name": "Password Spray Detection",
-        "description": "Detect multiple failed login attempts across many accounts from a single source",
-        "query": "SecurityEvent | where EventID == 4625 | summarize FailedAttempts=count() by SourceIP | where FailedAttempts > 10",
+        "name": "Password Spray / Brute Force",
+        "description": "Sources with many failed sign-ins, and how many accounts each one tried",
+        "query": "SigninLogs | where Outcome == 'failure' | summarize FailedAttempts=count(), Accounts=dcount(Account) by SourceIP | where FailedAttempts > 10 | order by FailedAttempts desc",
         "category": "Identity",
         "mitre_technique": "T1110.003",
     },
     {
-        "name": "Impossible Travel",
-        "description": "Detect logins from geographically distant locations in a short time window",
-        "query": "SigninLogs | where ResultType != 0 | project UserPrincipalName, Location, TimeGenerated | order by TimeGenerated desc",
+        "name": "Failed Windows Logons",
+        "description": "Failed Windows logons (4625) per account and computer",
+        "query": "SecurityEvent | where EventID == 4625 | summarize Failures=count() by Account, Computer | order by Failures desc",
         "category": "Identity",
-        "mitre_technique": "T1078",
+        "mitre_technique": "T1110",
     },
     {
         "name": "Privilege Escalation",
-        "description": "Detect addition of users to privileged groups",
-        "query": "SecurityEvent | where EventID in (4728, 4732, 4756) | project TimeGenerated, SubjectUserName, MemberName, TargetUserName",
+        "description": "Users added to privileged groups (4728, 4732, 4756)",
+        "query": "SecurityEvent | where EventID in (4728, 4732, 4756) | project TimeGenerated, Computer, Account, Group, Message",
         "category": "Privilege Escalation",
         "mitre_technique": "T1078.002",
     },
     {
-        "name": "Lateral Movement via SMB",
-        "description": "Detect suspicious SMB connections indicative of lateral movement",
-        "query": "NetworkTraffic | where DestinationPort == 445 | where network contains 'SMB' | summarize count() by SourceIP, DestinationIP",
+        "name": "New Service Installed",
+        "description": "Services installed on Windows (7045), a common persistence and ransomware step",
+        "query": "SecurityEvent | where EventID == 7045 | project TimeGenerated, Computer, Message",
+        "category": "Persistence",
+        "mitre_technique": "T1543.003",
+    },
+    {
+        "name": "Security Log Cleared",
+        "description": "The Windows Security log was cleared (1102)",
+        "query": "SecurityEvent | where EventID == 1102 | project TimeGenerated, Computer, Account",
+        "category": "Defense Evasion",
+        "mitre_technique": "T1070.001",
+    },
+    {
+        "name": "Sudo Activity on Linux",
+        "description": "sudo commands per account and host",
+        "query": "Syslog | where Action == 'sudo_command' | summarize Commands=count(), Examples=make_set(CommandLine) by Account, Computer | order by Commands desc",
+        "category": "Privilege Escalation",
+        "mitre_technique": "T1548.003",
+    },
+    {
+        "name": "Lateral Movement Ports",
+        "description": "IDS alerts towards SMB, RDP and WinRM ports",
+        "query": "IdsAlerts | where DestinationPort in (445, 139, 3389, 5985, 5986) | summarize Hits=count() by SourceIP, DestinationIP, DestinationPort | order by Hits desc",
         "category": "Lateral Movement",
-        "mitre_technique": "T1021.002",
+        "mitre_technique": "T1021",
     },
     {
-        "name": "DNS Anomaly Detection",
-        "description": "Detect unusual DNS query volumes that may indicate C2 communication",
-        "query": "NetworkTraffic | where network contains 'DNS' | summarize QueryCount=count() by SourceIP, domain | where QueryCount > 1000",
+        "name": "Top IDS Signatures",
+        "description": "The network signatures that fired most, and from how many sources",
+        "query": "IdsAlerts | summarize Hits=count(), Sources=dcount(SourceIP) by Signature, Category | top 20 by Hits",
         "category": "Command and Control",
-        "mitre_technique": "T1071.004",
-    },
-    {
-        "name": "Data Exfiltration by Volume",
-        "description": "Detect large outbound data transfers that may indicate exfiltration",
-        "query": "NetworkTraffic | where network contains 'network' | summarize TotalBytes=sum(BytesSent) by SourceIP | where TotalBytes > 100000000",
-        "category": "Exfiltration",
-        "mitre_technique": "T1048",
-    },
-    {
-        "name": "Suspicious Process Execution",
-        "description": "Detect execution of known LOLBin processes used in attacks",
-        "query": "Process | where ProcessName in ('powershell.exe','cmd.exe','wscript.exe','cscript.exe','mshta.exe') | where Process contains 'encoded'",
-        "category": "Execution",
-        "mitre_technique": "T1059.001",
+        "mitre_technique": "T1071",
     },
     {
         "name": "Ransomware Indicators",
-        "description": "Detect mass file rename/delete activity indicative of ransomware",
-        "query": "SecurityEvent | where EventID in (4663, 4656) | where Process contains 'ransomware' | summarize FileOps=count() by SubjectUserName | where FileOps > 500",
+        "description": "SOC alerts that point at ransomware: encryption, shadow copy deletion, ransom notes",
+        "query": "SecurityAlert | where Title contains 'ransom' or Type contains 'ransom' or Description contains 'shadow' or Description contains 'vssadmin' | project TimeGenerated, Title, Severity, Status, AgentId, Process",
         "category": "Impact",
         "mitre_technique": "T1486",
+    },
+    {
+        "name": "Alert Volume by Hour",
+        "description": "SOC alerts per hour and severity",
+        "query": "SecurityAlert | summarize Alerts=count() by bin(TimeGenerated, 1h), Severity | order by TimeGenerated asc",
+        "category": "Overview",
+        "mitre_technique": "",
     },
 ]
 
@@ -100,19 +117,6 @@ QUERY_TEMPLATES = [
 def _strip_id(doc: dict) -> dict:
     doc.pop("_id", None)
     return doc
-
-
-def _detect_query_type(query: str) -> str:
-    q = query.lower()
-    if "eventid" in q:
-        return "security_events"
-    if "signinlogs" in q or "login" in q:
-        return "audit_logs_login"
-    if "process" in q:
-        return "security_events_process"
-    if "networktraffic" in q or "network" in q:
-        return "network_events"
-    return "security_events_text"
 
 
 # ---------------------------------------------------------------------------
@@ -185,47 +189,12 @@ async def run_query(
     body: RunQueryRequest,
     current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
-    """Execute a KQL-like hunt query against the appropriate collection."""
+    """Run a KQL query (kql_parser subset) over the caller's real SIEM events, SOC alerts and agent logs."""
     db = get_database()
-    query_type = _detect_query_type(body.query)
-    since = datetime.now(timezone.utc) - timedelta(hours=body.time_range_hours)
-    since_iso = since.isoformat()
-    limit = max(1, min(body.limit, 1000))
-
-    base_filter: dict = {"tenantId": current_user.tenant_id}
-
-    if query_type == "security_events":
-        base_filter["created_at"] = {"$gte": since_iso}
-        # Extract EventID values from query if present
-        event_ids = re.findall(r"\b(\d{4,5})\b", body.query)
-        if event_ids:
-            base_filter["event_id"] = {"$in": [int(e) for e in event_ids]}
-        collection = db.security_events
-
-    elif query_type == "audit_logs_login":
-        base_filter["created_at"] = {"$gte": since_iso}
-        base_filter["action"] = "login"
-        collection = db.audit_logs
-
-    elif query_type == "security_events_process":
-        base_filter["created_at"] = {"$gte": since_iso}
-        base_filter["event_type"] = "process"
-        collection = db.security_events
-
-    elif query_type == "network_events":
-        base_filter["created_at"] = {"$gte": since_iso}
-        collection = db.network_events
-
-    else:
-        # Text search on description
-        base_filter["created_at"] = {"$gte": since_iso}
-        collection = db.security_events
-
-    cursor = collection.find(base_filter).limit(limit)
-    results = []
-    async for doc in cursor:
-        _strip_id(doc)
-        results.append(doc)
+    try:
+        out = await kql_engine.run(db, soc_scope(current_user), body.query, body.time_range_hours, body.limit)
+    except KqlError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Optionally increment run_count if query text matches a saved query
     await db.hunting_queries.update_one(
@@ -234,9 +203,8 @@ async def run_query(
     )
 
     return {
-        "results": results,
-        "total": len(results),
-        "query_type": query_type,
+        **out,
+        "query_type": out["table"],
         "executed_at": datetime.now(timezone.utc).isoformat(),
         "time_range_hours": body.time_range_hours,
     }
