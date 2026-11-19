@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IntuneConnectorCard } from './IntuneConnectorCard';
+import { FleetConnectorCard } from './FleetConnectorCard';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { Glyph } from './ui/Glyph';
@@ -8,7 +9,7 @@ interface MdmDevice {
   id: string;
   udid: string;
   name: string;
-  source?: string; // 'intune' when it mirrors a device of the connected Intune (Wave 5)
+  source?: string; // 'intune' or 'fleet' when it mirrors a device of the connected Intune (Wave 5) or Fleet
   platform: string;
   os_version: string;
   model: string;
@@ -44,7 +45,7 @@ const STATUS_STYLES: Record<string, string> = {
   unenrolled: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
 };
 
-const PLATFORM_ICONS: Record<string, string> = { ios: '🍎', android: '🤖', windows: '🪟', macos: '🍏' };
+const PLATFORM_ICONS: Record<string, string> = { ios: '🍎', android: '🤖', windows: '🪟', macos: '🍏', linux: '🐧' };
 
 const BLANK_DEVICE = { udid: '', name: '', platform: 'ios', os_version: '', model: '', manufacturer: '', serial_number: '', assigned_user: '', notes: '' };
 const BLANK_POLICY = { name: '', description: '', platforms: ['ios', 'android'], require_pin: true, min_pin_length: 6, require_encryption: true, min_os_version_ios: '', min_os_version_android: '', block_rooted_jailbroken: true, max_inactivity_minutes: 15 };
@@ -116,8 +117,8 @@ export default function MobileDashboard() {
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) showToast(d.detail || 'Failed', 'error');
-    else if (d.status === 'sent') showToast(`'${action}' sent to Intune`, 'success');
-    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune`, 'info');
+    else if (d.status === 'sent') showToast(`'${action}' sent to ${device?.source === 'fleet' ? 'Fleet' : 'Intune'}`, 'success');
+    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune or Fleet`, 'info');
   }
 
   async function savePolicy() {
@@ -156,6 +157,7 @@ export default function MobileDashboard() {
         </div>
       </div>
       <IntuneConnectorCard onSynced={loadAll} />
+      <FleetConnectorCard onSynced={loadAll} />
 
       {/* Summary */}
       {summary && (
@@ -190,7 +192,7 @@ export default function MobileDashboard() {
       {tab === 'devices' && (
         <>
           <div className="flex gap-2 mb-3">
-            {['all', 'ios', 'android', 'windows', 'macos'].map(p => (
+            {['all', 'ios', 'android', 'windows', 'macos', 'linux'].map(p => (
               <button key={p} onClick={() => setPlatformFilter(p)}
                 className={`px-3 py-1 text-xs rounded-full capitalize ${platformFilter === p ? 'bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                 <Glyph e={PLATFORM_ICONS[p] || ''} /> {p}
@@ -233,9 +235,9 @@ export default function MobileDashboard() {
                     <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{d.last_seen ? new Date(d.last_seen).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 text-xs">
-                        <button onClick={() => remoteAction(d.id, 'lock')} className="text-yellow-700 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300">Lock</button>
+                        {d.source !== 'fleet' && <button onClick={() => remoteAction(d.id, 'lock')} className="text-yellow-700 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300">Lock</button>}
                         <button onClick={() => remoteAction(d.id, 'sync')} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">Sync</button>
-                        <button onClick={() => remoteAction(d.id, 'wipe')} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">Wipe</button>
+                        {d.source !== 'fleet' && <button onClick={() => remoteAction(d.id, 'wipe')} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">Wipe</button>}
                       </div>
                     </td>
                   </tr>

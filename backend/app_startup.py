@@ -489,6 +489,8 @@ async def run_startup_services() -> None:
     try:
         import intune_service  # Wave 5: hourly Intune device sync for connected organizations
         asyncio.create_task(_safe_bg_task(intune_service.sync_loop(), "intune_sync"), name="intune_sync")
+        import fleet_service  # hourly Fleet (open-source device management) sync for connected organizations
+        asyncio.create_task(_safe_bg_task(fleet_service.sync_loop(), "fleet_sync"), name="fleet_sync")
     except Exception as _e:
         logger.warning("[Intune] device sync failed to start: %s", _e)
 

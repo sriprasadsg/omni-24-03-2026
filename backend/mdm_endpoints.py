@@ -7,6 +7,7 @@ import logging
 
 from auth_utils import get_current_user
 from auth_types import TokenData
+import fleet_service
 import intune_service
 import mdm_service as svc
 from database import get_database
@@ -105,6 +106,10 @@ async def remote_action(
             raise HTTPException(status_code=409, detail="This device is no longer in the connected Intune")
         return await _intune(intune_service.action(get_database(), tenant, device, str(action), current_user.username or "",
                                                    payload.get("confirm")))
+    if device and device.get("source") == "fleet":
+        if device.get("fleetRemoved") or device.get("fleetDisconnected"):
+            raise HTTPException(status_code=409, detail="This device is no longer in the connected Fleet")
+        return await _fleet(fleet_service.action(get_database(), tenant, device, str(action), current_user.username or ""))
     try:
         result = await svc.remote_action(device_id, tenant, action, actor=current_user.username or "")
         return result
@@ -145,6 +150,40 @@ async def delete_intune(current_user: TokenData = Depends(require_permission("ma
 async def sync_intune(current_user: TokenData = Depends(require_permission("manage:assets"))):
     """Read Intune's managed devices now (also done every hour)."""
     return await _intune(intune_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
+
+
+# ── Fleet connector (open source, osquery) ─────────────────────────────────────
+
+async def _fleet(coro):
+    try:
+        return await coro
+    except fleet_service.FleetError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.get("/fleet")
+async def get_fleet(current_user: TokenData = Depends(get_current_user)):
+    """Whether this organization's Fleet is connected, its address, last sync and error; never the token."""
+    return await fleet_service.get_config(get_database(), _tenant(current_user))
+
+
+@router.put("/fleet")
+async def put_fleet(payload: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Connect or update Fleet: baseUrl and apiToken (the token may be left out to keep it)."""
+    return await _fleet(fleet_service.save_config(get_database(), _tenant(current_user), str(payload.get("baseUrl") or ""),
+                                                  payload.get("apiToken") or None, current_user.username or ""))
+
+
+@router.delete("/fleet")
+async def delete_fleet(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    await _fleet(fleet_service.disconnect(get_database(), _tenant(current_user), current_user.username or ""))
+    return {"success": True}
+
+
+@router.post("/fleet/sync")
+async def sync_fleet(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Read Fleet's hosts now (also done every hour)."""
+    return await _fleet(fleet_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
 
 
 # ── Policies ──────────────────────────────────────────────────────────────────
