@@ -816,4 +816,4 @@ Plans:
 - [x] 88-15-PLAN.md — UI: partner plan ceiling form, portal plan and trial controls, picker plan limit
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 88-16-PLAN.md — go-live hand-off (user restart, proxy pin, publish, push) + read-only live check
+- [x] 88-16-PLAN.md — go-live hand-off (user restart, proxy pin, publish, push) + read-only live check
