@@ -104,6 +104,22 @@
 - [x] **LIC-06**: A machine whose BIOS serial or SMBIOS UUID belongs to a seat-holding agent seen in the last 24 hours in another tenant is held for the Super Admin without either organization seeing the other's name; approval moves it (the other copy Replaced, its seat freed, its tokens revoked); a silent copy elsewhere is retired by the new enrollment, with a platform alert and a Super Admin restore.
 - [ ] **LIC-07**: A Super Admin Plans screen edits each plan's seats, trial days and screen list, applying at once to direct tenants without an override; tenant admins see their plan, seat limit (override marked), allowed networks and trial days left on their licence panel.
 
+### 9. Ransomware Defense (Phase 89, planned 2026-11-19)
+
+- [ ] **RANS-01**: The agent plants hidden canary files in user and share folders with known hashes; any write, rename or delete of one raises a critical `ransomware_canary` alert naming the process (fanotify on Linux, ETW Kernel-File on Windows).
+- [ ] **RANS-02**: The agent measures, per process, files renamed or rewritten in a short window with an extension change or high-entropy content, and new ransom-note files across folders; crossing the threshold raises `mass_file_encryption` with the file list.
+- [ ] **RANS-03**: Shadow-copy deletion and recovery tampering (vssadmin, wmic, PowerShell Win32_ShadowCopy, wbadmin delete catalog, bcdedit recoveryenabled no) raise a high `shadow_copy_deletion` alert from process creation events (4688 with command line, or Sysmon 1); the agent reports whether that audit policy is on.
+- [ ] **RANS-04**: Known ransomware families are caught by YARA rules and hash reputation delivered through the existing feed bundle and abuse.ch feeds.
+- [ ] **RANS-05**: Ransomware events reach the SIEM, the SOC console, the existing correlation chain and MITRE coverage (T1486, T1490, T1489), one incident per host outbreak.
+- [ ] **RANS-06**: Each asset and tenant has a ransomware readiness score from snapshot age, Controlled Folder Access, tamper protection, backup status, SMBv1, exposed RDP and local admin count, also as compliance evidence.
+- [ ] **RANS-07**: The Rust agent creates and lists snapshots on a tenant policy (Windows VSS; LVM or btrfs on Linux where present) and reports their age; a missing or stale snapshot is a finding.
+- [ ] **RANS-08**: Hardening actions (Controlled Folder Access audit then block, the Defender ASR ransomware rule, SMBv1 off) run through the autonomy gate and are undoable.
+- [ ] **RANS-09**: A ransomware rule in the gate kills the process tree and isolates the host automatically when two independent signals agree at Undoable-auto, and asks for approval on one signal.
+- [ ] **RANS-10**: When the tenant allows it, the agent kills the process on a canary touch locally, before the server answers, and records the action in the ledger afterwards.
+- [ ] **RANS-11**: After approval, the agent restores the files the process changed from the last snapshot before the first detection, verifies each by hash, keeps the encrypted copies in quarantine and reports files with no clean copy.
+- [ ] **RANS-12**: A ransomware incident has a timeline (first signal, process, files, containment, restore) and a restore report, and the host leaves isolation only after a clean rescan.
+- [ ] **RANS-13**: A safe simulator (encrypts only its own test files) proves detection, containment and restore on Windows and Linux, and recorded event fixtures keep it tested.
+
 ## v2 Requirements (v4.3 deferred)
 
 - **AOPS-F1**: Per-tenant custom autonomy rules authored in the UI.

@@ -359,6 +359,7 @@ Plans:
 - [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
 - [x] **Phase 87: Partner and Reseller Channel** - Partners appointed by the Super Admin hold a seat pool, create their own customer organizations and assign seats to them; partner admins see only their customers (completed 2026-11-07)
 - [ ] **Phase 88: Plan-Based Licensing & Network Enrollment Rules** - The tenant's plan sets its seats, allowed public networks, OS/server classes and features; new machines from outside the allowed networks, or already live in another tenant, wait for approval; running ones are never cut off
+- [ ] **Phase 89: Ransomware Detection, Protection, Remediation & Recovery** - Endpoints detect encryption within seconds from signals the agent really collects, contain it through the autonomy gate, and restore the encrypted files from snapshots the platform made and verified beforehand
 
 ### Phase 81: Autonomy Gate, Stop Switch & Activity Ledger
 
@@ -770,8 +771,8 @@ Plans:
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 13/13 | Complete    | 2026-10-21 |
 | 78. Organization & Endpoint Cost API | 15/15 | Complete    | 2026-11-17 |
-| 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
-| 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
+| 79. License Cost & Per-Endpoint Allocation | direct | Complete    | 2026-11-18 |
+| 80. Costs Tab in the ITAM Console | direct | Complete    | 2026-11-18 |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
@@ -779,13 +780,15 @@ Plans:
 | 85. First-Line Service Desk | 42/42 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 16/16 | In Progress | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
+| 88. Plan-Based Licensing & Network Enrollment Rules | 17/17 | In Progress | - |
+| 89. Ransomware Detection, Protection, Remediation & Recovery | 0/TBD | Not started | - |
 
 ### Phase 88: Plan-Based Licensing & Network Enrollment Rules
 
 **Goal:** A tenant's subscription plan (Free / Pro / Enterprise / Custom, the tiers already in `tenants.subscriptionTier` and `billing_service.SUBSCRIPTION_LIMITS`) decides what it may enroll and use: its agent seat limit (today `license.maxAgents` is set by hand), how many allowed public networks (sites) it may register and whether the network rule is available, which OS/server classes it may enroll (the existing C4 OS-class sub-limits), and which features it unlocks (the `minTier` already in `feature_catalog.py`, never checked today). Network rule (decided 2026-11-10): a tenant lists its allowed public networks (IPs or CIDR ranges); a NEW machine enrolling from outside them is held Pending for approval, like the C4 hardware allowlist, and machines already enrolled are never cut off, so roaming laptops keep working. Cross-tenant duplicate hold (added 2026-11-10): a machine whose hardware (serial or SMBIOS UUID) belongs to a live seat-holding agent in another tenant is held Pending for platform approval instead of enrolling a second time, so one licence cannot cover the same computer in two organizations (today each tenant gives it its own agent id and nothing checks across tenants). Builds on hardware-bound seats (`seat_identity`), `asset_identity`, `machine_identity` (one agent id per machine), `license_rules.hold_reason`, `pending_agents` and the Phase 87 partner seat pools.
 **Requirements**: LIC-01, LIC-02, LIC-03, LIC-04, LIC-05, LIC-06, LIC-07
 **Depends on:** Phase 87
-**Plans:** 16/17 plans executed
+**Plans:** 17/17 plans executed
 
 Plans:
 **Wave 1**
@@ -819,4 +822,30 @@ Plans:
 - [x] 88-16-PLAN.md — go-live hand-off (user restart, proxy pin, publish, push) + read-only live check
 
 **Gap closure** *(from 88-UAT.md gap G-88-5, minor)*
-- [ ] 88-17-PLAN.md — A refused network range is worded for the decider: it names the /24 (/48) limit or the address the computer enrolled from, never the API field name; exact-text tests for every refusal (G-88-5, LIC-05)
+- [x] 88-17-PLAN.md — A refused network range is worded for the decider: it names the /24 (/48) limit or the address the computer enrolled from, never the API field name; exact-text tests for every refusal (G-88-5, LIC-05)
+
+### Phase 89: Ransomware Detection, Protection, Remediation & Recovery
+
+**Goal:** A ransomware attack on a Windows or Linux endpoint is detected within seconds of the first encrypted file from signals the agent really collects, contained automatically (undoable) through the Phase 81 autonomy gate, and the encrypted files are restored from protected snapshots the platform created and verified beforehand, with every step visible to the SOC and proven on a real machine.
+**Why now (verified 2026-11-19):** the platform has the response half and none of the rest. The backend already expects `ransomware_detected`, `file_encryption`, `mass_file_rename` and `shadow_copy_deletion` (edr_telemetry_endpoints, correlation_engine_core, mitre_service T1486), the SOAR "Ransomware Recovery" playbook and the `rollback_ransomware` registry action (approve class), but no agent emits any of those events. The Rust agent has isolate_host, kill_process, quarantine_file and block_ip; FIM (notify, fanotify process attribution on Linux), YARA and the Windows Security log. Recovery exists only in the legacy Python agent (vss_manager.execute_rollback), and that code exposes a shadow copy and unexposes it at once, so it restores nothing.
+**Requirements**: RANS-01 .. RANS-13
+**Depends on:** Phase 81 (gate), Phase 83 (two-signal rule, undo), agent 2.1.21+ (Security log)
+**Plans:** not planned yet (next: /gsd-discuss-phase 89)
+
+**Success Criteria** (what must be TRUE):
+  1. A safe simulator that encrypts only files it created in a test folder raises one critical ransomware incident on a Windows endpoint (EILT0197) and on this Linux server within 10 seconds of the first canary touch or 50 encrypted files, naming the process, its parent, the user and the files.
+  2. Shadow-copy deletion or recovery tampering (vssadmin/wmic/PowerShell shadow delete, wbadmin delete catalog, bcdedit recoveryenabled no) raises a high alert before any file is encrypted.
+  3. With two independent signals agreeing and the tenant at Undoable-auto, the encrypting process tree is killed and the host isolated without waiting for a person (the agent may kill locally first and report after); with one signal an approval card appears; every action is undoable from the Activity screen.
+  4. Every protected endpoint has a snapshot younger than its policy interval, and each asset and tenant shows a ransomware readiness score (snapshots, Controlled Folder Access, tamper protection, backup status, SMBv1, exposed RDP, local admins).
+  5. After approval, the files the process changed are restored from the last snapshot taken before the first detection and verified by hash; the encrypted copies stay in quarantine; the restore report lists every file with no clean copy; the host leaves isolation only after a clean rescan.
+
+**Waves (proposed):**
+- W1 Detection in the Rust agent: canary files, per-process rename/write rate with entropy, ransom-note pattern; backend alert types and SIEM rules wired to the events that already have a consumer; the safe simulator. (RANS-01, 02, 05, 13)
+- W2 Tamper detection: process creation 4688 with command line (agent checks and offers the audit policy) or Sysmon 1, VSS/backup catalog events; known-family YARA and hash feeds. (RANS-03, 04)
+- W3 Protection: scheduled snapshots in the Rust agent (Win32_ShadowCopy, LVM/btrfs where present), readiness checks and score, hardening actions through the gate (CFA audit then block, Defender ASR ransomware rule, SMBv1 off). (RANS-06, 07, 08)
+- W4 Containment: ransomware rule in the gate (two signals = auto kill + isolate, one = approval), agent-local kill on canary when the tenant allows it, lateral SMB source block from Suricata. (RANS-09, 10)
+- W5 Recovery: Rust restore from the shadow copy device path (no diskshadow), per-file hash check against the FIM baseline, quarantine of encrypted copies, restore report, incident timeline and compliance evidence; the Python vss_manager rollback is retired. (RANS-11, 12)
+- W6 Live validation on EILT0197 and this server, plus a tabletop export. (RANS-13)
+
+**Open decisions (the user's):** offsite immutable backup target (S3 Object Lock, restic append-only, or none in v1); whether agent-local kill without the server is on by default; Windows pre-write blocking is left to Defender Controlled Folder Access because a kernel minifilter needs a signed driver (EV certificate and Microsoft attestation); macOS waits for the macOS agent.
+
