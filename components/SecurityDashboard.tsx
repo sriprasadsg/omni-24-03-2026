@@ -29,6 +29,7 @@ import { RulesTab } from './security/soc/RulesTab';
 import { HuntTab } from './security/soc/HuntTab';
 import { WatchlistPanel } from './security/soc/WatchlistPanel';
 import { SlaPanel } from './security/soc/SlaPanel';
+import { PagingPanel } from './security/soc/PagingPanel';
 import { segment, segmented } from './security/soc/SocKit';
 
 interface SecurityDashboardProps {
@@ -303,7 +304,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             case 'coverage':
                 return <CoverageTab range={range} rangeLabel={rangeLong} />;
             case 'rules':
-                return <div className="space-y-3"><RulesTab types={typeOptions} /><SlaPanel /><WatchlistPanel /></div>;
+                return <div className="space-y-3"><RulesTab types={typeOptions} /><SlaPanel /><PagingPanel /><WatchlistPanel /></div>;
             case 'events':
                 return (
                     <div className="space-y-5">
