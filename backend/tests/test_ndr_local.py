@@ -93,6 +93,22 @@ async def test_severity_three_stays_in_the_siem_and_a_named_technique_reaches_th
 
 
 @pytest.mark.asyncio
+async def test_a_reputation_list_is_one_alert_not_one_per_group(world):
+    """protects=hits on different "... group N" signatures of one reputation list (live on 19 Nov: ET CINS ships 300,
+    ET TOR 840) count on one Platform alert titled by the list, while each event keeps its own signature;
+    fails_when=the queue gets an alert per group; no_claim=whether reputation hits deserve alerts at all"""
+    db, path = world
+    cins = "ET CINS Active Threat Intelligence Poor Reputation IP group {}"
+    _write(path, *(_alert(f"2026-11-19T08:00:0{i}+0000", sid=2403300 + g, category="Misc Attack", signature=cins.format(g), src=f"198.51.100.{g}")
+                   for i, g in enumerate((38, 41, 202))))
+    assert (await ndr_local.read_once(db, path))["alerts"] == 3
+    alerts = await db.security_alerts.find({}, {"_id": 0}).to_list(10)
+    assert len(alerts) == 1 and alerts[0]["occurrences"] == 3
+    assert alerts[0]["title"] == "ET CINS Active Threat Intelligence Poor Reputation IP"
+    assert sorted(await db.soc_log_events.distinct("signature")) == sorted(cins.format(g) for g in (38, 41, 202))
+
+
+@pytest.mark.asyncio
 async def test_stats_make_the_server_sensor_live_and_pass_the_ids_check(world):
     """protects=stats update the Platform's local sensor record and add one sample a minute, so sensor_health says
     LIVE and the Platform's ids_ips_enabled check passes, while another organization stays at fail;

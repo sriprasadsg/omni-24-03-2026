@@ -7,7 +7,8 @@ and only complete lines, so a line Suricata is still writing waits for the next 
 
 * An alert becomes a SIEM event (source ``network``, action ``ids_alert``; unique per line) for rules and Hunting.
   Severity 1 and 2 alerts also raise a SOC alert (high, medium) for the Platform, one active alert per signature
-  with repeats counted, carrying the rule's MITRE technique when the rule names one. Severity 3 stays in the SIEM.
+  family with repeats counted (a reputation list ships as hundreds of "... group N" signatures: ET CINS 300, ET TOR
+  840), carrying the rule's MITRE technique when the rule names one. Severity 3 stays in the SIEM.
 * A stats event updates the sensor record (``ndr_sensors``: tenant platform-admin, sensor ``local``) and, at most
   once a minute, adds a sample (``ndr_sensor_stats``), so ndr_sensors.sensor_health and the ids_ips_enabled check
   see this sensor as LIVE, DEGRADED or SILENT. It watches the server only: no other organization's network.
@@ -17,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import socket
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -30,6 +32,7 @@ POLL = 30
 MAX_BYTES = 8 * 1024 * 1024  # per pass; a backlog is read over several passes
 SAMPLE_EVERY = timedelta(seconds=55)
 SEVERITY = {1: "high", 2: "medium"}
+GROUP_SUFFIX = re.compile(r"\s+group \d+$")  # "ET DROP Spamhaus DROP Listed Traffic Inbound group 48"
 
 
 def _raw(db):
@@ -92,11 +95,12 @@ async def _raise(db, event: Dict[str, Any]) -> None:
     sev = SEVERITY.get(event.get("idsSeverity"))
     if not sev:
         return
+    family = GROUP_SUFFIX.sub("", event.get("signature") or "Network IDS alert")
     await soc_alerts.record_alert(_raw(db), {
-        "tenantId": TENANT, "type": "ids_alert", "severity": sev, "title": event.get("signature") or "Network IDS alert",
+        "tenantId": TENANT, "type": "ids_alert", "severity": sev, "title": family,
         "description": event["message"], "mitre": event.get("technique"), "created_at": (_ts(event.get("timestamp")) or datetime.now(timezone.utc)).isoformat(),
         "metadata": {"signatureId": event.get("signatureId"), "category": event.get("category"), "remote_ip": event.get("srcIp"),
-                     "destIp": event.get("destIp"), "destPort": event.get("destPort"), "sensor": SENSOR}}, group=f"ids:{event.get('signatureId')}")
+                     "destIp": event.get("destIp"), "destPort": event.get("destPort"), "sensor": SENSOR}}, group=f"ids:{family}")
 
 
 async def _stats(db, e: Dict[str, Any], host: str, last_sample: Optional[datetime]) -> Optional[datetime]:
