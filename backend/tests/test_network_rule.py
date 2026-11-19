@@ -288,6 +288,16 @@ async def test_a_wide_or_foreign_range_answers_422_and_changes_nothing(mongo_db,
     assert (await mongo_db.tenants.find_one({"id": "t1"}))["license"]["seatsUsed"] == 1
 
 
+async def test_a_range_wider_than_a_24_is_refused_in_plain_words(mongo_db):
+    m2 = await _held_from_other(mongo_db)
+    code, error = _error(await _approve(mongo_db, m2, widenTo="10.0.0.0/8"))
+    assert code == 422
+    assert error == f"the range can be at most a /24 for an IPv4 address, and must contain {OTHER}"
+    assert (await _agent(mongo_db, "M2"))["status"] == "Pending"
+    assert len(await _networks(mongo_db)) == 1
+    assert (await mongo_db.tenants.find_one({"id": "t1"}))["license"]["seatsUsed"] == 1
+
+
 async def test_a_hold_without_an_observed_address_cannot_be_approved(mongo_db):
     await harness.tenant(mongo_db, "t1")
     await mongo_db.agents.insert_one({"id": "A1", "tenantId": "t1", "hostname": "H", "status": "Pending",

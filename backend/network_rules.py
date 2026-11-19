@@ -93,7 +93,7 @@ def validate_widen(observed: Any, widen_to: Any) -> str:
         raise EntryError("widenTo must be the same IP version as the observed address")
     widest = IPV4_WIDEST if ip.version == 4 else IPV6_WIDEST
     if net.prefixlen < widest:
-        raise EntryError(f"widenTo may be at most a /{widest} (IPv{ip.version})")
+        raise EntryError(f"the range can be at most a /{widest} for an IPv{ip.version} address, and must contain {ip}")
     if ip not in net:
         raise EntryError(f"widenTo must contain the observed address {ip}")
     if ip.is_global and not net.is_global:
