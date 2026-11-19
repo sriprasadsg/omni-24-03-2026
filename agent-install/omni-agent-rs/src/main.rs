@@ -2,7 +2,6 @@ use simplelog::{
     ColorChoice, CombinedLogger, Config as LogConfig, LevelFilter,
     TermLogger, TerminalMode, WriteLogger,
 };
-use std::fs::File;
 
 fn init_logging() {
     let log_file = std::env::current_exe()
@@ -20,11 +19,9 @@ fn init_logging() {
         WriteLogger::new(
             LevelFilter::Info,
             LogConfig::default(),
-            File::options()
-                .create(true)
-                .append(true)
-                .open(&log_file)
-                .unwrap_or_else(|_| File::create("omni-agent.log").expect("log file")),
+            omni_agent::log_file::RotatingFile::open(log_file)
+                .or_else(|_| omni_agent::log_file::RotatingFile::open("omni-agent.log".into()))
+                .expect("log file"),
         ),
     ]);
 }

@@ -8,6 +8,7 @@ pub mod config;
 pub mod heartbeat;
 pub mod identity;
 pub mod instructions;
+pub mod log_file;
 pub mod registration;
 pub mod tls;
 pub mod tray;
