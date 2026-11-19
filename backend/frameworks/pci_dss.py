@@ -233,7 +233,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── PCI-3.5: DLP events (active scanning) ─────────────────────────────
         if check_type == "dlp_events_present":
             events = await db.dlp_incidents.count_documents({})
-            recent = await db.sensitive_data_findings.count_documents({"created_at": {"$gte": cutoff_30d}})
+            recent = await db.pii_findings.count_documents({"timestamp": {"$gte": cutoff_30d}})
             if events > 0 or recent > 0:
                 return "pass", f"{events} DLP events + {recent} sensitive data findings in 30d"
             return "fail", "No DLP scan activity found"

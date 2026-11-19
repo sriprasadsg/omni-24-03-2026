@@ -16,7 +16,7 @@ async def evaluate_controls(db) -> List[Dict[str, Any]]:
     """DB eval enhanced with DPA, privacy-record, and consent checks."""
     results = await evaluate_from_db(db, "iso27701")
 
-    dpa_count     = await db.data_processing_agreements.count_documents({})
+    dpa_count     = await db.dpa_agreements.count_documents({})
     privacy_count = await db.privacy_records.count_documents({})
     if privacy_count == 0:
         privacy_count = await db.gdpr_records.count_documents({})

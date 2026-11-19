@@ -25,9 +25,9 @@ SKIP_PREFIXES = ("test_", "seed", "fix_", "debug", "clear_", "cleanup")
 # Read by framework checks, written by nothing in production (2026-11-19). The list is exact: a collection retargeted at
 # real data leaves it, and nothing may join it.
 STILL_UNWRITTEN = {
-    "network_topology", "compliance_policies", "security_baselines", "api_keys", "sensitive_data_findings",
-    "dr_runbooks", "iam_policies", "devices", "employees", "gdpr_records", "data_processing_agreements",
-    "ai_governance_assessments", "ai_risk_assessments", "pqc_configs", "ueba_anomalies", "ueba_events",
+    "network_topology", "compliance_policies", "security_baselines", "api_keys",
+    "dr_runbooks", "iam_policies", "devices", "employees", "gdpr_records",
+    "ai_governance_assessments", "ai_risk_assessments", "pqc_configs", "ueba_events",
     "privacy_records", "model_registry", "approvals", "network_segments", "code_repositories",
 }
 

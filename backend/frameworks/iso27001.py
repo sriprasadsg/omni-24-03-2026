@@ -211,7 +211,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         if check_type == "dlp_leakage_prevention":
             dlp_policies = await db.dlp_policies.count_documents({})
             dlp_events = await db.dlp_incidents.count_documents({})
-            pii_findings = await db.sensitive_data_findings.count_documents({})
+            pii_findings = await db.pii_findings.count_documents({})
             if dlp_policies > 0 and (dlp_events > 0 or pii_findings > 0):
                 return "pass", f"{dlp_policies} DLP policies; {dlp_events} events + {pii_findings} PII findings"
             if dlp_policies > 0:
@@ -240,7 +240,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── A.8.16: UEBA anomaly monitoring ───────────────────────────────────
         if check_type == "ueba_monitoring":
             ueba_events = await db.ueba_events.count_documents({})
-            anomalies = await db.ueba_anomalies.count_documents({"detected_at": {"$gte": cutoff_30d}})
+            anomalies = await db.ueba_alerts.count_documents({"timestamp": {"$gte": cutoff_30d}})
             login_events = await db.login_events.count_documents({})
             if ueba_events > 0 or login_events > 0:
                 return "pass", f"{ueba_events} UEBA events + {login_events} login events analyzed; {anomalies} anomalies"

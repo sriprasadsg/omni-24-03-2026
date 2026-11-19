@@ -105,7 +105,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CIS-03: DLP / data classification ─────────────────────────────────
         if check_type == "dlp_active":
             dlp_count  = await db.dlp_policies.count_documents({})
-            sens_count = await db.sensitive_data_findings.count_documents({})
+            sens_count = await db.pii_findings.count_documents({})
             if dlp_count > 0 and sens_count > 0:
                 return "pass", f"{dlp_count} DLP policies, {sens_count} data findings classified"
             if dlp_count > 0:
