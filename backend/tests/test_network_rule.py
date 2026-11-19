@@ -5,7 +5,8 @@ server observed; the first machine teaches the network atomically, a range can o
 (/48) that contains the observed address, and a network is never added twice or past 100 entries;
 fails_when=an IPv4-mapped address is not compared as IPv4, the first or last address of a range falls
 outside it, a wider or foreign range is accepted, two concurrent first enrollments both teach a network,
-or an allow adds a duplicate; no_claim=the enrollment route and the approval (later tests in this file),
+an allow adds a duplicate, or a refusal names the request field, or names neither its limit nor the address;
+no_claim=the enrollment route and the approval (later tests in this file),
 the proxy trust (test_proxy_headers.py).
 """
 import asyncio
@@ -88,6 +89,36 @@ def test_validate_widen_accepts_a_24_or_48_around_the_address():
 def test_validate_widen_refuses_wide_foreign_or_malformed_ranges(observed, widen):
     with pytest.raises(nr.EntryError):
         nr.validate_widen(observed, widen)
+
+
+@pytest.mark.parametrize("observed,widen,expected,named", [
+    ("203.0.113.7", "not-a-range",
+     "'not-a-range' is not a network range; write one that contains 203.0.113.7, like 203.0.113.0/24", "203.0.113.7"),
+    ("2001:db8:1::5", "nonsense",
+     "'nonsense' is not a network range; write one that contains 2001:db8:1::5, like 2001:db8:1::/48", "/48"),
+    ("203.0.113.7", "2001:db8::/48", "203.0.113.7 is an IPv4 address, so the range must be IPv4 too", "203.0.113.7"),
+    ("2001:db8:1::5", "203.0.113.0/24", "2001:db8:1::5 is an IPv6 address, so the range must be IPv6 too",
+     "2001:db8:1::5"),
+    ("203.0.113.7", "203.0.113.0/23",
+     "the range can be at most a /24 for an IPv4 address, and must contain 203.0.113.7", "/24"),
+    ("2001:db8:1::5", "2001:db8::/47",
+     "the range can be at most a /48 for an IPv6 address, and must contain 2001:db8:1::5", "/48"),
+    ("203.0.113.7", "198.51.100.0/24",
+     "the range must contain 203.0.113.7, the address this computer enrolled from", "203.0.113.7"),
+    ("2001:db8:1::5", "2001:db8:2::/48",
+     "the range must contain 2001:db8:1::5, the address this computer enrolled from", "2001:db8:1::5"),
+    ("::ffff:203.0.113.7", "198.51.100.0/24",
+     "the range must contain 203.0.113.7, the address this computer enrolled from", "203.0.113.7"),
+    ("192.0.0.9", "192.0.0.0/24", "192.0.0.9 is a public address, so the range must be public too", "192.0.0.9"),
+    ("2001:1::1", "2001:1::/48", "2001:1::1 is a public address, so the range must be public too", "2001:1::1"),
+])
+def test_each_range_refusal_reads_plainly_and_names_its_limit_or_the_address(observed, widen, expected, named):
+    with pytest.raises(nr.EntryError) as err:
+        nr.validate_widen(observed, widen)
+    text = str(err.value)
+    assert text == expected
+    assert named in text and "widenTo" not in text
+    assert not text.endswith(".") and not text[0].isupper()
 
 
 # -- stored on the tenant (real MongoDB) ------------------------------------------------------------
@@ -283,6 +314,7 @@ async def test_a_wide_or_foreign_range_answers_422_and_changes_nothing(mongo_db,
     m2 = await _held_from_other(mongo_db)
     code, error = _error(await _approve(mongo_db, m2, widenTo=widen))
     assert code == 422 and error
+    assert "widenTo" not in error and OTHER in error
     assert (await _agent(mongo_db, "M2"))["status"] == "Pending"
     assert len(await _networks(mongo_db)) == 1
     assert (await mongo_db.tenants.find_one({"id": "t1"}))["license"]["seatsUsed"] == 1

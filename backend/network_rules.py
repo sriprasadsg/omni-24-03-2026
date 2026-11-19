@@ -81,23 +81,26 @@ def entry(cidr: str, *, source: str, actor: Optional[str] = None, hostname: Opti
 
 def validate_widen(observed: Any, widen_to: Any) -> str:
     """The range to allow for an observed address (D-42): it must contain the address, be of the same
-    IP version, be at most an IPv4 /24 or IPv6 /48 wide, and not be a private range for a public address."""
+    IP version, be at most an IPv4 /24 or IPv6 /48 wide, and not be a private range for a public address.
+    The refusals are written for the person deciding, who sees them verbatim in the Pending agents panel, so
+    they start lowercase, end without a period and name the limit or the address."""
     ip = normalize_ip(observed)
     if ip is None:
         raise EntryError("there is no observed address to widen")
+    widest = IPV4_WIDEST if ip.version == 4 else IPV6_WIDEST
     try:
         net = ipaddress.ip_network(str(widen_to).strip(), strict=False)
     except ValueError:
-        raise EntryError(f"widenTo is not a network: {str(widen_to)[:64]!r}")
+        example = ipaddress.ip_network(f"{ip}/{widest}", strict=False)
+        raise EntryError(f"{str(widen_to)[:64]!r} is not a network range; write one that contains {ip}, like {example}")
     if net.version != ip.version:
-        raise EntryError("widenTo must be the same IP version as the observed address")
-    widest = IPV4_WIDEST if ip.version == 4 else IPV6_WIDEST
+        raise EntryError(f"{ip} is an IPv{ip.version} address, so the range must be IPv{ip.version} too")
     if net.prefixlen < widest:
         raise EntryError(f"the range can be at most a /{widest} for an IPv{ip.version} address, and must contain {ip}")
     if ip not in net:
-        raise EntryError(f"widenTo must contain the observed address {ip}")
+        raise EntryError(f"the range must contain {ip}, the address this computer enrolled from")
     if ip.is_global and not net.is_global:
-        raise EntryError("widenTo is not a public range, but the observed address is")
+        raise EntryError(f"{ip} is a public address, so the range must be public too")
     return str(net)
 
 
