@@ -158,6 +158,8 @@ async def patch_group(db, tenant: str, group_id: str, body: Dict[str, Any], acto
             items = {path: value} if path else value
             for key, item in items.items():
                 if key.lower() == "displayname":
+                    if kind == "remove":
+                        raise ScimError(400, "displayName is required and cannot be removed", "mutability")
                     name = _display({"displayName": item})
                     await _name_free(db, tenant, name, group_id)
                     changes["displayName"] = name

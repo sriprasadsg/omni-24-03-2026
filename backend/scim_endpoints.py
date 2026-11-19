@@ -5,7 +5,8 @@
   the platform scope (a Super Admin not viewing a tenant) is refused.
 * /api/scim/v2: the identity provider's API (Users, Groups, ServiceProviderConfig, ResourceTypes, Schemas). It has
   no session: the bearer token, checked on every request, names the tenant, and nothing outside that tenant is
-  read or written. Answers are application/scim+json with SCIM error bodies.
+  read or written. Answers are application/scim+json with SCIM error bodies. Reads (GET and POST .search) honour
+  attributes / excludedAttributes.
 """
 from typing import Any, Callable, Dict, Optional
 
@@ -113,6 +114,24 @@ async def _json(request: Request) -> Dict[str, Any]:
     return data
 
 
+async def _shaped(coro, attributes: Any, excluded: Any):
+    return scim_schemas.project_response(await coro, attributes, excluded)
+
+
+def _search_args(body: Dict[str, Any]):
+    """filter, startIndex and count of a SearchRequest body (RFC 7644 §3.4.3)."""
+    filt = body.get("filter")
+    if filt is not None and (not isinstance(filt, str) or len(filt) > 500):
+        raise ScimError(400, "filter must be a string of at most 500 characters", "invalidValue")
+
+    def number(key: str, low: int) -> Optional[int]:
+        value = body.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < low):
+            raise ScimError(400, f"{key} must be an integer of at least {low}", "invalidValue")
+        return value
+    return filt, number("startIndex", 1), number("count", 0)
+
+
 async def _answer(coro, status: int = 200):
     try:
         out = await coro
@@ -175,8 +194,20 @@ async def read_only_discovery(caller: Dict[str, Any] = Depends(scim_caller)):
 @router.get("/Users")
 async def list_users(request: Request, filter: Optional[str] = Query(None, max_length=500),
                      startIndex: Optional[int] = Query(None, ge=1), count: Optional[int] = Query(None, ge=0),
+                     attributes: Optional[str] = Query(None, max_length=500),
+                     excludedAttributes: Optional[str] = Query(None, max_length=500),
                      caller: Dict[str, Any] = Depends(scim_caller)):
-    return await _answer(scim_service.list_users(get_database(), caller["tenantId"], filter, startIndex, count, _base(request)))
+    return await _answer(_shaped(scim_service.list_users(get_database(), caller["tenantId"], filter, startIndex, count,
+                                                         _base(request)), attributes, excludedAttributes))
+
+
+@router.post("/Users/.search")
+async def search_users(request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    async def go():
+        body = await _json(request)
+        out = scim_service.list_users(get_database(), caller["tenantId"], *_search_args(body), _base(request))
+        return await _shaped(out, body.get("attributes"), body.get("excludedAttributes"))
+    return await _answer(go())
 
 
 @router.post("/Users")
@@ -187,8 +218,11 @@ async def create_user(request: Request, caller: Dict[str, Any] = Depends(scim_ca
 
 
 @router.get("/Users/{user_id}")
-async def get_user(user_id: str, request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
-    return await _answer(scim_service.get_user(get_database(), caller["tenantId"], user_id[:80], _base(request)))
+async def get_user(user_id: str, request: Request, attributes: Optional[str] = Query(None, max_length=500),
+                   excludedAttributes: Optional[str] = Query(None, max_length=500),
+                   caller: Dict[str, Any] = Depends(scim_caller)):
+    return await _answer(_shaped(scim_service.get_user(get_database(), caller["tenantId"], user_id[:80], _base(request)),
+                                 attributes, excludedAttributes))
 
 
 @router.put("/Users/{user_id}")
@@ -215,11 +249,53 @@ async def delete_user(user_id: str, caller: Dict[str, Any] = Depends(scim_caller
 @router.get("/Groups")
 async def list_groups(request: Request, filter: Optional[str] = Query(None, max_length=500),
                       startIndex: Optional[int] = Query(None, ge=1), count: Optional[int] = Query(None, ge=0),
-                      excludedAttributes: Optional[str] = Query(None, max_length=200),
+                      attributes: Optional[str] = Query(None, max_length=500),
+                      excludedAttributes: Optional[str] = Query(None, max_length=500),
                       caller: Dict[str, Any] = Depends(scim_caller)):
-    members = "members" not in (excludedAttributes or "").lower()
-    return await _answer(scim_groups.list_groups(get_database(), caller["tenantId"], filter, startIndex, count,
-                                                 _base(request), members))
+    members = scim_schemas.returns("members", attributes, excludedAttributes)
+    return await _answer(_shaped(scim_groups.list_groups(get_database(), caller["tenantId"], filter, startIndex, count,
+                                                         _base(request), members), attributes, excludedAttributes))
+
+
+@router.post("/Groups/.search")
+async def search_groups(request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    async def go():
+        body = await _json(request)
+        members = scim_schemas.returns("members", body.get("attributes"), body.get("excludedAttributes"))
+        out = scim_groups.list_groups(get_database(), caller["tenantId"], *_search_args(body), _base(request), members)
+        return await _shaped(out, body.get("attributes"), body.get("excludedAttributes"))
+    return await _answer(go())
+
+
+@router.post("/.search")
+async def search_all(request: Request, caller: Dict[str, Any] = Depends(scim_caller)):
+    """A search over Users then Groups, paged as one list; a type the filter does not apply to is left out."""
+    async def go():
+        body = await _json(request)
+        filt, start, count = _search_args(body)
+        start, count = scim_service.page_args(start, count)
+        db, tenant, base = get_database(), caller["tenantId"], _base(request)
+        members = scim_schemas.returns("members", body.get("attributes"), body.get("excludedAttributes"))
+        kinds = (lambda s, c: scim_service.list_users(db, tenant, filt, s, c, base),
+                 lambda s, c: scim_groups.list_groups(db, tenant, filt, s, c, base, members))
+        found: list = []
+        total, skip, applied = 0, start - 1, 0
+        for fetch in kinds:
+            try:
+                page = await fetch(skip + 1, count - len(found))
+            except ScimError as e:
+                if e.scim_type != "invalidFilter":
+                    raise
+                continue
+            applied += 1
+            found += page["Resources"]
+            total += page["totalResults"]
+            skip = max(0, skip - page["totalResults"])
+        if not applied:
+            raise ScimError(400, "No resource type supports that filter", "invalidFilter")
+        return scim_schemas.project_response(scim_service.list_response(found, total, start), body.get("attributes"),
+                                             body.get("excludedAttributes"))
+    return await _answer(go())
 
 
 @router.post("/Groups")
@@ -230,10 +306,12 @@ async def create_group(request: Request, caller: Dict[str, Any] = Depends(scim_c
 
 
 @router.get("/Groups/{group_id}")
-async def get_group(group_id: str, request: Request, excludedAttributes: Optional[str] = Query(None, max_length=200),
+async def get_group(group_id: str, request: Request, attributes: Optional[str] = Query(None, max_length=500),
+                    excludedAttributes: Optional[str] = Query(None, max_length=500),
                     caller: Dict[str, Any] = Depends(scim_caller)):
-    members = "members" not in (excludedAttributes or "").lower()
-    return await _answer(scim_groups.get_group(get_database(), caller["tenantId"], group_id[:80], _base(request), members))
+    members = scim_schemas.returns("members", attributes, excludedAttributes)
+    return await _answer(_shaped(scim_groups.get_group(get_database(), caller["tenantId"], group_id[:80], _base(request),
+                                                       members), attributes, excludedAttributes))
 
 
 @router.put("/Groups/{group_id}")

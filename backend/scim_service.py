@@ -166,19 +166,23 @@ def _active(doc: Dict[str, Any]) -> bool:
 
 
 def user_resource(doc: Dict[str, Any], groups: List[Dict[str, Any]], base: str) -> Dict[str, Any]:
+    """The SCIM view of a user. One SCIM wrote shows the names as SCIM gave them (a removed name or displayName
+    stays absent); one made in the platform shows its display name in both."""
     name = doc.get("scimName") or {}
-    return {
+    scim = "scimName" in doc
+    out = {
         "schemas": [USER_SCHEMA], "id": doc["id"], "externalId": doc.get("scimExternalId"),
         "userName": doc.get("scimUserName") or doc.get("email"),
         "name": {k: v for k, v in {"givenName": name.get("givenName"), "familyName": name.get("familyName"),
-                                     "formatted": name.get("formatted") or doc.get("name")}.items() if v},
-        "displayName": doc.get("name") or doc.get("email"),
-        "emails": [{"value": doc.get("email"), "type": "work", "primary": True}],
+                                     "formatted": name.get("formatted") or (None if scim else doc.get("name"))}.items() if v},
+        "displayName": doc.get("scimDisplayName") if "scimDisplayName" in doc else doc.get("name") or doc.get("email"),
+        "emails": doc.get("scimEmails") or [{"value": doc.get("email"), "type": "work", "primary": True}],
         "active": _active(doc),
         "groups": [{"value": g["id"], "display": g.get("displayName"), "$ref": f"{base}/Groups/{g['id']}"} for g in groups],
         "meta": {"resourceType": "User", "created": doc.get("createdAt") or doc.get("created_at"),
                  "lastModified": doc.get("updatedAt") or doc.get("createdAt"), "location": f"{base}/Users/{doc['id']}"},
     }
+    return {k: v for k, v in out.items() if v is not None and v != {}}
 
 
 def _email_of(body: Dict[str, Any]) -> Tuple[str, str]:
@@ -197,12 +201,29 @@ def _email_of(body: Dict[str, Any]) -> Tuple[str, str]:
     return email.lower(), user_name[:254]
 
 
+def _emails(body: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The emails a body lists, kept as given so the identity provider reads back what it sent (else Entra resends
+    the same update every cycle): at most 10 valid addresses, each once. Sign-in uses _email_of's address."""
+    out: List[Dict[str, Any]] = []
+    for e in body.get("emails") if isinstance(body.get("emails"), list) else []:
+        value = str(e.get("value") or "").strip()[:254] if isinstance(e, dict) else ""
+        if not EMAIL.match(value) or value.lower() in {o["value"].lower() for o in out} or len(out) == 10:
+            continue
+        item: Dict[str, Any] = {"value": value}
+        if e.get("type"):
+            item["type"] = str(e["type"])[:20]
+        if e.get("primary") is not None:
+            item["primary"] = as_bool(e["primary"])
+        out.append(item)
+    return out
+
+
 def _names(body: Dict[str, Any], email: str) -> Dict[str, Any]:
     name = body.get("name") if isinstance(body.get("name"), dict) else {}
     parts = {k: str(name.get(k) or "").strip()[:120] or None for k in ("givenName", "familyName", "formatted")}
-    display = str(body.get("displayName") or "").strip()[:200] or parts["formatted"] \
-        or " ".join(p for p in (parts["givenName"], parts["familyName"]) if p) or email
-    return {"scimName": parts, "name": display}
+    given = str(body.get("displayName") or "").strip()[:200] or None
+    display = given or parts["formatted"] or " ".join(p for p in (parts["givenName"], parts["familyName"]) if p) or email
+    return {"scimName": parts, "scimDisplayName": given, "name": display}
 
 
 async def _groups_of(db, tenant: str, user_id: str) -> List[Dict[str, Any]]:
@@ -279,6 +300,7 @@ async def create_user(db, tenant: str, body: Dict[str, Any], actor: str, base: s
     raw = raw_db(db)
     revived = await raw.users.find_one({"email": ci_equals(email), "tenantId": tenant, "scimDeleted": True}, {"_id": 0})
     fields = {"scimUserName": user_name, "scimExternalId": str(body.get("externalId") or "")[:200] or None,
+              "scimEmails": _emails(body),
               **_names(body, email), "updatedAt": now_iso()}
     if revived and not is_super(revived.get("role")):
         fields.update(status="Active" if active else "Inactive", source="scim")
@@ -302,6 +324,7 @@ async def replace_user(db, tenant: str, user_id: str, body: Dict[str, Any], acto
     if email != str(doc.get("email") or "").lower():
         await _email_free(db, tenant, email, user_id)
     changes = {"email": email, "scimUserName": user_name, "scimExternalId": str(body.get("externalId") or "")[:200] or None,
+               "scimEmails": _emails(body),
                **_names(body, email), **await _set_status(db, tenant, doc, as_bool(body.get("active", True)), actor),
                "updatedAt": now_iso()}
     await raw_db(db).users.update_one({"id": user_id, "tenantId": tenant}, {"$set": changes})
@@ -309,8 +332,9 @@ async def replace_user(db, tenant: str, user_id: str, body: Dict[str, Any], acto
     return await get_user(db, tenant, user_id, base)
 
 
-def _patch_value(path: str, value: Any, current: Dict[str, Any]) -> Dict[str, Any]:
-    """One PATCH path onto a User body (unknown attributes, e.g. enterprise extensions, are ignored)."""
+def _patch_value(path: str, value: Any, current: Dict[str, Any], kind: str = "replace") -> Dict[str, Any]:
+    """One PATCH path onto a User body (unknown attributes, e.g. enterprise extensions, are ignored); an add to
+    emails appends, as for any multi-valued attribute."""
     p = re.sub(r"\s+", "", path).lower()
     body = dict(current)
     if p == "active":
@@ -326,10 +350,12 @@ def _patch_value(path: str, value: Any, current: Dict[str, Any]) -> Dict[str, An
         body["name"] = {**(body.get("name") or {}), key: value}
     elif p == "name" and isinstance(value, dict):
         body["name"] = {**(body.get("name") or {}), **value}
+    elif p == "name" and value is None:
+        body["name"] = {}
     elif p in ('emails[typeeq"work"].value', "emails.value", 'emails[primaryeqtrue].value'):
         body["emails"] = [{"value": value, "type": "work", "primary": True}]
     elif p == "emails" and isinstance(value, list):
-        body["emails"] = value
+        body["emails"] = (list(body.get("emails") or []) if kind == "add" else []) + value
     return body
 
 
@@ -337,7 +363,9 @@ async def patch_user(db, tenant: str, user_id: str, body: Dict[str, Any], actor:
     """PATCH /Users/{id}: add/replace/remove on the supported attributes, then the same writes as PUT."""
     doc = await load_user(db, tenant, user_id)
     current = user_resource(doc, [], base)
-    current = {k: current[k] for k in ("userName", "externalId", "displayName", "name", "emails", "active")}
+    current = {k: current.get(k) for k in ("userName", "externalId", "displayName", "name", "emails", "active")}
+    if "scimEmails" in doc:
+        current["emails"] = doc["scimEmails"]
     ops = body.get("Operations")
     if not isinstance(ops, list) or not ops:
         raise ScimError(400, "Operations must be a non-empty list", "invalidSyntax")
@@ -351,10 +379,10 @@ async def patch_user(db, tenant: str, user_id: str, body: Dict[str, Any], actor:
                 raise ScimError(400, f"{path or 'That attribute'} cannot be removed", "mutability")
             current = _patch_value(path, None, current)
         elif path:
-            current = _patch_value(path, value, current)
+            current = _patch_value(path, value, current, kind)
         elif isinstance(value, dict):
             for key, item in value.items():
-                current = _patch_value(key, item, current)
+                current = _patch_value(key, item, current, kind)
         else:
             raise ScimError(400, "An op without a path needs an object value", "invalidSyntax")
     return await replace_user(db, tenant, user_id, current, actor, base)

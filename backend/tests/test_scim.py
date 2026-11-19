@@ -193,7 +193,7 @@ async def test_discovery_describes_the_attributes_and_unknown_paths_answer_in_sc
     User, displayName for Group), /ResourceTypes/{id} answers, discovery refuses writes with 405, and an unknown id
     or path is a 404 with a SCIM error body, all behind the token; fails_when=a client (scim2-tester, an identity
     provider) cannot learn that userName is required, or gets FastAPI's {"detail"} instead of a SCIM error;
-    no_claim=attributes=/excludedAttributes= projection on Users (not supported yet)"""
+    no_claim=attributes=/excludedAttributes= projection (the next test)"""
     ac, _, tokens = env
     h = _h(tokens["t-a"])
     listed = (await ac.get(f"{BASE}/Schemas", headers=h)).json()
@@ -216,6 +216,46 @@ async def test_discovery_describes_the_attributes_and_unknown_paths_answer_in_sc
         assert r.status_code == 405 and r.json()["status"] == "405", path
     assert (await ac.get(f"{BASE}/Schemas/{scim_service.USER_SCHEMA}")).status_code == 401
     assert (await ac.get(f"{BASE}/Devices")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_attributes_search_and_patch_remove_follow_rfc_7644(env):
+    """protects=attributes / excludedAttributes on GET and POST .search (sub-attributes, URN-qualified names; schemas,
+    id and meta always kept), /.search over Users then Groups paged as one list, PATCH remove of name and displayName
+    leaves them absent, removing a Group's displayName is a mutability error, and a platform-made user still shows its
+    display name; fails_when=scim2-tester's attribute and search checks fail again; no_claim=projection of POST/PUT/
+    PATCH answers, removing emails or active (refused: an account always has both)"""
+    ac, db, tokens = env
+    h = _h(tokens["t-a"])
+    uid = (await ac.post(f"{BASE}/Users", json=_user_body(), headers=h)).json()["id"]
+    only = (await ac.get(f"{BASE}/Users/{uid}", params={"attributes": "userName"}, headers=h)).json()
+    assert set(only) == {"schemas", "id", "meta", "userName"}
+    given = (await ac.get(f"{BASE}/Users", params={"filter": f'userName eq "{UPN}"', "attributes": "name.givenName"}, headers=h)).json()
+    assert given["Resources"][0]["name"] == {"givenName": "Anna"} and "displayName" not in given["Resources"][0]
+    urn = (await ac.get(f"{BASE}/Users/{uid}", params={"attributes": f"{scim_service.USER_SCHEMA}:displayName"}, headers=h)).json()
+    assert urn["displayName"] == "Anna Berg" and "userName" not in urn
+    lean = (await ac.get(f"{BASE}/Users/{uid}", params={"excludedAttributes": "emails,name.familyName,id"}, headers=h)).json()
+    assert "emails" not in lean and lean["name"] == {"givenName": "Anna"} and lean["id"] == uid and lean["userName"] == UPN
+    found = (await ac.post(f"{BASE}/Users/.search", json={"filter": f'userName eq "{UPN}"', "attributes": ["userName"]}, headers=h)).json()
+    assert found["totalResults"] == 1 and set(found["Resources"][0]) == {"schemas", "id", "meta", "userName"}
+    gid = (await ac.post(f"{BASE}/Groups", json={"displayName": "SecOps", "members": [{"value": uid}]}, headers=h)).json()["id"]
+    every = (await ac.post(f"{BASE}/.search", json={"excludedAttributes": ["members"]}, headers=h)).json()
+    assert every["totalResults"] == 3 and [r["id"] for r in every["Resources"]][-1] == gid
+    assert "members" not in every["Resources"][-1]
+    paged = (await ac.post(f"{BASE}/.search", json={"startIndex": 2, "count": 2}, headers=h)).json()
+    assert (paged["totalResults"], paged["itemsPerPage"]) == (3, 2) and paged["Resources"][1]["members"][0]["value"] == uid
+    named = (await ac.post(f"{BASE}/.search", json={"filter": 'displayName eq "SecOps"'}, headers=h)).json()
+    assert named["totalResults"] == 1 and named["Resources"][0]["id"] == gid
+    for body, kind in (({"filter": 'title eq "x"'}, "invalidFilter"), ({"count": "x"}, "invalidValue"), ({"startIndex": 0}, "invalidValue")):
+        r = await ac.post(f"{BASE}/.search", json=body, headers=h)
+        assert r.status_code == 400 and r.json()["scimType"] == kind, body
+    gone = await ac.patch(f"{BASE}/Users/{uid}", json=_patch({"op": "remove", "path": "name"}, {"op": "remove", "path": "displayName"}), headers=h)
+    assert gone.status_code == 200 and "name" not in gone.json() and "displayName" not in gone.json()
+    assert (await db.users.find_one({"id": uid}))["name"] == UPN
+    keep = await ac.patch(f"{BASE}/Groups/{gid}", json=_patch({"op": "remove", "path": "displayName"}), headers=h)
+    assert keep.status_code == 400 and keep.json()["scimType"] == "mutability"
+    admin = (await ac.get(f"{BASE}/Users/user-admin-a", headers=h)).json()
+    assert admin["displayName"] == "A Admin" and admin["name"] == {"formatted": "A Admin"}
 
 
 @pytest.mark.asyncio
