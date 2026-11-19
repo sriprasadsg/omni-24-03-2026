@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IntuneConnectorCard } from './IntuneConnectorCard';
+import { AndroidEnterpriseCard } from './AndroidEnterpriseCard';
 import { FleetConnectorCard } from './FleetConnectorCard';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
@@ -9,7 +10,7 @@ interface MdmDevice {
   id: string;
   udid: string;
   name: string;
-  source?: string; // 'intune' or 'fleet' when it mirrors a device of the connected Intune (Wave 5) or Fleet
+  source?: string; // 'intune', 'android' or 'fleet' when it mirrors a device of the connected Intune (Wave 5), Android Enterprise or Fleet
   platform: string;
   os_version: string;
   model: string;
@@ -105,11 +106,11 @@ export default function MobileDashboard() {
       retire: 'Retire this device?',
     };
     const device = devices.find(d => d.id === id);
-    const viaIntune = device?.source === 'intune';
+    const provider = device?.source === 'intune' ? 'Intune' : device?.source === 'android' ? 'Android Enterprise' : device?.source === 'fleet' ? 'Fleet' : '';
     let confirmName: string | undefined;
-    if (viaIntune && (action === 'wipe' || action === 'retire')) {
-      // Intune carries these out for real: the device name must be typed, as the server checks.
-      confirmName = window.prompt(`${action === 'wipe' ? 'Factory-reset' : 'Retire'} "${device?.name}" through Intune. Type the device name to confirm.`) ?? undefined;
+    if ((device?.source === 'intune' || device?.source === 'android') && (action === 'wipe' || action === 'retire')) {
+      // Intune and Android Enterprise carry these out for real: the device name must be typed, as the server checks.
+      confirmName = window.prompt(`${action === 'wipe' ? 'Factory-reset' : 'Retire'} "${device?.name}" through ${provider}. Type the device name to confirm.`) ?? undefined;
       if (!confirmName) return;
     } else if (confirmMsgs[action] && !confirm(confirmMsgs[action])) return;
     const r = await authFetch(`/api/mdm/devices/${id}/action`, {
@@ -117,8 +118,8 @@ export default function MobileDashboard() {
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) showToast(d.detail || 'Failed', 'error');
-    else if (d.status === 'sent') showToast(`'${action}' sent to ${device?.source === 'fleet' ? 'Fleet' : 'Intune'}`, 'success');
-    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune or Fleet`, 'info');
+    else if (d.status === 'sent') showToast(`'${action}' sent to ${provider}`, 'success');
+    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune, Android Enterprise or Fleet`, 'info');
   }
 
   async function savePolicy() {
@@ -157,6 +158,7 @@ export default function MobileDashboard() {
         </div>
       </div>
       <IntuneConnectorCard onSynced={loadAll} />
+      <AndroidEnterpriseCard onSynced={loadAll} />
       <FleetConnectorCard onSynced={loadAll} />
 
       {/* Summary */}

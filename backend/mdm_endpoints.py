@@ -7,6 +7,7 @@ import logging
 
 from auth_utils import get_current_user
 from auth_types import TokenData
+import android_mdm_service
 import fleet_service
 import intune_service
 import mdm_service as svc
@@ -106,6 +107,11 @@ async def remote_action(
             raise HTTPException(status_code=409, detail="This device is no longer in the connected Intune")
         return await _intune(intune_service.action(get_database(), tenant, device, str(action), current_user.username or "",
                                                    payload.get("confirm")))
+    if device and device.get("source") == "android":
+        if device.get("androidRemoved") or device.get("androidDisconnected"):
+            raise HTTPException(status_code=409, detail="This device is no longer in the connected Android Enterprise")
+        return await _android(android_mdm_service.action(get_database(), tenant, device, str(action),
+                                                         current_user.username or "", payload.get("confirm")))
     if device and device.get("source") == "fleet":
         if device.get("fleetRemoved") or device.get("fleetDisconnected"):
             raise HTTPException(status_code=409, detail="This device is no longer in the connected Fleet")
@@ -150,6 +156,62 @@ async def delete_intune(current_user: TokenData = Depends(require_permission("ma
 async def sync_intune(current_user: TokenData = Depends(require_permission("manage:assets"))):
     """Read Intune's managed devices now (also done every hour)."""
     return await _intune(intune_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
+
+
+# ── Android Enterprise connector (Android Management API) ───────────────────────
+
+async def _android(coro):
+    try:
+        return await coro
+    except android_mdm_service.AndroidError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.get("/android")
+async def get_android(current_user: TokenData = Depends(get_current_user)):
+    """Whether this organization's Android Enterprise is connected, its project, enterprise and last sync; never the key."""
+    return await android_mdm_service.get_config(get_database(), _tenant(current_user))
+
+
+@router.put("/android")
+async def put_android(payload: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Connect or update: serviceAccountKey (the JSON, may be left out to keep it) and enterprise (enterprises/...)."""
+    return await _android(android_mdm_service.save_config(get_database(), _tenant(current_user),
+                                                          payload.get("serviceAccountKey") or None,
+                                                          payload.get("enterprise") or None, current_user.username or ""))
+
+
+@router.delete("/android")
+async def delete_android(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    await _android(android_mdm_service.disconnect(get_database(), _tenant(current_user), current_user.username or ""))
+    return {"success": True}
+
+
+@router.post("/android/signup")
+async def android_signup(payload: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """A Google sign-up link that creates the Android Enterprise and returns to callbackUrl with an enterprise token."""
+    return await _android(android_mdm_service.signup_url(get_database(), _tenant(current_user),
+                                                         str(payload.get("callbackUrl") or ""), current_user.username or ""))
+
+
+@router.post("/android/enterprise")
+async def android_enterprise(payload: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Finish the sign-up with the enterpriseToken Google returned."""
+    return await _android(android_mdm_service.complete_signup(get_database(), _tenant(current_user),
+                                                              str(payload.get("enterpriseToken") or ""),
+                                                              str(payload.get("displayName") or ""), current_user.username or ""))
+
+
+@router.post("/android/enrollment-token")
+async def android_enrollment_token(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """A 24-hour enrollment QR code and work-profile link."""
+    return await _android(android_mdm_service.enrollment_token(get_database(), _tenant(current_user), current_user.username or ""))
+
+
+@router.post("/android/sync")
+async def sync_android(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Read the enterprise's devices now (also done every hour)."""
+    return await _android(android_mdm_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
 
 
 # ── Fleet connector (open source, osquery) ─────────────────────────────────────
