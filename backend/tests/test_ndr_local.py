@@ -109,6 +109,22 @@ async def test_a_reputation_list_is_one_alert_not_one_per_group(world):
 
 
 @pytest.mark.asyncio
+async def test_stream_engine_notices_are_counted_not_stored(world):
+    """protects=Suricata's TCP stream-engine notices (97% of live events on 19 Nov) never fill the SIEM store, while a
+    real alert in the same pass is stored; fails_when=an out-of-window notice becomes an event or an alert;
+    no_claim=other SURICATA decoder or app-layer events, which stay"""
+    db, path = world
+    _write(path, _alert("2026-11-19T08:00:00+0000", sid=2210020, severity=3, category="Generic Protocol Command Decode",
+                        signature="SURICATA STREAM ESTABLISHED packet out of window"),
+           _alert("2026-11-19T08:00:01+0000", sid=2210045, severity=3, category="Generic Protocol Command Decode",
+                  signature="SURICATA STREAM Packet with invalid ack"),
+           REAL_ALERT)
+    out = await ndr_local.read_once(db, path)
+    assert (out["engineNoise"], out["alerts"]) == (2, 1)
+    assert await db.soc_log_events.distinct("signature") == ["GPL ATTACK_RESPONSE id check returned root"]
+
+
+@pytest.mark.asyncio
 async def test_stats_make_the_server_sensor_live_and_pass_the_ids_check(world):
     """protects=stats update the Platform's local sensor record and add one sample a minute, so sensor_health says
     LIVE and the Platform's ids_ips_enabled check passes, while another organization stays at fail;
@@ -153,7 +169,7 @@ async def test_no_log_means_nothing_happens(world):
     """protects=a server without Suricata reads nothing and records no sensor; fails_when=a missing log raises or
     creates a sensor that then reads SILENT; no_claim=none beyond protects"""
     db, path = world
-    assert await ndr_local.read_once(db, path) == {"lines": 0, "alerts": 0, "stats": 0, "hits": 0}
+    assert await ndr_local.read_once(db, path) == {"lines": 0, "alerts": 0, "stats": 0, "hits": 0, "engineNoise": 0}
     assert await db.ndr_sensors.count_documents({}) == 0
 
 

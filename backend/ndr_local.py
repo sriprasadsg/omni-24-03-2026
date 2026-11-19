@@ -33,6 +33,9 @@ MAX_BYTES = 8 * 1024 * 1024  # per pass; a backlog is read over several passes
 SAMPLE_EVERY = timedelta(seconds=55)
 SEVERITY = {1: "high", 2: "medium"}
 GROUP_SUFFIX = re.compile(r"\s+group \d+$")  # "ET DROP Spamhaus DROP Listed Traffic Inbound group 48"
+# Suricata's own TCP stream-engine notices (out-of-window, invalid ack or timestamp) are not attacks; on this VM they
+# were 97% of all events (about 107,000 of 110,000 on 19 Nov), so they are counted but not stored.
+ENGINE_NOISE = ("SURICATA STREAM ",)
 
 
 def _raw(db):
@@ -129,17 +132,19 @@ async def read_once(db, path: str = EVE_PATH) -> Dict[str, int]:
     cursor = await raw.siem_cursors.find_one({"id": f"eve:{path}"}, {"_id": 0}) or {}
     lines, after = read_new(path, cursor)
     if not lines and after == {k: cursor[k] for k in ("inode", "offset") if k in cursor}:
-        return {"lines": 0, "alerts": 0, "stats": 0, "hits": 0}
+        return {"lines": 0, "alerts": 0, "stats": 0, "hits": 0, "engineNoise": 0}
     host = socket.gethostname()
     newest = await raw.ndr_sensor_stats.find_one({"tenantId": TENANT, "sensorId": SENSOR}, sort=[("sampledAt", -1)])
     last_sample = _ts(newest["sampledAt"].isoformat()) if newest else None
-    events, counts = [], {"lines": len(lines), "alerts": 0, "stats": 0, "hits": 0}
+    events, counts = [], {"lines": len(lines), "alerts": 0, "stats": 0, "hits": 0, "engineNoise": 0}
     for line in lines:
         try:
             e = json.loads(line)
         except ValueError:
             continue
-        if e.get("event_type") == "alert":
+        if e.get("event_type") == "alert" and str((e.get("alert") or {}).get("signature") or "").startswith(ENGINE_NOISE):
+            counts["engineNoise"] += 1
+        elif e.get("event_type") == "alert":
             event = alert_event(e, line, host)
             event["tenantId"], event["agentId"] = TENANT, None
             if await siem_pipeline._store(db, event):  # a line read twice is stored and raised once
