@@ -438,7 +438,7 @@ pub fn collect_metrics(sys: &System) -> Value {
 
 pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) -> Value {
     let enabled = cfg.enabled_capabilities.as_deref();
-    let cap_data = cap_mgr.collect_all(sys, enabled);
+    let cap_data = cap_mgr.collect_due(sys, enabled, cfg.collection_intervals.as_ref());
     let cap_ids = cap_mgr.ids();
     let cap_statuses = cap_mgr.statuses(&cap_data, enabled);
 

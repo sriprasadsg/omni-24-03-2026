@@ -85,16 +85,6 @@ _DEFAULT_CAPABILITIES = [
     "software_management", "process_injection_simulation",
 ]
 
-_DEFAULT_INTERVALS: Dict[str, int] = {
-    "metrics_collection": 60, "log_collection": 300, "process_monitor": 30,
-    "vulnerability_scanning": 3600, "fim": 600, "compliance_enforcement": 3600,
-    "runtime_security": 180, "edr_realtime": 15, "persistence_detection": 3600,
-    "network_discovery": 7200, "cloud_metadata": 900, "web_monitor": 300,
-    "pii_scanner": 3600, "sbom_analysis": 3600, "predictive_health": 600,
-    "ueba": 300, "ebpf_tracing": 60, "shadow_ai": 1800,
-    "system_patching": 3600, "software_management": 3600,
-    "process_injection_simulation": 86400,
-}
 
 
 @router.get("", dependencies=[Depends(AGENTS_GUARD)])
@@ -342,7 +332,7 @@ async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depen
     permitted = agent_capabilities.allowed(_tenant)
     capabilities = [c for c in capabilities if not isinstance(c, str)
                     or c not in agent_capabilities.CAPABILITY_IDS or c in permitted]
-    intervals = agent.get("collectionIntervals", _DEFAULT_INTERVALS)
+    intervals = agent_capabilities.effective_intervals(_tenant, agent)
     return {"enabledCapabilities": capabilities, "collectionIntervals": intervals}
 
 

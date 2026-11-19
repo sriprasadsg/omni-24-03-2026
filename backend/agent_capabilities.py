@@ -12,6 +12,11 @@ Rules:
     the agent an instruction that needs it, and leaves it out of the configuration agents pull.
 Names outside the catalogue are never touched: heartbeat keys and instructions the catalogue does
 not name pass as before.
+
+Collection intervals: a periodic capability runs every ``defaultIntervalSeconds`` (catalogue)
+unless the tenant (``tenants.agentCollectionIntervals``, Super Admin) or the agent
+(``agents.collectionIntervals``) sets its own; agents receive the effective intervals with every
+heartbeat reply and in the configuration they pull.
 """
 from __future__ import annotations
 
@@ -42,6 +47,10 @@ def _load(path: Path = _CATALOGUE_PATH) -> List[Dict[str, Any]]:
 _ENTRIES = _load()
 CAPABILITY_IDS: FrozenSet[str] = frozenset(cap["id"] for cap in _ENTRIES)
 ALWAYS_ON: FrozenSet[str] = frozenset(cap["id"] for cap in _ENTRIES if cap.get("alwaysOn"))
+DEFAULT_INTERVALS: Dict[str, int] = {
+    cap["id"]: int(cap["defaultIntervalSeconds"]) for cap in _ENTRIES if "defaultIntervalSeconds" in cap}
+MIN_INTERVAL_SECONDS = 15
+MAX_INTERVAL_SECONDS = 86400
 
 # Heartbeat keys that carry a capability's data under another name.
 _DATA_KEYS: Dict[str, str] = {"software_inventory": "software_management", "installed_software": "software_management",
@@ -117,6 +126,35 @@ def validate(chosen: Iterable[Any]) -> List[str]:
     if unknown:
         raise ValueError(f"Unknown agent capabilities: {', '.join(unknown)}")
     return sorted(set(chosen) | ALWAYS_ON)
+
+
+def validate_intervals(raw: Any) -> Dict[str, int]:
+    """Interval overrides, checked: periodic catalogue capabilities only, whole seconds from
+    MIN_INTERVAL_SECONDS to MAX_INTERVAL_SECONDS."""
+    if not isinstance(raw, dict):
+        raise ValueError("agentCollectionIntervals must map capability ids to seconds")
+    unknown = sorted(set(raw) - set(DEFAULT_INTERVALS))
+    if unknown:
+        raise ValueError(f"Not a periodic agent capability: {', '.join(unknown)}")
+    checked = {}
+    for cap, seconds in raw.items():
+        if isinstance(seconds, bool) or not isinstance(seconds, int) or not (
+                MIN_INTERVAL_SECONDS <= seconds <= MAX_INTERVAL_SECONDS):
+            raise ValueError(f"Interval for {cap} must be whole seconds from "
+                             f"{MIN_INTERVAL_SECONDS} to {MAX_INTERVAL_SECONDS}")
+        checked[cap] = seconds
+    return checked
+
+
+def effective_intervals(tenant: Optional[Dict[str, Any]], agent: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
+    """Catalogue defaults, then the tenant's overrides, then the agent's; malformed overrides are ignored."""
+    intervals = dict(DEFAULT_INTERVALS)
+    for source in ((tenant or {}).get("agentCollectionIntervals"), (agent or {}).get("collectionIntervals")):
+        if isinstance(source, dict):
+            intervals.update({cap: secs for cap, secs in source.items() if cap in DEFAULT_INTERVALS
+                              and isinstance(secs, int) and not isinstance(secs, bool)
+                              and MIN_INTERVAL_SECONDS <= secs <= MAX_INTERVAL_SECONDS})
+    return intervals
 
 
 def assert_allowed(tenant: Optional[Dict[str, Any]], capability: str) -> None:

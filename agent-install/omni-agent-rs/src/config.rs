@@ -52,6 +52,10 @@ pub struct Config {
     /// `None` or empty means no service is checked (see capabilities/service_watch.rs).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub watched_services: Option<Vec<String>>,
+    /// How often each periodic collector runs (seconds), from the last heartbeat reply.
+    /// `None` until the platform says; until then the built-in defaults apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection_intervals: Option<std::collections::BTreeMap<String, u64>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

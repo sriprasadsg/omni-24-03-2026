@@ -576,4 +576,5 @@ async def report_heartbeat(
     # Verification data for the agent's uninstallers (see agent_uninstall_endpoints).
     return {"success": True, **agent_tls_trust.heartbeat_reply(payload), **await response_settings.heartbeat_reply(db, _hb_tenant_id, (existing_agent or {}).get("id") or agent_id, permitted_caps),
             "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter),
-            "enabledCapabilities": sorted(permitted_caps)}
+            "enabledCapabilities": sorted(permitted_caps),
+            "collectionIntervals": agent_capabilities.effective_intervals(_hb_tenant or _tenant, existing_agent)}

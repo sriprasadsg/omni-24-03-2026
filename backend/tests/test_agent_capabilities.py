@@ -50,6 +50,24 @@ def test_a_selection_is_checked():
             ac.validate(bad)
 
 
+def test_how_often_each_collector_runs():
+    """protects=a collector runs at the catalogue's interval unless the tenant, then the agent, sets its
+    own, and only periodic catalogue ids with whole seconds from 15 to 86400 are stored; fails_when=a
+    tenant override beats the agent's, a malformed stored value reaches agents, or a 5 s interval or a
+    non-periodic id is accepted; no_claim=the agent honouring them (Rust interval_tests)."""
+    assert ac.effective_intervals(None) == ac.DEFAULT_INTERVALS
+    assert ac.DEFAULT_INTERVALS["process_monitor"] == 300 and "agent_update" not in ac.DEFAULT_INTERVALS
+    tenant = {"agentCollectionIntervals": {"fim": 900, "process_monitor": 120}}
+    agent = {"collectionIntervals": {"fim": 1200, "ueba": True, "pii_scanner": 5, "telepathy": 60}}
+    assert ac.effective_intervals(tenant, agent) == {**ac.DEFAULT_INTERVALS, "fim": 1200, "process_monitor": 120}
+    assert ac.validate_intervals({"fim": 15, "network_discovery": 86400}) == {"fim": 15, "network_discovery": 86400}
+    assert ac.validate_intervals({}) == {}
+    for bad in ({"fim": 14}, {"fim": 86401}, {"fim": True}, {"fim": 60.5}, {"agent_update": 60},
+                {"telepathy": 60}, ["fim"]):
+        with pytest.raises(ValueError):
+            ac.validate_intervals(bad)
+
+
 def test_the_catalogue_names_every_capability_an_agent_reports():
     """protects=every capability the Rust agent implements (and the backend's capability definitions)
     is in the shared catalogue, so the Super Admin can switch each one; fails_when=a new agent capability
@@ -100,10 +118,12 @@ def _request(path):
 
 async def test_heartbeat_stores_nothing_of_an_unticked_capability(mongo_db):
     """protects=an Online agent's heartbeat keeps FIM data (ticked) but stores no logs or inventory
-    (unticked), and the reply tells the agent what it may use; fails_when=logs land in the store or
-    the agent document keeps log data; no_claim=background tasks (mocked)."""
+    (unticked), and the reply tells the agent what it may use and how often each collector runs;
+    fails_when=logs land in the store, the agent document keeps log data, or the tenant's interval
+    is not sent; no_claim=background tasks (mocked)."""
     import agent_heartbeat_endpoints as hb
     await mongo_db.tenants.insert_one({"id": T, "name": "Acme", "agentCapabilities": ["fim", "metrics_collection"],
+                                       "agentCollectionIntervals": {"fim": 900},
                                        "license": {"maxAgents": 5, "seatsUsed": 1, "inactiveReclaimDays": 30}})
     await mongo_db.agents.insert_one({"id": "a1", "tenantId": T, "hostname": "pc1", "status": "Online"})
     payload = {"hostname": "pc1", "platform": "Windows", "version": "2.1.13", "ipAddress": "10.0.0.5", "meta": {
@@ -113,6 +133,7 @@ async def test_heartbeat_stores_nothing_of_an_unticked_capability(mongo_db):
     with patch.object(hb, "get_database", return_value=mongo_db), patch.object(hb.agent_limiter, "enabled", False):
         body = await hb.report_heartbeat(_request("/api/agents/a1/heartbeat"), Response(), "a1", MagicMock(), payload, tenant)
     assert body["enabledCapabilities"] == ["agent_update", "fim", "metrics_collection"]
+    assert body["collectionIntervals"] == {**ac.DEFAULT_INTERVALS, "fim": 900}
     assert await mongo_db.logs.count_documents({}) == 0
     assert await mongo_db.fim_violations.count_documents({}) == 1
     agent = await mongo_db.agents.find_one({"id": "a1"})
@@ -158,6 +179,43 @@ async def test_only_the_super_admin_sets_a_tenants_capabilities(mongo_db):
     assert (ok.status_code, bad.status_code, refused.status_code) == (200, 400, 403)
     stored = (await mongo_db.tenants.find_one({"id": T}))["agentCapabilities"]
     assert stored == ["agent_update", "fim", "pii_scanner"]
+
+
+async def test_only_the_super_admin_sets_a_tenants_collection_intervals(mongo_db):
+    """protects=PATCH /api/tenants/{id} stores checked intervals for a Super Admin, an empty map restores
+    the defaults, an out-of-range value is refused (400) and a tenant admin is refused (403);
+    fails_when=a tenant admin slows its own agents' collectors or a 5 s interval is stored;
+    no_claim=a settings screen (there is none; the API is the only way to set them)."""
+    import tenant_endpoints
+    await mongo_db.tenants.insert_one({"id": T, "name": "Acme"})
+    app = FastAPI()
+    app.include_router(tenant_endpoints.router)
+    user = {"value": TokenData(username="o", role="Super Admin", tenant_id="platform-admin")}
+    app.dependency_overrides[tenant_endpoints.get_current_user] = lambda: user["value"]
+    with patch.object(tenant_endpoints.mongodb, "db", mongo_db), patch.object(tenant_endpoints, "get_database", lambda: mongo_db):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as client:
+            ok = await client.patch(f"/api/tenants/{T}", json={"agentCollectionIntervals": {"fim": 900}})
+            stored = (await mongo_db.tenants.find_one({"id": T}))["agentCollectionIntervals"]
+            bad = await client.patch(f"/api/tenants/{T}", json={"agentCollectionIntervals": {"fim": 5}})
+            user["value"] = TokenData(username="a", role="Tenant Admin", tenant_id=T)
+            refused = await client.patch(f"/api/tenants/{T}", json={"agentCollectionIntervals": {"fim": 86400}})
+            user["value"] = TokenData(username="o", role="Super Admin", tenant_id="platform-admin")
+            reset = await client.patch(f"/api/tenants/{T}", json={"agentCollectionIntervals": {}})
+    assert (ok.status_code, bad.status_code, refused.status_code, reset.status_code) == (200, 400, 403, 200)
+    assert stored == {"fim": 900}
+    assert (await mongo_db.tenants.find_one({"id": T}))["agentCollectionIntervals"] == {}
+
+
+async def test_the_configuration_an_agent_pulls_carries_the_effective_intervals(mongo_db):
+    """protects=GET /api/agents/{id}/capabilities/configuration (the Python agent's pull) returns the
+    catalogue defaults with the tenant's and then the agent's overrides; fails_when=the agent's
+    stale stored map or the old hard-coded table is returned instead; no_claim=the Python agent's use."""
+    import agent_core_endpoints as core
+    await mongo_db.agents.insert_one({"id": "a1", "tenantId": T, "hostname": "pc1", "collectionIntervals": {"ueba": 600}})
+    tenant = {"id": T, "agentCapabilities": ["all"], "agentCollectionIntervals": {"fim": 900, "ueba": 60}}
+    with patch.object(core, "get_database", return_value=mongo_db):
+        config = await core.get_agent_configuration("a1", tenant)
+    assert config["collectionIntervals"] == {**ac.DEFAULT_INTERVALS, "fim": 900, "ueba": 600}
 
 
 async def test_migration_020_gives_existing_tenants_every_capability_once(mongo_db):

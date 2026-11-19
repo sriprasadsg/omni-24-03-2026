@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Per-tenant agent capabilities. A Super Admin ticks the capabilities a tenant's agents may use in Manage Tenant; the list is stored in tenants.agentCapabilities (\"all\" = every capability). For that tenant the platform drops heartbeat data of an unticked capability, refuses to hand its agents an instruction that needs one, leaves it out of the configuration agents pull, and the tenant's users see and can toggle only ticked capabilities. \"alwaysOn\" capabilities cannot be unticked (the platform keeps agents up to date). Read by backend/agent_capabilities.py, components/ManageTenantModal.tsx and components/ManageAgentCapabilitiesModal.tsx.",
+  "description": "Per-tenant agent capabilities. A Super Admin ticks the capabilities a tenant's agents may use in Manage Tenant; the list is stored in tenants.agentCapabilities (\"all\" = every capability). For that tenant the platform drops heartbeat data of an unticked capability, refuses to hand its agents an instruction that needs one, leaves it out of the configuration agents pull, and the tenant's users see and can toggle only ticked capabilities. \"alwaysOn\" capabilities cannot be unticked (the platform keeps agents up to date). Read by backend/agent_capabilities.py, components/ManageTenantModal.tsx and components/ManageAgentCapabilitiesModal.tsx. \"defaultIntervalSeconds\" is how often a periodic collector runs unless the tenant (tenants.agentCollectionIntervals) or the agent (agents.collectionIntervals) sets its own; agents receive the effective intervals with every heartbeat reply.",
   "groups": [
     {
       "name": "Core Telemetry",
@@ -8,17 +8,20 @@
         {
           "id": "metrics_collection",
           "label": "Metric Collection",
-          "description": "Collects CPU, memory, disk, and network metrics in real time."
+          "description": "Collects CPU, memory, disk, and network metrics in real time.",
+          "defaultIntervalSeconds": 60
         },
         {
           "id": "log_collection",
           "label": "Log Collection",
-          "description": "Gathers and forwards system, application, and security logs."
+          "description": "Gathers and forwards system, application, and security logs.",
+          "defaultIntervalSeconds": 300
         },
         {
           "id": "process_monitor",
           "label": "Process Monitor",
-          "description": "Tracks running processes, parent-child chains, and resource usage."
+          "description": "Tracks running processes, parent-child chains, and resource usage.",
+          "defaultIntervalSeconds": 300
         },
         {
           "id": "log_shipper",
@@ -33,12 +36,14 @@
         {
           "id": "vulnerability_scanning",
           "label": "Vulnerability Scanning",
-          "description": "Scans installed packages and libraries for known CVEs."
+          "description": "Scans installed packages and libraries for known CVEs.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "fim",
           "label": "File Integrity Monitoring",
-          "description": "Detects unauthorized changes to critical system files."
+          "description": "Detects unauthorized changes to critical system files.",
+          "defaultIntervalSeconds": 600
         },
         {
           "id": "real_time_fim",
@@ -48,22 +53,26 @@
         {
           "id": "compliance_enforcement",
           "label": "Compliance Enforcement",
-          "description": "Enforces security baselines and policy controls."
+          "description": "Enforces security baselines and policy controls.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "runtime_security",
           "label": "Runtime Security (XDR)",
-          "description": "Detects and blocks malicious runtime behavior via XDR."
+          "description": "Detects and blocks malicious runtime behavior via XDR.",
+          "defaultIntervalSeconds": 180
         },
         {
           "id": "edr_realtime",
           "label": "EDR Real-Time",
-          "description": "Continuous endpoint telemetry feeding the EDR pipeline."
+          "description": "Continuous endpoint telemetry feeding the EDR pipeline.",
+          "defaultIntervalSeconds": 15
         },
         {
           "id": "persistence_detection",
           "label": "Persistence Detection",
-          "description": "Identifies attacker persistence mechanisms (registry, crons, services)."
+          "description": "Identifies attacker persistence mechanisms (registry, crons, services).",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "deception_monitor",
@@ -88,17 +97,20 @@
         {
           "id": "network_discovery",
           "label": "Network Discovery",
-          "description": "Discovers and maps local network topology and open ports."
+          "description": "Discovers and maps local network topology and open ports.",
+          "defaultIntervalSeconds": 7200
         },
         {
           "id": "cloud_metadata",
           "label": "Cloud Metadata Collector",
-          "description": "Collects cloud instance metadata from AWS/Azure/GCP."
+          "description": "Collects cloud instance metadata from AWS/Azure/GCP.",
+          "defaultIntervalSeconds": 900
         },
         {
           "id": "web_monitor",
           "label": "Web Monitor",
-          "description": "Monitors web endpoint availability, TLS health, and response times."
+          "description": "Monitors web endpoint availability, TLS health, and response times.",
+          "defaultIntervalSeconds": 300
         },
         {
           "id": "remote_access",
@@ -113,12 +125,14 @@
         {
           "id": "pii_scanner",
           "label": "PII Data Scanner",
-          "description": "Scans file systems and memory for personally identifiable information."
+          "description": "Scans file systems and memory for personally identifiable information.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "sbom_analysis",
           "label": "SBOM Analysis",
-          "description": "Analyzes Software Bill of Materials for supply-chain vulnerabilities."
+          "description": "Analyzes Software Bill of Materials for supply-chain vulnerabilities.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "compliance_evidence_collector",
@@ -138,22 +152,26 @@
         {
           "id": "predictive_health",
           "label": "Predictive Health AI",
-          "description": "Uses ML to predict agent and host health degradation."
+          "description": "Uses ML to predict agent and host health degradation.",
+          "defaultIntervalSeconds": 600
         },
         {
           "id": "ueba",
           "label": "Behavior Analytics (UEBA)",
-          "description": "Detects insider threats and anomalous user/entity behavior."
+          "description": "Detects insider threats and anomalous user/entity behavior.",
+          "defaultIntervalSeconds": 300
         },
         {
           "id": "ebpf_tracing",
           "label": "eBPF Kernel Tracing",
-          "description": "Provides deep kernel-level syscall visibility using eBPF."
+          "description": "Provides deep kernel-level syscall visibility using eBPF.",
+          "defaultIntervalSeconds": 60
         },
         {
           "id": "shadow_ai",
           "label": "Shadow AI Detector",
-          "description": "Identifies unauthorized AI model usage and data leakage risks."
+          "description": "Identifies unauthorized AI model usage and data leakage risks.",
+          "defaultIntervalSeconds": 1800
         }
       ]
     },
@@ -163,7 +181,8 @@
         {
           "id": "system_patching",
           "label": "Autonomous Patching",
-          "description": "Automatically applies OS and package patches on schedule."
+          "description": "Automatically applies OS and package patches on schedule.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "patch_installer",
@@ -173,7 +192,8 @@
         {
           "id": "software_management",
           "label": "Software Management",
-          "description": "Manages software installation, updates, and removal."
+          "description": "Manages software installation, updates, and removal.",
+          "defaultIntervalSeconds": 3600
         },
         {
           "id": "remediation_executor",
@@ -204,7 +224,8 @@
         {
           "id": "process_injection_simulation",
           "label": "Injection Simulator",
-          "description": "Simulates process injection attacks to validate EDR detection."
+          "description": "Simulates process injection attacks to validate EDR detection.",
+          "defaultIntervalSeconds": 86400
         }
       ]
     },

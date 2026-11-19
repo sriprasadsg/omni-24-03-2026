@@ -208,6 +208,9 @@ class TenantUpdate(BaseModel):
     purchasedFrameworks: List[str] | None = Field(None, max_length=500)
     # Agent capabilities the tenant's agents may use (shared/agent-capabilities.json). Super Admin only.
     agentCapabilities: List[str] | None = Field(None, max_length=200)
+    # How often each periodic agent capability runs (seconds; overrides the catalogue's
+    # defaultIntervalSeconds, an empty map restores them). Super Admin only.
+    agentCollectionIntervals: Dict[str, int] | None = None
 
 
 @router.patch("/{tenant_id}", dependencies=[Depends(TENANT_MANAGEMENT_GUARD)])
@@ -228,7 +231,8 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
         # Subscription tier, feature flags and purchased frameworks are billing-controlled —
         # only super admin may change them
         if (data.subscriptionTier is not None or data.enabledFeatures is not None
-                or data.purchasedFrameworks is not None or data.agentCapabilities is not None):
+                or data.purchasedFrameworks is not None or data.agentCapabilities is not None
+                or data.agentCollectionIntervals is not None):
             raise HTTPException(
                 status_code=403,
                 detail="Subscription tier, feature, compliance framework and agent capability changes require Super Admin. Contact support to upgrade.",
@@ -272,6 +276,11 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         invalidate_cache("agents:*")  # agent lists carry each tenant's allowed capabilities
+    if data.agentCollectionIntervals is not None:
+        try:
+            update_data["agentCollectionIntervals"] = agent_capabilities.validate_intervals(data.agentCollectionIntervals)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     
     if new_plan is not None:
         try:
