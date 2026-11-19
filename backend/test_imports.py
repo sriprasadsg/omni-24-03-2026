@@ -21,7 +21,6 @@ try:
     print("Importing jobs_endpoints...")
     print("Importing health_service...")
     print("Importing slowapi...")
-    print("Importing network_traffic_simulator...")
     print("Importing websocket_manager...")
     print("All imports SUCCESSFUL")
 except Exception as e:
