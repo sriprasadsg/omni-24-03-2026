@@ -60,4 +60,26 @@ describe('LogSourcesPanel', () => {
         expect(entra).toMatchObject({ azureTenantId: list.entra.azureTenantId, clientId: list.entra.clientId });
         expect('secret' in entra).toBe(false);
     });
+
+    it('lists authentik when the platform has it, sends its address and token, and still lists the cloud four without it', async () => {
+        const withAk = { ...list, authentik: { name: 'authentik', connected: false } };
+        authFetch.mockImplementation(async (url: string, init?: { method?: string }) =>
+            (init?.method === 'PUT' ? ok({ name: 'authentik', connected: true, enabled: true, baseUrl: 'http://127.0.0.1:9000' }) : ok(withAk)));
+        const { unmount } = render(<LogSourcesPanel />);
+        expect(await screen.findByText('authentik')).toBeTruthy();
+        const connect = screen.getAllByRole('button', { name: 'Connect' });
+        fireEvent.click(connect[connect.length - 1]);
+        fireEvent.change(screen.getByLabelText('authentik address'), { target: { value: ' http://127.0.0.1:9000 ' } });
+        fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'Ak'.repeat(30) } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save authentik' }));
+        await waitFor(() => expect(sent('PUT')).toHaveLength(1));
+        expect(sent('PUT')[0][0]).toBe('/api/security/soc/log-sources/authentik');
+        expect(JSON.parse(sent('PUT')[0][1].body)).toEqual({ baseUrl: 'http://127.0.0.1:9000', enabled: true, secret: 'Ak'.repeat(30) });
+        unmount();
+        authFetch.mockReset();
+        authFetch.mockImplementation(async () => ok(list));
+        render(<LogSourcesPanel />);
+        expect(await screen.findByText('Google Workspace')).toBeTruthy();
+        expect(screen.queryByText('authentik')).toBeNull();
+    });
 });

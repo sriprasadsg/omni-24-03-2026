@@ -100,7 +100,7 @@ async def test_settings_keep_the_secret_encrypted_and_check_what_is_given(world)
     stored = await db.log_connectors.find({"tenantId": T}).to_list(10)
     assert not any(s in json.dumps(stored, default=str) for s in (SECRET, AWS_SECRET, "BEGIN PRIVATE KEY"))
     listed = await lc.list_config(db, T)
-    assert set(listed) == {"entra", "m365", "aws", "google"} and not listed["m365"]["connected"]
+    assert set(listed) == {"entra", "m365", "aws", "google", "authentik"} and not listed["m365"]["connected"]
     assert "secret" not in json.dumps(listed) and "cursor" not in listed["entra"]
     for provider, body in (("entra", {"azureTenantId": "contoso", "clientId": CID, "secret": "x"}),
                            ("m365", {"azureTenantId": TID, "clientId": CID}),
@@ -246,3 +246,54 @@ async def test_migration_044_adds_the_library_rules_once_and_keeps_tuning(world)
     await migration.up(db)
     assert await db.siem_rules.count_documents({"id": {"$regex": "^lib-(entra|m365|aws|gws)-"}}) == 12
     assert (await db.siem_rules.find_one({"id": "lib-aws-root-use"}))["enabled"] is False
+
+
+def _ak(pk, action, minute, user="eve", ctx=None, ip="203.0.113.7"):
+    who = {"pk": 0, "username": "AnonymousUser"} if action == "login_failed" else {"pk": 5, "username": user, "email": f"{user}@corp.example"}
+    return {"pk": pk, "action": action, "app": "authentik.events", "client_ip": ip, "user": who,
+            "context": ctx if ctx is not None else ({"username": user} if action == "login_failed" else {}),
+            "created": f"2026-11-19T11:{minute:02d}:00.250000Z"}
+
+
+@pytest.mark.asyncio
+async def test_authentik_events_newest_first_until_one_already_read(world, monkeypatch):
+    """protects=authentik (open source) is saved with its address and token (token encrypted, address checked against
+    the self-hosted list or the public-https rule), a pull walks the newest-first pages and stops at the first event
+    already read, failed sign-ins carry the name that was tried, a created user is account_created, six failures hit
+    migration 046's brute-force rule, and a second pull stores nothing; fails_when=a private address is accepted
+    unlisted, the pull reads every page every time, or failed sign-ins are all filed under AnonymousUser;
+    no_claim=authentik's own retention of events"""
+    db, _, _ = world
+    m046 = importlib.import_module("migrations.046_authentik_rules")
+    await m046.up(db)
+    monkeypatch.setenv("OMNI_SELF_HOSTED", "https://auth.example.com")
+    token = "Ak" * 30
+    pages = {1: [_ak("e9", "model_created", 59, user="admin", ctx={"model": {"model_name": "user", "name": "newhire", "app": "authentik_core"}})]
+             + [_ak(f"f{i}", "login_failed", 58 - i) for i in range(4)],
+             2: [_ak(f"f{i}", "login_failed", 58 - i) for i in range(4, 6)] + [_ak("old", "login", 40, user="ann")]}
+    seen = []
+
+    def handler(request: httpx.Request):
+        page = int(request.url.params["page"])
+        seen.append((str(request.url.copy_with(query=None)), page, request.headers["authorization"]))
+        return httpx.Response(200, json={"pagination": {"next": page + 1 if page < 2 else 0}, "results": pages[page]})
+    monkeypatch.setattr(src, "_client", lambda **kw: REAL(transport=httpx.MockTransport(handler), **kw))
+    for body in ({"baseUrl": "https://auth.example.com/if/admin", "secret": token}, {"baseUrl": "https://auth.example.com", "secret": "short"},
+                 {"baseUrl": "http://10.0.0.7:9000", "secret": token}):
+        with pytest.raises(lc.ConnectorError):
+            await lc.save_config(db, T, "authentik", body, "admin@t")
+    out = await lc.save_config(db, T, "authentik", {"baseUrl": "https://auth.example.com/", "secret": token}, "admin@t")
+    assert out["connected"] and out["baseUrl"] == "https://auth.example.com" and token not in json.dumps(await _row(db, "authentik"), default=str)
+    cursor = {"events": "2026-11-19T11:45:00Z"}
+    await db.log_connectors.update_one({"tenantId": T, "provider": "authentik"}, {"$set": {"cursor": cursor}})
+    res = await lc.run(db, await _row(db, "authentik"), NOW)
+    assert res == {"ok": True, "read": 7, "new": 7, "hits": 1}  # "old" (11:40) is before the cursor: not read
+    assert seen[0] == ("https://auth.example.com/api/v3/events/events/", 1, f"Bearer {token}") and [s[1] for s in seen] == [1, 2]
+    failed = await db.soc_log_events.count_documents({"tenantId": T, "source": "authentik", "action": "login_failed", "user": "eve"})
+    created = await db.soc_log_events.find_one({"tenantId": T, "source": "authentik", "operation": "model_created"}, {"_id": 0})
+    assert failed == 6 and created["action"] == "account_created" and created["user"] == "admin@corp.example"
+    assert {h["ruleId"] async for h in db.siem_hits.find({"tenantId": T})} == {"lib-authentik-login-failures"}
+    row = await _row(db, "authentik")
+    assert row["cursor"] == {"events": "2026-11-19T11:59:00Z"}
+    seen.clear()
+    assert (await lc.run(db, row, NOW + timedelta(minutes=5)))["new"] == 0 and [s[1] for s in seen] == [1]

@@ -1,5 +1,5 @@
-"""Cloud log connectors (Wave 3): Microsoft Entra ID, Microsoft 365, AWS CloudTrail and Google Workspace logs flow into
-the SIEM pipeline, so library and organization rules, Hunting and the SOC console see them like agent logs.
+"""Cloud log connectors (Wave 3): Microsoft Entra ID, Microsoft 365, AWS CloudTrail, Google Workspace and authentik (an
+open-source identity provider the organization runs itself) logs flow into the SIEM pipeline, so library and organization rules, Hunting and the SOC console see them like agent logs.
 
 One row per organization and provider in ``log_connectors``: the read-only credentials (the secret part encrypted at
 rest, never returned), a cursor per stream, and the outcome of the last run (``lastRunAt``, ``lastSuccessAt``,
@@ -13,19 +13,22 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 import audit_ledger
 import log_connector_sources as sources
+import self_hosted
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = {"entra": "Microsoft Entra ID", "m365": "Microsoft 365", "aws": "AWS CloudTrail", "google": "Google Workspace"}
+PROVIDERS = {"entra": "Microsoft Entra ID", "m365": "Microsoft 365", "aws": "AWS CloudTrail", "google": "Google Workspace",
+             "authentik": "authentik"}
 INTERVAL = 300
 GUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 AWS_KEY_ID = re.compile(r"^(AKIA|ASIA)[A-Z0-9]{16}$")
 AWS_REGION = re.compile(r"^[a-z]{2}(-gov)?-[a-z]+-\d$")
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-SHOWN = ("provider", "enabled", "azureTenantId", "clientId", "accessKeyId", "regions", "adminEmail", "serviceAccount",
+SHOWN = ("provider", "enabled", "azureTenantId", "clientId", "accessKeyId", "regions", "adminEmail", "serviceAccount", "baseUrl",
          "updatedBy", "updatedAt", "lastRunAt", "lastSuccessAt", "lastError", "lastCount", "totalEvents")
 
 
@@ -58,6 +61,17 @@ def _settings(provider: str, body: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(regions, list) or not 1 <= len(regions) <= 10 or not all(isinstance(r, str) and AWS_REGION.match(r) for r in regions):
             raise ConnectorError("regions must list 1 to 10 AWS regions such as eu-west-1")
         return {"accessKeyId": key_id, "regions": sorted(set(regions))}
+    if provider == "authentik":
+        base = str(body.get("baseUrl") or "").strip().rstrip("/")
+        try:
+            p = urlsplit(base)
+            ok = p.scheme in ("http", "https") and bool(p.hostname) and p.path in ("", "/") and not (p.query or p.fragment or p.username)
+            p.port  # noqa: B018  (raises on a malformed port)
+        except ValueError:
+            ok = False
+        if not ok:
+            raise ConnectorError("baseUrl is authentik's address only, such as https://auth.example.com")
+        return {"baseUrl": base}
     email = str(body.get("adminEmail") or "").strip()
     if not EMAIL.match(email):
         raise ConnectorError("adminEmail is the Google Workspace admin the service account acts as")
@@ -75,6 +89,8 @@ def _check_secret(provider: str, secret: str) -> Dict[str, Any]:
         if info.get("type") != "service_account" or not info.get("client_email") or not info.get("private_key"):
             raise ConnectorError("That JSON is not a service account key (type service_account, client_email, private_key)")
         return {"serviceAccount": info["client_email"]}
+    if provider == "authentik" and not re.fullmatch(r"[A-Za-z0-9]{20,128}", secret):
+        raise ConnectorError("Paste the key of an authentik API token (Directory > Tokens and App passwords)")
     return {}
 
 
@@ -89,6 +105,11 @@ async def save_config(db, tenant: str, provider: str, body: Dict[str, Any], who:
         raise ConnectorError("The secret is required")
     doc = {"tenantId": tenant, "provider": provider, **_settings(provider, body),
            "enabled": bool(body.get("enabled", True)), "updatedBy": who, "updatedAt": _now().isoformat()}
+    if provider == "authentik":
+        try:
+            await self_hosted.check_url(doc["baseUrl"] + "/")
+        except ValueError as exc:
+            raise ConnectorError(f"authentik's address is refused: {exc}")
     if secret:
         doc.update(_check_secret(provider, secret), secret=get_encryption_service().encrypt(secret))
     await raw.log_connectors.update_one({"tenantId": tenant, "provider": provider},

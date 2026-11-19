@@ -4,28 +4,30 @@ import { authFetch } from '../../../services/apiService';
 import { showToast } from '../../../utils/toast';
 import { field, primaryButton, subhead } from './SocKit';
 
-export type LogProvider = 'entra' | 'm365' | 'aws' | 'google';
+export type LogProvider = 'entra' | 'm365' | 'aws' | 'google' | 'authentik';
 export interface LogSource {
     name: string; connected: boolean; enabled?: boolean; azureTenantId?: string; clientId?: string; accessKeyId?: string; regions?: string[];
-    adminEmail?: string; serviceAccount?: string; lastRunAt?: string | null; lastSuccessAt?: string | null; lastError?: string | null;
+    adminEmail?: string; serviceAccount?: string; baseUrl?: string; lastRunAt?: string | null; lastSuccessAt?: string | null; lastError?: string | null;
     lastCount?: number | null; totalEvents?: number | null;
 }
-type Sources = Record<LogProvider, LogSource>;
+type Sources = Partial<Record<LogProvider, LogSource>>;
 
 const PATH = '/api/security/soc/log-sources';
-const ORDER: LogProvider[] = ['entra', 'm365', 'aws', 'google'];
+const ORDER: LogProvider[] = ['entra', 'm365', 'aws', 'google', 'authentik'];
+const CORE: LogProvider[] = ['entra', 'm365', 'aws', 'google'];  // a platform without authentik still lists these
 const NEEDS: Record<LogProvider, string> = {
     entra: 'An Entra app registration with the Graph application permission AuditLog.Read.All and admin consent. Sign-in logs need Entra ID P1 or P2.',
     m365: 'An Entra app registration with the Office 365 Management APIs permission ActivityFeed.Read and admin consent, and audit logging on in Microsoft Purview.',
     aws: 'An IAM user or role key allowed only cloudtrail:LookupEvents. Management events, per region.',
     google: 'A service account with domain-wide delegation for admin.reports.audit.readonly, acting as a Workspace admin.',
+    authentik: 'Your own authentik (open source): its address and an API token of a user allowed to view events. A public https address, or one on this server\'s self-hosted list.',
 };
 const when = (t?: string | null) => (t ? new Date(t).toLocaleString() : 'never');
 const detail = async (res: Response, fallback: string) => { const d = await res.json().catch(() => ({})); return typeof d?.detail === 'string' ? d.detail : fallback; };
 
 const SourceForm: React.FC<{ provider: LogProvider; source: LogSource; onSaved: (s: LogSource) => void }> = ({ provider, source, onSaved }) => {
     const [v, setV] = useState({ azureTenantId: source.azureTenantId ?? '', clientId: source.clientId ?? '', accessKeyId: source.accessKeyId ?? '',
-        regions: (source.regions ?? ['us-east-1']).join(', '), adminEmail: source.adminEmail ?? '', secret: '', enabled: source.enabled ?? true });
+        regions: (source.regions ?? ['us-east-1']).join(', '), adminEmail: source.adminEmail ?? '', baseUrl: source.baseUrl ?? '', secret: '', enabled: source.enabled ?? true });
     const set = (k: keyof typeof v, value: string | boolean) => setV(x => ({ ...x, [k]: value }));
     const keep = source.connected ? 'Saved; leave blank to keep' : '';
     const input = (k: keyof typeof v, label: string, type = 'text') => (
@@ -35,7 +37,7 @@ const SourceForm: React.FC<{ provider: LogProvider; source: LogSource; onSaved: 
     );
     const save = async () => {
         const base = provider === 'aws' ? { accessKeyId: v.accessKeyId.trim(), regions: v.regions.split(',').map(r => r.trim()).filter(Boolean) }
-            : provider === 'google' ? { adminEmail: v.adminEmail.trim() } : { azureTenantId: v.azureTenantId.trim(), clientId: v.clientId.trim() };
+            : provider === 'google' ? { adminEmail: v.adminEmail.trim() } : provider === 'authentik' ? { baseUrl: v.baseUrl.trim() } : { azureTenantId: v.azureTenantId.trim(), clientId: v.clientId.trim() };
         const res = await authFetch(`${PATH}/${provider}`, { method: 'PUT', body: JSON.stringify({ ...base, enabled: v.enabled, ...(v.secret.trim() ? { secret: v.secret.trim() } : {}) }) });
         if (res.ok) { onSaved(await res.json()); setV(x => ({ ...x, secret: '' })); showToast(`${source.name} saved`, 'success'); } else showToast(await detail(res, 'Not saved'), 'error');
     };
@@ -49,6 +51,7 @@ const SourceForm: React.FC<{ provider: LogProvider; source: LogSource; onSaved: 
                     <label className="text-sm text-gray-700 dark:text-gray-200 space-y-1 sm:col-span-2"><span className="block">Service account JSON key</span>
                         <textarea rows={3} value={v.secret} placeholder={keep} onChange={e => set('secret', e.target.value)} className={`${field} w-full h-auto px-2 py-1 font-mono text-xs`} />
                     </label></>}
+                {provider === 'authentik' && <>{input('baseUrl', 'authentik address')}{input('secret', 'API token', 'password')}</>}
             </div>
             <label className="text-sm text-gray-700 dark:text-gray-200 inline-flex items-center gap-2"><input type="checkbox" checked={v.enabled} onChange={e => set('enabled', e.target.checked)} />Pull every 5 minutes</label>
             <div><button type="button" className={primaryButton} onClick={save}>Save {source.name}</button></div>
@@ -56,37 +59,38 @@ const SourceForm: React.FC<{ provider: LogProvider; source: LogSource; onSaved: 
     );
 };
 
-/** Entra ID, Microsoft 365, AWS CloudTrail and Google Workspace logs into the SIEM pipeline: rules, Hunting and the queue see them. */
+/** Entra ID, Microsoft 365, AWS CloudTrail, Google Workspace and authentik logs into the SIEM pipeline: rules, Hunting and the queue see them. */
 export const LogSourcesPanel: React.FC = () => {
     const [sources, setSources] = useState<Sources | null>(null);
     const [open, setOpen] = useState<LogProvider | null>(null);
     const [busy, setBusy] = useState<LogProvider | null>(null);
     // An answer without every source (an older platform, an error body) shows nothing rather than breaking the tab.
     const load = () => authFetch(PATH).then(r => (r.ok ? r.json() : null))
-        .then(d => d && ORDER.every(p => typeof d[p]?.name === 'string') && setSources(d)).catch(() => {});
+        .then(d => d && CORE.every(p => typeof d[p]?.name === 'string') && setSources(d)).catch(() => {});
     useEffect(() => { load(); }, []);
     if (!sources) return null;
     const pull = async (p: LogProvider) => {
         setBusy(p);
         const res = await authFetch(`${PATH}/${p}/pull`, { method: 'POST' });
         const d = res.ok ? await res.json() : null;
-        if (d?.ok) showToast(`${sources[p].name}: ${d.new} new events, ${d.hits} rule hits`, 'success');
+        if (d?.ok) showToast(`${sources[p]?.name}: ${d.new} new events, ${d.hits} rule hits`, 'success');
         else showToast(d ? d.error : await detail(res, 'Pull failed'), 'error');
         await load();
         setBusy(null);
     };
     const remove = async (p: LogProvider) => {
-        if (!window.confirm(`Disconnect ${sources[p].name}? Events already read stay in the SIEM.`)) return;
+        if (!window.confirm(`Disconnect ${sources[p]?.name}? Events already read stay in the SIEM.`)) return;
         const res = await authFetch(`${PATH}/${p}`, { method: 'DELETE' });
-        if (res.ok) { setOpen(null); await load(); showToast(`${sources[p].name} disconnected`, 'success'); } else showToast(await detail(res, 'Not removed'), 'error');
+        if (res.ok) { setOpen(null); await load(); showToast(`${sources[p]?.name} disconnected`, 'success'); } else showToast(await detail(res, 'Not removed'), 'error');
     };
     return (
         <section aria-label="Cloud log sources" className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card p-4 space-y-3">
             <h3 className={`${subhead} flex items-center gap-1.5`}><CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />Cloud log sources</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Sign-ins and audit events from your cloud services, read-only, every 5 minutes. SIEM rules, Hunting and the alert queue use them like agent logs.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Sign-ins and audit events from your cloud services and your own authentik, read-only, every 5 minutes. SIEM rules, Hunting and the alert queue use them like agent logs.</p>
             <ul className="divide-y divide-gray-200/80 dark:divide-white/[0.07]">
                 {ORDER.map(p => {
                     const s = sources[p];
+                    if (!s) return null;
                     return (
                         <li key={p} className="py-2">
                             <div className="flex flex-wrap items-center gap-2">

@@ -1,7 +1,7 @@
 """What each cloud log connector reads and how its records become SIEM events (Wave 3; see log_connectors).
 
 Sources: entra_id (sign-ins and directory audits), m365, aws_cloudtrail, google_workspace (the names migration 039 gave
-the descriptive library rules). Every ``fetch_*`` takes the connector's settings (secret decrypted), its cursor (ISO time of the newest record already
+the descriptive library rules), and authentik (open source, migration 046's rules). Every ``fetch_*`` takes the connector's settings (secret decrypted), its cursor (ISO time of the newest record already
 read, per stream) and the current time, and returns (events, new cursor). Events have the siem_pipeline shape:
 source, action, outcome, user, srcIp, host, message, timestamp and a ``key`` unique per record, so a record read twice
 (cursors overlap by design) is stored once. Errors raise SourceError with the provider's HTTP status, never a secret.
@@ -13,6 +13,9 @@ source, action, outcome, user, srcIp, host, message, timestamp and a ``key`` uni
 * aws    - CloudTrail LookupEvents (management events, read-only key with cloudtrail:LookupEvents), per region.
 * google - Admin SDK Reports API, applications login and admin; a service account with domain-wide delegation for
            https://www.googleapis.com/auth/admin.reports.audit.readonly, acting as an admin.
+* authentik - the organization's own authentik (open-source identity provider): /api/v3/events/events/ with an API
+           token of a user allowed to view events. Its address must be public https or on the server operator's
+           self-hosted list (self_hosted).
 """
 import asyncio
 import json
@@ -20,6 +23,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+
+import self_hosted
 
 GRAPH = "https://graph.microsoft.com/v1.0"
 MANAGE = "https://manage.office.com/api/v1.0"
@@ -287,4 +292,63 @@ async def fetch_google(cfg: Dict[str, Any], cursor: Cursor, now: datetime) -> Tu
     return out, cursor
 
 
-FETCH = {"entra": fetch_entra, "m365": fetch_m365, "aws": fetch_aws, "google": fetch_google}
+# ------------------------------------------------------------------------------------------------ authentik
+
+AUTHENTIK_ACTIONS = {"login": "login_success", "login_failed": "login_failed", "logout": "logout",
+                     "suspicious_request": "login_suspicious", "password_set": "password_reset", "user_write": "account_changed",
+                     "impersonation_started": "impersonation", "impersonation_ended": "impersonation_ended",
+                     "secret_view": "secret_view", "authorize_application": "app_authorized", "model_created": "directory_change",
+                     "model_updated": "directory_change", "model_deleted": "directory_change"}
+
+
+def _ts(value: Optional[str]) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def authentik_event(e: Dict[str, Any]) -> Event:
+    name, ctx, user = e.get("action") or "", e.get("context") or {}, e.get("user") or {}
+    model = ctx.get("model") if isinstance(ctx.get("model"), dict) else {}
+    action = AUTHENTIK_ACTIONS.get(name, "activity")
+    if model.get("model_name") == "user" and name in ("model_created", "model_deleted"):
+        action = "account_created" if name == "model_created" else "account_deleted"
+    # a failed login is the anonymous user's event; the name that was tried is in the context
+    who = ctx.get("username") if user.get("username") in (None, "AnonymousUser") else (user.get("email") or user.get("username"))
+    what = f" {model.get('model_name')} {model.get('name')}" if model.get("name") else ""
+    return _event("authentik", str(e.get("pk")), action, "failure" if action == "login_failed" else "success", e.get("created"),
+                  who if isinstance(who, str) else None, e.get("client_ip"), None, f"authentik {name}{what}", operation=name, app=e.get("app"))
+
+
+async def fetch_authentik(cfg: Dict[str, Any], cursor: Cursor, now: datetime) -> Tuple[List[Event], Cursor]:
+    """Newest events first, page by page, until one already read (authentik's event list has no time filter)."""
+    url = cfg["baseUrl"].rstrip("/") + "/api/v3/events/events/"
+    try:
+        await self_hosted.check_url(url)
+    except ValueError as exc:
+        raise SourceError(f"authentik's address is refused: {exc}", 400)
+    since = _since(cursor, "events", now)
+    out, newest = [], None
+    async with _client(headers={"Authorization": f"Bearer {cfg['secret']}"}, verify=self_hosted.verify(url)) as c:
+        for page in range(1, MAX_PAGES + 1):
+            try:
+                r = await c.get(url, params={"ordering": "-created", "page": page, "page_size": 100})
+            except httpx.HTTPError as exc:
+                raise SourceError(f"authentik could not be reached ({type(exc).__name__})")
+            if r.status_code != 200:
+                raise _refused("authentik", r)
+            body, older = r.json(), False
+            for e in body.get("results") or []:
+                created = _ts(e.get("created"))
+                if not created or created <= since:
+                    older = True
+                    break
+                out.append(authentik_event(e))
+                newest = max(newest or created, created)
+            if older or not (body.get("pagination") or {}).get("next"):
+                break
+    return out, {**cursor, "events": _iso(newest) if newest else _iso(since)}
+
+
+FETCH = {"entra": fetch_entra, "m365": fetch_m365, "aws": fetch_aws, "google": fetch_google, "authentik": fetch_authentik}
