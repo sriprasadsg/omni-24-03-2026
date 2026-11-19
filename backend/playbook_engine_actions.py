@@ -364,6 +364,8 @@ class PlaybookActionsMixin:
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
 
+        import self_hosted
+
         to_list: list = params.get("to") or []
         if isinstance(to_list, str):
             to_list = [t.strip() for t in to_list.split(",")]
@@ -389,7 +391,8 @@ class PlaybookActionsMixin:
 
                 def _smtp_send():
                     with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as srv:
-                        srv.starttls()
+                        # the server's certificate is checked (system trust, or the operator's pin for a self-hosted relay)
+                        srv.starttls(context=self_hosted.ssl_context(f"smtp://{smtp_host}:{smtp_port}"))
                         if smtp_pass:
                             srv.login(smtp_user, smtp_pass)
                         srv.sendmail(smtp_from, to_list, msg.as_string())

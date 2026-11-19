@@ -47,3 +47,43 @@ def test_a_pinned_certificate_is_the_only_trust_for_its_origin(monkeypatch, tmp_
     pinned, default = sh.ssl_context("smtp://localhost:1025"), sh.ssl_context("smtp://smtp.example.com:587")
     assert pinned.verify_mode == ssl.CERT_REQUIRED and pinned.check_hostname
     assert len(pinned.get_ca_certs()) == 1 and len(default.get_ca_certs()) != 1
+
+
+@pytest.mark.asyncio
+async def test_playbook_email_checks_the_mail_servers_certificate(monkeypatch):
+    """protects=the playbook "send email" action upgrades with STARTTLS using a verifying context (the pin for a
+    listed relay); fails_when=starttls() runs without a context, so any certificate is accepted; no_claim=delivery"""
+    import smtplib
+    from playbook_engine_actions import PlaybookActionsMixin
+    seen = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            seen["server"] = (host, port)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def starttls(self, context=None):
+            seen["context"] = context
+
+        def login(self, user, password):
+            pass
+
+        def sendmail(self, sender, to, message):
+            seen["to"] = to
+
+    class Engine(PlaybookActionsMixin):
+        import logging
+        logger = logging.getLogger("test")
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    for key, value in {"SMTP_HOST": "localhost", "SMTP_PORT": "1025", "SMTP_USER": "omni", "SMTP_PASS": "x"}.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("OMNI_SELF_HOSTED", "")
+    out = await Engine()._action_send_email({"to": "soc@example.com", "subject": "s", "body": "b"}, {})
+    assert out.startswith("Email sent") and seen["to"] == ["soc@example.com"]
+    assert isinstance(seen["context"], ssl.SSLContext) and seen["context"].verify_mode == ssl.CERT_REQUIRED
