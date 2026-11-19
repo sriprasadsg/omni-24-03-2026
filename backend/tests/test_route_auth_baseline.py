@@ -57,7 +57,14 @@ REVIEWED_UNAUTHENTICATED = frozenset({
         ("GET", "Users"), ("POST", "Users"), ("GET", "Users/{user_id}"), ("PUT", "Users/{user_id}"),
         ("PATCH", "Users/{user_id}"), ("DELETE", "Users/{user_id}"),
         ("GET", "Groups"), ("POST", "Groups"), ("GET", "Groups/{group_id}"), ("PUT", "Groups/{group_id}"),
-        ("PATCH", "Groups/{group_id}"), ("DELETE", "Groups/{group_id}"))},
+        ("PATCH", "Groups/{group_id}"), ("DELETE", "Groups/{group_id}"),
+        # 8df7b559b / b90a8a588: one-item discovery, .search, read-only refusals and the SCIM-form 404, all on
+        # scim_caller as well
+        ("GET", "ResourceTypes/{name}"), ("GET", "Schemas/{schema_id}"),
+        ("POST", ".search"), ("POST", "Users/.search"), ("POST", "Groups/.search"),
+        *{(m, p) for m in ("POST", "PUT", "PATCH", "DELETE")
+          for p in ("ServiceProviderConfig", "ResourceTypes", "ResourceTypes/{name}", "Schemas", "Schemas/{schema_id}")},
+        *{(m, "{path:path}") for m in ("GET", "POST", "PUT", "PATCH", "DELETE")})},
     # Watchdog bearer token, loopback only, proxy headers refused (Phase 82)
     ("POST", "/api/internal/watchdog/sync"), ("POST", "/api/internal/watchdog/results"),
     # Public content
