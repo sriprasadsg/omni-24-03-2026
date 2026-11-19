@@ -9,11 +9,12 @@ the key). Keys stored in the platform's own settings (VirusTotal, NVD on Securit
 import asyncio
 import os
 import smtplib
-import ssl
 from email.message import EmailMessage
 from typing import Any, Dict, List, Optional
 
 import httpx
+
+import self_hosted
 
 TIMEOUT = 15.0
 EICAR_SHA256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
@@ -70,7 +71,7 @@ def _send_mail(to: str) -> None:
     msg.set_content("This is a test from Platform health. If it arrived, email alerts and password reset can be sent.")
     with smtplib.SMTP(host, port, timeout=TIMEOUT) as s:
         if port != 25:
-            s.starttls(context=ssl.create_default_context())
+            s.starttls(context=self_hosted.ssl_context(f"smtp://{host}:{port}"))
         s.login(_env("SMTP_USER"), _env("SMTP_PASS"))
         s.send_message(msg)
 

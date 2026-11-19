@@ -7,6 +7,8 @@ import logging
 from email.message import EmailMessage
 import aiosmtplib
 
+import self_hosted
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +55,7 @@ async def send_email_async(
             password=smtp_password or None,
             use_tls=use_tls,
             start_tls=start_tls,
+            tls_context=self_hosted.ssl_context(f"smtp://{smtp_host}:{smtp_port}"),
         )
         logger.info("[Email] Sent email to %d recipient(s)", recipients)
         return True

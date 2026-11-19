@@ -12,6 +12,7 @@ import logging
 from cryptography.fernet import Fernet
 import os
 from app_env import is_production
+import self_hosted
 import base64
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class EmailService:
 
             # Run blocking SMTP I/O in a thread pool to avoid stalling the event loop
             def _send_sync():
-                context = ssl.create_default_context()
+                context = self_hosted.ssl_context(f"smtp://{smtp_config['smtpHost']}:{smtp_config['smtpPort']}")
                 if smtp_config.get('useTLS', True):
                     with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort']) as server:
                         server.starttls(context=context)
@@ -163,7 +164,7 @@ class EmailService:
             smtp_password = self.decrypt_password(smtp_config['smtpPasswordEncrypted'])
 
             def _verify_sync():
-                context = ssl.create_default_context()
+                context = self_hosted.ssl_context(f"smtp://{smtp_config['smtpHost']}:{smtp_config['smtpPort']}")
                 if smtp_config.get('useTLS', True):
                     with smtplib.SMTP(smtp_config['smtpHost'], smtp_config['smtpPort'], timeout=10) as server:
                         server.starttls(context=context)

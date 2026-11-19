@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import aiohttp
 
+import self_hosted
+
 
 def _append_log(path: str, line: str) -> None:
     with open(path, "a") as fh:
@@ -152,10 +154,9 @@ class NotificationService:
             msg.attach(MIMEText(body, 'plain'))
 
             def _smtp_send():
-                import ssl
                 with smtplib.SMTP(smtp_host, smtp_port) as server:
                     if smtp_user and smtp_pass:
-                        server.starttls(context=ssl.create_default_context())
+                        server.starttls(context=self_hosted.ssl_context(f"smtp://{smtp_host}:{smtp_port}"))
                         server.login(smtp_user, smtp_pass)
                     server.send_message(msg)
 
