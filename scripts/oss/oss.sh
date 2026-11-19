@@ -3,9 +3,10 @@
 #   mailpit   - catches every email the platform sends: SMTP localhost:1025 (STARTTLS), web UI 127.0.0.1:8025
 #   authentik - identity provider (SCIM pushes to Omni-Agent, events as a log source): http://127.0.0.1:9000
 #   fleet     - device management on osquery, with this server enrolled through osquery: https://localhost:8412
+#   ntfy      - push notifications for paging: http://127.0.0.1:2586, topic omni-oncall, nobody in without a login
 #
-#   sudo scripts/oss/oss.sh apply mailpit|authentik|fleet
-#   sudo scripts/oss/oss.sh undo mailpit|authentik|fleet    # stops and removes it; its data stays unless PURGE=1
+#   sudo scripts/oss/oss.sh apply mailpit|authentik|fleet|ntfy
+#   sudo scripts/oss/oss.sh undo mailpit|authentik|fleet|ntfy    # stops and removes it; its data stays unless PURGE=1
 #   sudo scripts/oss/oss.sh wire authentik                  # test group and users, log-reader token, SCIM provider
 #   sudo scripts/oss/oss.sh scim-token                      # paste the platform's SCIM token (not echoed); goes live
 #   scripts/oss/oss.sh status
@@ -23,6 +24,9 @@ ENVFILE=/etc/omni/self-hosted.env
 DROPIN=/etc/systemd/system/omni-backend.service.d/20-self-hosted.conf
 MAILPIT_VERSION=v1.33.0
 MAILPIT_SHA256=d0ec50080cbf3e7c1fa2cda2ee68125d7894175811084b1f8f47c6cfc6f487c8   # mailpit-linux-amd64.tar.gz
+NTFY_VERSION=2.37.2
+NTFY_SHA256=e67f53d7fbed529b83faf3993b584110921ef3567b0ac0b033c6910879a4ffd1      # ntfy_<version>_linux_amd64.tar.gz
+NTFY_TOPIC=omni-oncall
 OSQUERY_KEY_FPR=1484120AC4E9F8A1A577AEEE97A80C63C9D8B80B                          # pkg.osquery.io signing key
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -119,6 +123,86 @@ mailpit_undo() {
     origin remove smtp://localhost:1025
     [ "${PURGE:-0}" = 1 ] && rm -rf /var/lib/mailpit "$PUB/mailpit.crt" "$PUB/mailpit.key"
     echo "Mailpit removed$(purged ' with its mail')."
+}
+
+# ---------------------------------------------------------------------------------------------------- ntfy
+
+ntfyctl() { runuser -u ntfy -- /usr/local/bin/ntfy "$1" --config /etc/ntfy/server.yml "${@:2}"; }
+
+# Two logins, both limited to the one topic: omni-platform may only send (its token goes into the Paging panel),
+# oncall may only read (the web UI or the ntfy app, through an SSH tunnel). Nothing anonymous gets in.
+ntfy_apply() {
+    local tmp dir="ntfy_${NTFY_VERSION}_linux_amd64"; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+    curl -fsSL -o "$tmp/ntfy.tgz" "https://github.com/binwiederhier/ntfy/releases/download/v$NTFY_VERSION/$dir.tar.gz"
+    echo "$NTFY_SHA256  $tmp/ntfy.tgz" | sha256sum -c --quiet - || die "ntfy download does not match its published digest"
+    tar -xzf "$tmp/ntfy.tgz" -C "$tmp" "$dir/ntfy"
+    install -m 755 "$tmp/$dir/ntfy" /usr/local/bin/ntfy
+    id ntfy >/dev/null 2>&1 || useradd --system --home-dir /var/lib/ntfy --shell /usr/sbin/nologin ntfy
+    install -d -o ntfy -g ntfy -m 700 /var/lib/ntfy
+    install -d -m 700 "$OPT/ntfy"
+    install -d -m 755 /etc/ntfy
+    cat > /etc/ntfy/server.yml <<EOF
+# Written by scripts/oss/oss.sh: ntfy for Omni-Agent paging, loopback only; every topic is closed to anyone without a login.
+base-url: "http://127.0.0.1:2586"
+listen-http: "127.0.0.1:2586"
+cache-file: /var/lib/ntfy/cache.db
+cache-duration: 72h
+auth-file: /var/lib/ntfy/user.db
+auth-default-access: deny-all
+enable-signup: false
+enable-login: true
+EOF
+    cat > /etc/systemd/system/ntfy.service <<EOF
+# Installed by scripts/oss/oss.sh: ntfy push server for Omni-Agent paging tests.
+[Unit]
+Description=ntfy push notifications for Omni-Agent paging
+After=network.target
+
+[Service]
+User=ntfy
+ExecStart=/usr/local/bin/ntfy serve --config /etc/ntfy/server.yml
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/ntfy
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable ntfy
+    systemctl restart ntfy
+    wait_for "ntfy" curl -fsS http://127.0.0.1:2586/v1/health
+    if ! ntfyctl user list 2>&1 | grep -q '^user omni-platform '; then
+        NTFY_PASSWORD="$(secret 32)" ntfyctl user add --role=user omni-platform >/dev/null
+        ntfyctl access omni-platform "$NTFY_TOPIC" write-only >/dev/null
+    fi
+    if ! ntfyctl user list 2>&1 | grep -q '^user oncall '; then
+        install -m 600 /dev/null "$OPT/ntfy/oncall-password"; secret 24 > "$OPT/ntfy/oncall-password"
+        NTFY_PASSWORD="$(cat "$OPT/ntfy/oncall-password")" ntfyctl user add --role=user oncall >/dev/null
+        ntfyctl access oncall "$NTFY_TOPIC" read-only >/dev/null
+    fi
+    if [ ! -s "$OPT/ntfy/platform-token" ]; then
+        local token; token="$(ntfyctl token add omni-platform 2>&1 | grep -oE 'tk_[A-Za-z0-9]{29}' | head -1)"
+        [ -n "$token" ] || die "ntfy did not hand out a token for omni-platform"
+        install -m 600 /dev/null "$OPT/ntfy/platform-token"; printf '%s' "$token" > "$OPT/ntfy/platform-token"
+    fi
+    origin add http://127.0.0.1:2586
+    echo "Paging panel: provider ntfy, URL http://127.0.0.1:2586/$NTFY_TOPIC, access token: sudo cat $OPT/ntfy/platform-token"
+    echo "Read the pages: ssh -L 2586:127.0.0.1:2586 <this server>, open http://localhost:2586/$NTFY_TOPIC and sign in"
+    echo "as oncall (password: sudo cat $OPT/ntfy/oncall-password)"
+}
+
+ntfy_undo() {
+    systemctl disable --now ntfy 2>/dev/null || true
+    rm -f /etc/systemd/system/ntfy.service /usr/local/bin/ntfy
+    systemctl daemon-reload
+    origin remove http://127.0.0.1:2586
+    [ "${PURGE:-0}" = 1 ] && rm -rf /var/lib/ntfy /etc/ntfy "$OPT/ntfy"
+    echo "ntfy removed$(purged ' with its users, tokens and cached pages')."
 }
 
 # ---------------------------------------------------------------------------------------------------- authentik
@@ -260,7 +344,7 @@ fleet_undo() {
 
 status() {
     local docker=(docker); [ "$(id -u)" -eq 0 ] || docker=(sudo -n docker)
-    printf '%-10s %s\n' mailpit "$(systemctl is-active mailpit 2>/dev/null || true)"
+    for s in mailpit ntfy; do printf '%-10s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null || true)"; done
     for s in authentik fleet; do
         if [ -f "$OPT/$s/compose.yml" ] && command -v docker >/dev/null; then
             printf '%-10s %s\n' "$s" "$("${docker[@]}" compose --project-directory "$OPT/$s" -f "$OPT/$s/compose.yml" ps --format '{{.Service}}={{.State}}' 2>/dev/null | tr '\n' ' ')"
@@ -269,7 +353,7 @@ status() {
         fi
     done
     printf '%-10s %s\n' osqueryd "$(systemctl is-active osqueryd 2>/dev/null || true)"
-    echo "listening: $(ss -ltn | awk 'NR > 1 {print $4}' | grep -E ':(1025|8025|9000|9443|8412)$' | sort -u | tr '\n' ' ')"
+    echo "listening: $(ss -ltn | awk 'NR > 1 {print $4}' | grep -E ':(1025|8025|2586|9000|9443|8412)$' | sort -u | tr '\n' ' ')"
     [ -r "$ENVFILE" ] && echo "self-hosted origins: $(sed -n 's/^OMNI_SELF_HOSTED=//p' "$ENVFILE")" || echo "self-hosted origins: (sudo to read $ENVFILE)"
 }
 
@@ -287,10 +371,10 @@ scim_token() {  # the platform's SCIM token (Settings > SSO > SCIM) for authenti
 }
 
 case "${1:-}:${2:-}" in
-    apply:mailpit|apply:authentik|apply:fleet) need_root apply; "${2}_apply" ;;
-    undo:mailpit|undo:authentik|undo:fleet) need_root undo; "${2}_undo" ;;
+    apply:mailpit|apply:authentik|apply:fleet|apply:ntfy) need_root apply; "${2}_apply" ;;
+    undo:mailpit|undo:authentik|undo:fleet|undo:ntfy) need_root undo; "${2}_undo" ;;
     wire:authentik) need_root wire; authentik_wire ;;
     scim-token:*) need_root scim-token; scim_token ;;
     status:*) status ;;
-    *) die "usage: $0 apply|undo mailpit|authentik|fleet, or $0 status" ;;
+    *) die "usage: $0 apply|undo mailpit|authentik|fleet|ntfy, or $0 status" ;;
 esac

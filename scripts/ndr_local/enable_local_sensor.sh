@@ -5,11 +5,12 @@
 #   scripts/ndr_local/enable_local_sensor.sh check          # no root: validates the config and loads the rules
 #   sudo scripts/ndr_local/enable_local_sensor.sh apply     # installs, unmasks and starts Suricata, waits for stats
 #   sudo scripts/ndr_local/enable_local_sensor.sh undo      # stops, masks and removes what apply installed
+#   sudo scripts/ndr_local/enable_local_sensor.sh rules     # weekly ET Open refresh, without the offload-noise rules
 #   scripts/ndr_local/enable_local_sensor.sh status
 #
 # IFACE (default: the interface of the default route) and RULES (default /var/lib/suricata/rules/suricata.rules)
-# can be set in the environment. Rules are ET Open as already pulled with suricata-update; refresh them with
-# `sudo suricata-update && sudo suricatasc -c reload-rules`.
+# can be set in the environment. Rules are ET Open pulled with suricata-update; `rules` installs a weekly timer
+# that refreshes them (and reloads Suricata), skipping the STREAM rules listed in disable.conf below.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,6 +18,8 @@ TEMPLATE="$HERE/suricata-local.yaml"
 INCLUDE=/etc/suricata/omni-local.yaml
 DROPIN_DIR=/etc/systemd/system/suricata.service.d
 DROPIN="$DROPIN_DIR/10-omni-local.conf"
+DISABLE=/etc/suricata/disable.conf
+UPDATE_UNIT=/etc/systemd/system/omni-suricata-update
 EVE=/var/log/suricata/eve.json
 RULES="${RULES:-/var/lib/suricata/rules/suricata.rules}"
 IFACE="${IFACE:-$(ip -4 route show default | awk '{for (i = 1; i < NF; i++) if ($i == "dev") {print $(i + 1); exit}}')}"
@@ -103,7 +106,57 @@ undo() {
     rmdir "$DROPIN_DIR" 2>/dev/null || true
     systemctl daemon-reload
     systemctl mask suricata
-    echo "Suricata stopped and masked as before; $EVE is kept (logrotate ages it out)."
+    systemctl disable --now omni-suricata-update.timer 2>/dev/null || true
+    rm -f "$UPDATE_UNIT.service" "$UPDATE_UNIT.timer" "$DISABLE"
+    systemctl daemon-reload
+    echo "Suricata stopped and masked as before, weekly rule refresh removed; $EVE is kept (logrotate ages it out)."
+}
+
+# Four of Suricata's own STREAM checks fire on packets the network card merged (receive offload, as on Azure), not on
+# an attack: on 19 Nov they wrote 107,000 alerts in two hours of image downloads from four addresses. suricata-update
+# leaves them out; every other STREAM rule stays.
+rules() {
+    need_root rules
+    cat > "$DISABLE" <<'EOF'
+# Written by scripts/ndr_local/enable_local_sensor.sh: rules suricata-update leaves out (receive-offload noise).
+2210020   # SURICATA STREAM ESTABLISHED packet out of window
+2210029   # SURICATA STREAM ESTABLISHED invalid ack
+2210044   # SURICATA STREAM Packet with invalid timestamp
+2210045   # SURICATA STREAM Packet with invalid ack
+EOF
+    chmod 644 "$DISABLE"
+    cat > "$UPDATE_UNIT.service" <<EOF
+# Installed by scripts/ndr_local/enable_local_sensor.sh: refresh ET Open (tested before use) and reload Suricata.
+[Unit]
+Description=Refresh Suricata rules for the Omni-Agent local sensor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=15
+ExecStart=/usr/bin/suricata-update --disable-conf $DISABLE
+ExecStartPost=-/usr/bin/systemctl reload suricata
+EOF
+    cat > "$UPDATE_UNIT.timer" <<'EOF'
+# Installed by scripts/ndr_local/enable_local_sensor.sh.
+[Unit]
+Description=Weekly Suricata rule refresh for the Omni-Agent local sensor
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now omni-suricata-update.timer
+    echo "refreshing the rules now (download, then suricata -T; a few minutes)..."
+    systemctl start omni-suricata-update.service
+    echo "offload-noise rules still enabled: $(grep -cE '^alert .*sid:22100(20|29|44|45);' "$RULES" || true)"
+    systemctl list-timers omni-suricata-update.timer --no-pager | sed -n 2p
 }
 
 status() {
@@ -128,6 +181,7 @@ case "${1:-}" in
     check) check ;;
     apply) apply ;;
     undo) undo ;;
+    rules) rules ;;
     status) status ;;
-    *) die "usage: $0 check|apply|undo|status" ;;
+    *) die "usage: $0 check|apply|undo|rules|status" ;;
 esac
