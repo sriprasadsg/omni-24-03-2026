@@ -155,8 +155,8 @@ Plans:
 - [ ] **Phase 76: Catalogue Manifest & Backend Route Enforcement** - One shared manifest defines each catalogue's permission and routes; priority route groups are guarded; a deny-by-default parity test and gap ledger keep them honest
 - [x] **Phase 77: Fail-Closed Sidebar, View Gate & Role Visibility** - Users see, reach, and are told about exactly the catalogues their role allows, and role edits take effect without re-login (completed 2026-10-21)
 - [ ] **Phase 78: Organization & Endpoint Cost API** - Tenant-isolated, read-only cost summary and per-asset cost computed by the same book-value function as the ITAM KPI tile
-- [ ] **Phase 79: License Cost & Per-Endpoint Allocation** - Licenses can carry a cost, and license spend is reported at org level and allocated to endpoints without double-counting
-- [ ] **Phase 80: Costs Tab in the ITAM Console** - Operators read and export org and endpoint costs from a Costs tab in the existing ITAM console
+- [x] **Phase 79: License Cost & Per-Endpoint Allocation** - Licenses can carry a cost, and license spend is reported at org level and allocated to endpoints without double-counting (built directly, not as GSD plans: 2b32bd74c, live 2026-11-18)
+- [x] **Phase 80: Costs Tab in the ITAM Console** - Operators read and export org and endpoint costs from a Costs tab in the existing ITAM console (built directly, not as GSD plans: bd394f0fa, live 2026-11-18)
 
 ### Phase 75: Permission Resolver & Single Source of Truth
 
