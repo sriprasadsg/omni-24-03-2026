@@ -187,6 +187,25 @@ async def test_record_alert_lifts_metadata_counts_repeats_and_skips_approved_ai(
 
 
 @pytest.mark.asyncio
+async def test_a_repeated_runtime_finding_counts_on_its_open_alert(soc_db):
+    """protects=persist_security_alert with a group (the heartbeat's runtime findings: type, file and rule per
+    endpoint) raises occurrences on the open alert and writes no second audit block, while another file is its own
+    alert; fails_when=a YARA match on /usr/bin/suricata opens a new alert every scan (109 on 19 Nov); no_claim=-"""
+    from ueba_service import persist_security_alert
+    meta = {"tenantId": "t1", "agent_id": "ag1", "type": "YARA Match (executable)"}
+    for _ in range(3):
+        await persist_security_alert(soc_db, alert_type="runtime_security", severity="high", title="Runtime Threat: YARA",
+                                     description="Executable '/usr/bin/suricata' matched YARA rule 'PsExecLateralMovement'",
+                                     metadata=meta, group="runtime_security:ag1:aaaa")
+    await persist_security_alert(soc_db, alert_type="runtime_security", severity="critical", title="Runtime Threat: YARA",
+                                 description="Executable '/usr/local/bin/ntfy' matched YARA rule 'LockerRansomware'",
+                                 metadata=meta, group="runtime_security:ag1:bbbb")
+    rows = await soc_db.security_alerts.find({"type": "runtime_security"}, {"_id": 0}).sort("created_at", 1).to_list(10)
+    assert [(r["group"], r["occurrences"]) for r in rows] == [("runtime_security:ag1:aaaa", 3), ("runtime_security:ag1:bbbb", 1)]
+    assert await soc_db.blockchain_audit.count_documents({"eventType": "runtime_security"}) == 2
+
+
+@pytest.mark.asyncio
 async def test_migration_036_folds_names_lifts_and_approves_the_server_llm_once(soc_db, monkeypatch):
     """protects=old rows get ids and tenants, AI-process alerts get the name from their scan, repeats fold
     into the first (counted, nothing deleted), the server's own Ollama is approved and its alerts closed

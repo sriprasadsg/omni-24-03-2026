@@ -7,12 +7,15 @@ alert fields.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
-async def _persist_alert(db, alert_type: str, severity: str, title: str, description: str, metadata: Dict[str, Any]):
+async def _persist_alert(db, alert_type: str, severity: str, title: str, description: str, metadata: Dict[str, Any],
+                         group: Optional[str] = None):
+    """Store one alert; with ``group``, a repeat of an open alert of that group only counts on it (record_alert) and
+    is not announced again."""
     now = datetime.now(timezone.utc).isoformat()
     alert = {
         "type": alert_type,
@@ -26,7 +29,9 @@ async def _persist_alert(db, alert_type: str, severity: str, title: str, descrip
     }
     # record_alert lifts tenantId/agent_id out of metadata, so the tenant's consoles can see it.
     import soc_alerts
-    await soc_alerts.record_alert(db, alert)
+    stored = await soc_alerts.record_alert(db, alert, group)
+    if (stored or {}).get("occurrences", 1) > 1:
+        return
 
     # Push OCSF event to subscribed external SIEM webhooks (COMM-01).
     # Fire-and-forget; never raises into the UEBA pipeline.

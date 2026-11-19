@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Re
 from typing import Dict, Any
 from database import get_database
 from datetime import datetime, timezone
+import hashlib
 import re
 from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
 from rate_limiter import limiter, agent_limiter
@@ -549,6 +550,9 @@ async def report_heartbeat(
                     metadata={"type": item.get("type"), "severity": item.get("severity"),
                               "description": item.get("description"), "agent_id": agent_id,
                               "tenantId": _hb_tenant_id},
+                    # the same finding (type, file, rule) on the same endpoint counts on its open alert, scan after scan
+                    group=f"runtime_security:{agent_id}:" + hashlib.sha256(
+                        f"{item.get('type')}|{item.get('description')}".encode()).hexdigest()[:16],
                 )
 
     task_feedback_list = meta.get("task_feedback", [])
