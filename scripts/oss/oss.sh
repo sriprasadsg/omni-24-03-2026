@@ -9,6 +9,7 @@
 #   sudo scripts/oss/oss.sh undo mailpit|authentik|fleet|ntfy    # stops and removes it; its data stays unless PURGE=1
 #   sudo scripts/oss/oss.sh wire authentik                  # test group and users, log-reader token, SCIM provider
 #   sudo scripts/oss/oss.sh scim-token                      # paste the platform's SCIM token (not echoed); goes live
+#   sudo scripts/oss/oss.sh connect [--scim-org ABC]        # saves Fleet, authentik and ntfy in Omni-Agent (connect.py)
 #   scripts/oss/oss.sh status
 #
 # Everything listens on loopback only (see `ss -ltn`). Passwords and tokens are generated into
@@ -370,11 +371,41 @@ scim_token() {  # the platform's SCIM token (Settings > SSO > SCIM) for authenti
     authentik_wire
 }
 
+# ---------------------------------------------------------------------------------------------------- connect
+
+# Saves the settings in Omni-Agent itself (connect.py) as the backend's user, with the backend unit's environment
+# files and backend/.env: Fleet, authentik and ntfy for the Platform organization; --scim-org <organization> also
+# makes a SCIM token there and hands it to authentik. The tokens go to connect.py on stdin, never in argv.
+connect() {
+    local backend user tokens out scim rc=0 envs=()
+    backend="$(cd "$HERE/../../backend" && pwd)"
+    systemctl is-active --quiet omni-backend || die "omni-backend is not running"
+    user="$(systemctl show omni-backend -p User --value)"
+    while read -r f; do envs+=(-p "EnvironmentFile=$f"); done < <(systemctl show omni-backend -p EnvironmentFiles --value | python3 -I -c '
+import re, sys
+for path, ignore in re.findall(r"(/\S+) \(ignore_errors=(yes|no)\)", sys.stdin.read()):
+    print(("-" if ignore == "yes" else "") + path)')
+    tokens="$(python3 -I -c '
+import json, os, sys
+files = {"fleet": "fleet/connector-token", "authentik": "authentik/omni-log-token", "ntfy": "ntfy/platform-token"}
+print(json.dumps({k: open(os.path.join(sys.argv[1], p)).read().strip() for k, p in files.items() if os.path.exists(os.path.join(sys.argv[1], p))}))' "$OPT")"
+    out="$(printf '%s' "$tokens" | systemd-run --quiet --wait --pipe --collect -p User="${user:-root}" -p WorkingDirectory="$backend" \
+        "${envs[@]}" "$backend/venv/bin/python" -I "$HERE/connect.py" "$@")" || rc=$?
+    grep -v '^SCIM_TOKEN=' <<<"$out" || true
+    scim="$(sed -n 's/^SCIM_TOKEN=//p' <<<"$out")"
+    if [ -n "$scim" ]; then
+        install -m 600 /dev/null "$OPT/authentik/omni-scim-token"; printf '%s' "$scim" > "$OPT/authentik/omni-scim-token"
+        authentik_wire
+    fi
+    return "$rc"
+}
+
 case "${1:-}:${2:-}" in
     apply:mailpit|apply:authentik|apply:fleet|apply:ntfy) need_root apply; "${2}_apply" ;;
     undo:mailpit|undo:authentik|undo:fleet|undo:ntfy) need_root undo; "${2}_undo" ;;
     wire:authentik) need_root wire; authentik_wire ;;
     scim-token:*) need_root scim-token; scim_token ;;
+    connect:*) need_root connect; connect "${@:2}" ;;
     status:*) status ;;
     *) die "usage: $0 apply|undo mailpit|authentik|fleet|ntfy, or $0 status" ;;
 esac
