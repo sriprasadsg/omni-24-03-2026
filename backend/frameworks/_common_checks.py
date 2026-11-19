@@ -433,9 +433,10 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
                 return "pass", f"{fim_agents} agents monitoring integrity (FIM active)"
             return "fail", "No file/software integrity monitoring evidence"
 
+        # Managed devices: the MDM list (manual and Intune-synced), without devices that left Intune.
         if check_type == "device_compliance":
-            compliant = await db.devices.count_documents({"compliant": True})
-            total = await db.devices.count_documents({})
+            compliant = await db.mdm_devices.count_documents({"compliant": True, "intuneRemoved": {"$ne": True}})
+            total = await db.mdm_devices.count_documents({"intuneRemoved": {"$ne": True}})
             if total == 0:
                 return "not_applicable", "No managed devices registered"
             pct = round(compliant / total * 100)
