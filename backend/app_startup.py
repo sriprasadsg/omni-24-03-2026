@@ -499,6 +499,12 @@ async def run_startup_services() -> None:
         logger.warning("[Paging] sweep failed to start: %s", _e)
 
     try:
+        import log_connectors  # Wave 3: Entra ID, Microsoft 365, AWS CloudTrail and Google Workspace logs, every 5 minutes
+        asyncio.create_task(_safe_bg_task(log_connectors.pull_loop(), "log_connectors"), name="log_connectors")
+    except Exception as _e:
+        logger.warning("[Log connectors] pull failed to start: %s", _e)
+
+    try:
         from usage_tracker import start_usage_tracking_loop
         asyncio.create_task(_safe_bg_task(start_usage_tracking_loop(), "usage_tracking"))
     except Exception as _e:
