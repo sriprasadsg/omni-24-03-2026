@@ -493,6 +493,8 @@ async def run_startup_services() -> None:
         asyncio.create_task(_safe_bg_task(fleet_service.sync_loop(), "fleet_sync"), name="fleet_sync")
         import android_mdm_service  # hourly Android Enterprise (Android Management API) device sync
         asyncio.create_task(_safe_bg_task(android_mdm_service.sync_loop(), "android_mdm_sync"), name="android_mdm_sync")
+        import jamf_service  # hourly Jamf Pro (Apple devices) sync for connected organizations
+        asyncio.create_task(_safe_bg_task(jamf_service.sync_loop(), "jamf_sync"), name="jamf_sync")
     except Exception as _e:
         logger.warning("[Intune] device sync failed to start: %s", _e)
 

@@ -10,6 +10,7 @@ from auth_types import TokenData
 import android_mdm_service
 import fleet_service
 import intune_service
+import jamf_service
 import mdm_service as svc
 from database import get_database
 
@@ -112,6 +113,11 @@ async def remote_action(
             raise HTTPException(status_code=409, detail="This device is no longer in the connected Android Enterprise")
         return await _android(android_mdm_service.action(get_database(), tenant, device, str(action),
                                                          current_user.username or "", payload.get("confirm")))
+    if device and device.get("source") == "jamf":
+        if device.get("jamfRemoved") or device.get("jamfDisconnected"):
+            raise HTTPException(status_code=409, detail="This device is no longer in the connected Jamf Pro")
+        return await _jamf(jamf_service.action(get_database(), tenant, device, str(action), current_user.username or "",
+                                               payload.get("confirm"), payload.get("pin")))
     if device and device.get("source") == "fleet":
         if device.get("fleetRemoved") or device.get("fleetDisconnected"):
             raise HTTPException(status_code=409, detail="This device is no longer in the connected Fleet")
@@ -212,6 +218,41 @@ async def android_enrollment_token(current_user: TokenData = Depends(require_per
 async def sync_android(current_user: TokenData = Depends(require_permission("manage:assets"))):
     """Read the enterprise's devices now (also done every hour)."""
     return await _android(android_mdm_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
+
+
+# ── Jamf Pro connector (Apple devices) ─────────────────────────────────────────
+
+async def _jamf(coro):
+    try:
+        return await coro
+    except jamf_service.JamfError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.get("/jamf")
+async def get_jamf(current_user: TokenData = Depends(get_current_user)):
+    """Whether this organization's Jamf Pro is connected, its address, client ID, last sync and error; never the secret."""
+    return await jamf_service.get_config(get_database(), _tenant(current_user))
+
+
+@router.put("/jamf")
+async def put_jamf(payload: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Connect or update Jamf Pro: baseUrl, clientId and clientSecret (the secret may be left out to keep it)."""
+    return await _jamf(jamf_service.save_config(get_database(), _tenant(current_user), str(payload.get("baseUrl") or ""),
+                                                str(payload.get("clientId") or ""), payload.get("clientSecret") or None,
+                                                current_user.username or ""))
+
+
+@router.delete("/jamf")
+async def delete_jamf(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    await _jamf(jamf_service.disconnect(get_database(), _tenant(current_user), current_user.username or ""))
+    return {"success": True}
+
+
+@router.post("/jamf/sync")
+async def sync_jamf(current_user: TokenData = Depends(require_permission("manage:assets"))):
+    """Read Jamf Pro's computers and mobile devices now (also done every hour)."""
+    return await _jamf(jamf_service.sync(get_database(), _tenant(current_user), current_user.username or ""))
 
 
 # ── Fleet connector (open source, osquery) ─────────────────────────────────────

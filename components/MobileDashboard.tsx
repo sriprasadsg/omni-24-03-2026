@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { IntuneConnectorCard } from './IntuneConnectorCard';
 import { AndroidEnterpriseCard } from './AndroidEnterpriseCard';
 import { FleetConnectorCard } from './FleetConnectorCard';
+import { JamfConnectorCard } from './JamfConnectorCard';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 import { Glyph } from './ui/Glyph';
 
 interface MdmDevice {
   id: string;
-  udid: string;
+  udid?: string; // only on devices enrolled by hand; connector devices carry serial_number instead
   name: string;
-  source?: string; // 'intune', 'android' or 'fleet' when it mirrors a device of the connected Intune (Wave 5), Android Enterprise or Fleet
+  source?: string; // 'intune', 'android', 'jamf' or 'fleet' when it mirrors a device of the connected Intune (Wave 5), Android Enterprise, Jamf Pro or Fleet
   platform: string;
   os_version: string;
   model: string;
@@ -106,20 +107,27 @@ export default function MobileDashboard() {
       retire: 'Retire this device?',
     };
     const device = devices.find(d => d.id === id);
-    const provider = device?.source === 'intune' ? 'Intune' : device?.source === 'android' ? 'Android Enterprise' : device?.source === 'fleet' ? 'Fleet' : '';
+    const provider = device?.source === 'intune' ? 'Intune' : device?.source === 'android' ? 'Android Enterprise' : device?.source === 'jamf' ? 'Jamf Pro' : device?.source === 'fleet' ? 'Fleet' : '';
+    // Jamf Pro needs a 6-digit PIN to lock or erase a Mac: the Mac asks for it afterwards. It is sent once, never stored.
+    const macPin = device?.source === 'jamf' && device.platform === 'macos' && (action === 'lock' || action === 'wipe');
     let confirmName: string | undefined;
-    if ((device?.source === 'intune' || device?.source === 'android') && (action === 'wipe' || action === 'retire')) {
-      // Intune and Android Enterprise carry these out for real: the device name must be typed, as the server checks.
+    let pin: string | undefined;
+    if ((device?.source === 'intune' || device?.source === 'android' || device?.source === 'jamf') && (action === 'wipe' || action === 'retire')) {
+      // Intune, Android Enterprise and Jamf Pro carry these out for real: the device name must be typed, as the server checks.
       confirmName = window.prompt(`${action === 'wipe' ? 'Factory-reset' : 'Retire'} "${device?.name}" through ${provider}. Type the device name to confirm.`) ?? undefined;
       if (!confirmName) return;
-    } else if (confirmMsgs[action] && !confirm(confirmMsgs[action])) return;
+    } else if (!macPin && confirmMsgs[action] && !confirm(confirmMsgs[action])) return;
+    if (macPin) {
+      pin = window.prompt(`Choose a 6-digit PIN for "${device?.name}". The Mac asks for it after the ${action}; keep it safe.`)?.trim() || undefined;
+      if (!pin) return;
+    }
     const r = await authFetch(`/api/mdm/devices/${id}/action`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, confirm: confirmName }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, confirm: confirmName, pin }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) showToast(d.detail || 'Failed', 'error');
     else if (d.status === 'sent') showToast(`'${action}' sent to ${provider}`, 'success');
-    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune, Android Enterprise or Fleet`, 'info');
+    else showToast(`'${action}' recorded only: this device is not managed through a connected Intune, Android Enterprise, Jamf Pro or Fleet`, 'info');
   }
 
   async function savePolicy() {
@@ -159,6 +167,7 @@ export default function MobileDashboard() {
       </div>
       <IntuneConnectorCard onSynced={loadAll} />
       <AndroidEnterpriseCard onSynced={loadAll} />
+      <JamfConnectorCard onSynced={loadAll} />
       <FleetConnectorCard onSynced={loadAll} />
 
       {/* Summary */}
@@ -220,7 +229,7 @@ export default function MobileDashboard() {
                   <tr key={d.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/30">
                     <td className="px-4 py-3">
                       <div className="text-gray-900 dark:text-white">{d.name || d.model || 'Unknown'}</div>
-                      <div className="text-xs text-gray-500 font-mono">{d.udid.slice(0, 16)}…</div>
+                      <div className="text-xs text-gray-500 font-mono">{d.udid ? `${d.udid.slice(0, 16)}…` : d.serial_number || '—'}</div>
                     </td>
                     <td className="px-4 py-3 text-sm"><Glyph e={PLATFORM_ICONS[d.platform]} /> {d.platform} {d.os_version}</td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{d.assigned_user || '—'}</td>
