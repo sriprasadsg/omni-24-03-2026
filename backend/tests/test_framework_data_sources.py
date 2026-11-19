@@ -22,14 +22,13 @@ WRITE = re.compile(r"db(?:\._db)?(?:\.([a-z][a-z0-9_]+)|\[[\'\"]([a-z][a-z0-9_]+
 SKIP_DIRS = {"venv", "tests", "__pycache__", "frameworks", "scripts"}
 SKIP_PREFIXES = ("test_", "seed", "fix_", "debug", "clear_", "cleanup")
 
-# Read by framework checks, written by nothing in production (2026-11-19). Each one retargeted at real data leaves
-# this list; nothing may join it.
+# Read by framework checks, written by nothing in production (2026-11-19). The list is exact: a collection retargeted at
+# real data leaves it, and nothing may join it.
 STILL_UNWRITTEN = {
-    "network_topology", "backups", "compliance_policies", "training_completions", "tls_certificates", "sast_findings",
-    "security_baselines", "pentest_results", "api_keys", "sensitive_data_findings", "dlp_events", "dr_runbooks",
-    "iam_policies", "devices", "employees", "gdpr_records", "data_processing_agreements", "ai_governance_assessments",
-    "ai_risk_assessments", "pqc_configs", "ueba_anomalies", "ueba_events", "privacy_records", "model_registry",
-    "approvals", "network_segments", "code_repositories",
+    "network_topology", "compliance_policies", "security_baselines", "api_keys", "sensitive_data_findings",
+    "dr_runbooks", "iam_policies", "devices", "employees", "gdpr_records", "data_processing_agreements",
+    "ai_governance_assessments", "ai_risk_assessments", "pqc_configs", "ueba_anomalies", "ueba_events",
+    "privacy_records", "model_registry", "approvals", "network_segments", "code_repositories",
 }
 
 
@@ -54,8 +53,8 @@ def _production_writes():
 
 def test_framework_checks_read_no_new_never_written_collection():
     unwritten = _framework_reads() - _production_writes()
-    new = unwritten - STILL_UNWRITTEN
-    assert not new, f"framework checks read collections nothing writes: {sorted(new)}"
+    assert not unwritten - STILL_UNWRITTEN, f"framework checks read collections nothing writes: {sorted(unwritten - STILL_UNWRITTEN)}"
+    assert not STILL_UNWRITTEN - unwritten, f"retargeted, take them off STILL_UNWRITTEN: {sorted(STILL_UNWRITTEN - unwritten)}"
 
 
 def test_edr_checks_count_reporting_agents_not_a_dead_collection():

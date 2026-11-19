@@ -135,8 +135,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── A.6.3: Training ────────────────────────────────────────────────────
         if check_type == "training_present":
-            completions = await db.training_completions.count_documents({})
-            recent = await db.training_completions.count_documents({"completed_at": {"$gte": cutoff_30d}})
+            completions = await db.training_assignments.count_documents({"status": "Completed"})
+            recent = await db.training_assignments.count_documents({"status": "Completed", "completed_at": {"$gte": cutoff_30d}})
             if completions > 0:
                 return "pass", f"{completions} training completions ({recent} in last 30 days)"
             return "fail", "No security training records"
@@ -210,7 +210,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── A.8.12: DLP events (data leakage prevention active) ────────────────
         if check_type == "dlp_leakage_prevention":
             dlp_policies = await db.dlp_policies.count_documents({})
-            dlp_events = await db.dlp_events.count_documents({})
+            dlp_events = await db.dlp_incidents.count_documents({})
             pii_findings = await db.sensitive_data_findings.count_documents({})
             if dlp_policies > 0 and (dlp_events > 0 or pii_findings > 0):
                 return "pass", f"{dlp_policies} DLP policies; {dlp_events} events + {pii_findings} PII findings"
@@ -220,8 +220,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── A.8.13: Backup within 30 days ─────────────────────────────────────
         if check_type == "backup_recent":
-            count = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
-            total = await db.backups.count_documents({})
+            count = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
+            total = await db.backup_metadata.count_documents({"status": "completed"})
             if count > 0:
                 return "pass", f"{count} backups in last 30 days ({total} total)"
             return "fail", "No backup records in last 30 days"
@@ -258,14 +258,14 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         if check_type == "cryptography_configured":
             pqc = await db.pqc_configs.count_documents({})
             dlp_enc = await db.dlp_policies.count_documents({"encryption_enabled": True})
-            tls = await db.tls_certificates.count_documents({})
+            tls = await db.certificates.count_documents({})
             if pqc > 0 or dlp_enc > 0 or tls > 0:
                 return "pass", f"{pqc} PQC configs + {dlp_enc} encryption DLP policies + {tls} TLS certs"
             return "fail", "No cryptographic configuration evidence"
 
         # ── A.8.28: Secure coding (SAST) ──────────────────────────────────────
         if check_type == "secure_coding":
-            sast = await db.sast_findings.count_documents({})
+            sast = await db.sast_vulnerabilities.count_documents({})
             dast = await db.dast_scans.count_documents({})
             if sast > 0 and dast > 0:
                 return "pass", f"{sast} SAST findings + {dast} DAST scans — both active"

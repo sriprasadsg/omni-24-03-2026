@@ -177,8 +177,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── CC1.4: Training ────────────────────────────────────────────────────
         if check_type == "training_present":
-            completions = await db.training_completions.count_documents({})
-            recent = await db.training_completions.count_documents({"completed_at": {"$gte": cutoff_30d}})
+            completions = await db.training_assignments.count_documents({"status": "Completed"})
+            recent = await db.training_assignments.count_documents({"status": "Completed", "completed_at": {"$gte": cutoff_30d}})
             if completions > 0:
                 return "pass", f"{completions} training completions ({recent} in last 30 days)"
             return "fail", "No security training records found"
@@ -272,7 +272,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CC6.7: DLP active (transmission control) ──────────────────────────
         if check_type == "dlp_active":
             dlp_policies = await db.dlp_policies.count_documents({})
-            dlp_events = await db.dlp_events.count_documents({})
+            dlp_events = await db.dlp_incidents.count_documents({})
             if dlp_policies > 0:
                 return "pass", f"{dlp_policies} DLP policies; {dlp_events} DLP events"
             return "fail", "No DLP policies configured"
@@ -327,8 +327,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── A1.2: Backup recent ────────────────────────────────────────────────
         if check_type == "backup_recent":
-            count = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
-            total = await db.backups.count_documents({})
+            count = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
+            total = await db.backup_metadata.count_documents({"status": "completed"})
             if count > 0:
                 return "pass", f"{count} backups in last 30 days ({total} total)"
             return "fail", "No backups in last 30 days"

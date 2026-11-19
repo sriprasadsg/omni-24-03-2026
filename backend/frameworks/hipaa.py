@@ -155,8 +155,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── 164.308(a)(5): Training ────────────────────────────────────────────
         if check_type == "training_present":
-            completions = await db.training_completions.count_documents({})
-            recent = await db.training_completions.count_documents({"completed_at": {"$gte": cutoff_30d}})
+            completions = await db.training_assignments.count_documents({"status": "Completed"})
+            recent = await db.training_assignments.count_documents({"status": "Completed", "completed_at": {"$gte": cutoff_30d}})
             if completions > 0:
                 return "pass", f"{completions} training completions ({recent} in last 30 days)"
             return "fail", "No security awareness training records"
@@ -173,7 +173,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         if check_type == "contingency_plan":
             dr_runbooks = await db.dr_runbooks.count_documents({})
             playbooks = await db.playbooks.count_documents({})
-            backups = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
+            backups = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
             if dr_runbooks > 0:
                 return "pass", f"{dr_runbooks} DR runbooks + {backups} recent backups"
             if playbooks > 0 and backups > 0:
@@ -259,7 +259,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         if check_type == "ephi_encryption":
             enc_dlp = await db.dlp_policies.count_documents({"encryption_enabled": True})
             total_dlp = await db.dlp_policies.count_documents({})
-            tls_certs = await db.tls_certificates.count_documents({})
+            tls_certs = await db.certificates.count_documents({})
             if enc_dlp > 0 or tls_certs > 0:
                 return "pass", f"{enc_dlp}/{total_dlp} DLP policies enforce encryption; {tls_certs} TLS certs"
             if total_dlp > 0:
@@ -288,7 +288,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── 164.312(e)(1): Transmission security ──────────────────────────────
         if check_type == "transmission_security":
-            tls_certs = await db.tls_certificates.count_documents({})
+            tls_certs = await db.certificates.count_documents({})
             network_nodes = await db.network_topology.count_documents({})
             dlp_policies = await db.dlp_policies.count_documents({})
             if tls_certs > 0 or dlp_policies > 0:

@@ -114,7 +114,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── CIS-04: Hardening / security baselines ─────────────────────────────
         if check_type == "hardening_applied":
-            baseline_count = await db.security_baselines.count_documents({})
+            baseline_count = await db.config_baselines.count_documents({})
             # Also check agent CISSP assessments as proxy
             assessment_count = await db.cissp_assessments.count_documents({"status": "completed"})
             if baseline_count > 0:
@@ -209,7 +209,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CIS-16: SAST/DAST active ───────────────────────────────────────────
         if check_type == "sast_dast_active":
             dast_count = await db.dast_scans.count_documents({})
-            sast_count = await db.sast_findings.count_documents({})
+            sast_count = await db.sast_vulnerabilities.count_documents({})
             if dast_count > 0 and sast_count > 0:
                 return "pass", f"{sast_count} SAST findings, {dast_count} DAST scans"
             if dast_count > 0 or sast_count > 0:
@@ -227,7 +227,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CIS-18: Recent pentest ─────────────────────────────────────────────
         if check_type == "pentest_recent":
             cutoff_1y = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
-            count = await db.pentest_results.count_documents({"created_at": {"$gte": cutoff_1y}})
+            count = await db.pentest_jobs.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_1y}})
             dast  = await db.dast_scans.count_documents({"created_at": {"$gte": cutoff_1y}})
             if count > 0:
                 return "pass", f"{count} penetration test results in last 12 months"

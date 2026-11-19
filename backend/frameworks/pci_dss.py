@@ -191,7 +191,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── PCI-2.1: Hardening baselines exist ────────────────────────────────
         if check_type == "hardening_baselines":
-            count = await db.security_baselines.count_documents({})
+            count = await db.config_baselines.count_documents({})
             if count > 0:
                 return "pass", f"{count} hardening baselines defined"
             # CISSP assessments as proxy
@@ -232,7 +232,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── PCI-3.5: DLP events (active scanning) ─────────────────────────────
         if check_type == "dlp_events_present":
-            events = await db.dlp_events.count_documents({})
+            events = await db.dlp_incidents.count_documents({})
             recent = await db.sensitive_data_findings.count_documents({"created_at": {"$gte": cutoff_30d}})
             if events > 0 or recent > 0:
                 return "pass", f"{events} DLP events + {recent} sensitive data findings in 30d"
@@ -282,7 +282,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── PCI-6.2: SAST findings ────────────────────────────────────────────
         if check_type == "sast_present":
-            sast = await db.sast_findings.count_documents({})
+            sast = await db.sast_vulnerabilities.count_documents({})
             if sast > 0:
                 return "pass", f"{sast} SAST findings tracked (secure SDLC active)"
             repos = await db.code_repositories.count_documents({})
@@ -387,7 +387,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── PCI-11.3: Pentest or vulnerability scan ────────────────────────────
         if check_type == "pentest_or_vuln_scan":
-            pentest = await db.pentest_results.count_documents({"created_at": {"$gte": cutoff_1y}})
+            pentest = await db.pentest_jobs.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_1y}})
             vuln_scan = await db.vulnerability_scans.count_documents({"created_at": {"$gte": cutoff_30d}})
             if pentest > 0:
                 return "pass", f"{pentest} penetration tests in last 12 months"

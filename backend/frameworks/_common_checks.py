@@ -218,8 +218,8 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No compliance policies defined"
 
         if check_type == "training_present":
-            completions = await db.training_completions.count_documents({})
-            recent = await db.training_completions.count_documents({"completed_at": {"$gte": cutoff_30d}})
+            completions = await db.training_assignments.count_documents({"status": "Completed"})
+            recent = await db.training_assignments.count_documents({"status": "Completed", "completed_at": {"$gte": cutoff_30d}})
             if completions > 0:
                 return "pass", f"{completions} training completions ({recent} in last 30 days)"
             return "fail", "No security training records found"
@@ -305,7 +305,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No vulnerability scans in last 30 days"
 
         if check_type in ("pentest_or_vuln_scan", "pen_testing"):
-            pentest = await db.pentest_results.count_documents({"created_at": {"$gte": cutoff_1y}})
+            pentest = await db.pentest_jobs.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_1y}})
             vuln_scan = await db.vulnerability_scans.count_documents({"created_at": {"$gte": cutoff_30d}})
             if pentest > 0:
                 return "pass", f"{pentest} penetration tests in last 12 months"
@@ -314,15 +314,15 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No penetration test or recent vulnerability scans"
 
         if check_type in ("backup_recent", "backup_completed"):
-            count = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
-            total = await db.backups.count_documents({})
+            count = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
+            total = await db.backup_metadata.count_documents({"status": "completed"})
             if count > 0:
                 return "pass", f"{count} backups in last 30 days ({total} total)"
             return "fail", "No backups in last 30 days"
 
         if check_type == "backup_dr":
             dr_runbooks = await db.dr_runbooks.count_documents({})
-            recent_backups = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
+            recent_backups = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
             if dr_runbooks > 0:
                 return "pass", f"{dr_runbooks} DR runbooks + {recent_backups} recent backups"
             if recent_backups > 0:
@@ -347,7 +347,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             if tls_doc:
                 count = await db.network_topology.count_documents({"tls_enforced": True})
                 return "pass", f"{count} network devices have TLS enforcement documented"
-            tls_certs = await db.tls_certificates.count_documents({})
+            tls_certs = await db.certificates.count_documents({})
             if tls_certs > 0:
                 return "partial", f"{tls_certs} TLS certs present but no per-device enforcement flag"
             return "fail", "No TLS enforcement documentation found"
@@ -405,7 +405,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No vendor contracts on record"
 
         if check_type == "baseline_config":
-            count = await db.security_baselines.count_documents({})
+            count = await db.config_baselines.count_documents({})
             if count > 0:
                 return "pass", f"{count} security baselines defined"
             return "fail", "No hardening/security baselines defined"
@@ -418,7 +418,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
             return "fail", "No audit log retention evidence"
 
         if check_type == "input_validation":
-            sast = await db.sast_findings.count_documents({})
+            sast = await db.sast_vulnerabilities.count_documents({})
             dast = await db.dast_scans.count_documents({"created_at": {"$gte": cutoff_30d}})
             if sast > 0 or dast > 0:
                 return "pass", f"{sast} SAST findings + {dast} DAST scans in 30 days"

@@ -18,7 +18,7 @@ async def evaluate_controls(db) -> List[Dict[str, Any]]:
     results = await evaluate_from_db(db, "dora")
     cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
 
-    backup_count = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
+    backup_count = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
     incident_count = await db.incidents.count_documents({})
     playbook_count = await db.playbooks.count_documents({})
 

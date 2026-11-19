@@ -140,8 +140,8 @@ async def _run_check(db, ctrl: Dict[str, Any]):
             return "fail", "No vulnerability scans in last 30 days"
 
         if check_type == "backup_recent":
-            count = await db.backups.count_documents({"created_at": {"$gte": cutoff_30d}})
-            total = await db.backups.count_documents({})
+            count = await db.backup_metadata.count_documents({"status": "completed", "completed_at": {"$gte": cutoff_30d}})
+            total = await db.backup_metadata.count_documents({"status": "completed"})
             if count > 0:
                 return "pass", f"{count} backups in last 30 days ({total} total)"
             return "fail", "No backups in last 30 days"
