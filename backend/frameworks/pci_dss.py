@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
+from ._common_checks import reporting_agent_count
+
 FRAMEWORK_ID = "pci_dss"
 FRAMEWORK_NAME = "PCI-DSS v4.0"
 FRAMEWORK_VERSION = "4.0"
@@ -258,7 +260,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── PCI-5.1: EDR deployed ─────────────────────────────────────────────
         if check_type == "edr_deployed":
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             agents = await db.agents.count_documents({})
             if edr > 0:
                 pct = round(edr / agents * 100) if agents else 0
@@ -268,7 +270,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── PCI-5.3: EDR ≥90% coverage ───────────────────────────────────────
         if check_type == "edr_active_pct":
             total = await db.agents.count_documents({})
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             if total == 0:
                 return "not_applicable", "No agents registered"
             pct = round(edr / total * 100)

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
+from ._common_checks import reporting_agent_count
+
 FRAMEWORK_ID = "soc2"
 FRAMEWORK_NAME = "SOC 2 Type II"
 FRAMEWORK_VERSION = "2017 (updated 2022)"
@@ -278,7 +280,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CC6.8: EDR deployment ──────────────────────────────────────────────
         if check_type == "edr_deployment":
             agents = await db.agents.count_documents({})
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             if agents == 0:
                 return "fail", "No agents registered"
             pct = round(edr / agents * 100) if agents else 0

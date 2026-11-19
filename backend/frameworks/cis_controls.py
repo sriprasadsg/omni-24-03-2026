@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
+from ._common_checks import reporting_agent_count
+
 FRAMEWORK_ID = "cis_v8"
 FRAMEWORK_NAME = "CIS Controls v8"
 FRAMEWORK_VERSION = "8.0"
@@ -169,7 +171,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── CIS-10: EDR active on agents ──────────────────────────────────────
         if check_type == "edr_active":
             total_agents = await db.agents.count_documents({})
-            edr_agents  = await db.edr_agents.count_documents({})
+            edr_agents  = await reporting_agent_count(db)
             if total_agents == 0:
                 return "fail", "No agents registered"
             pct = round(edr_agents / total_agents * 100) if total_agents else 0

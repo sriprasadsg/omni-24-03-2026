@@ -34,6 +34,17 @@ from typing import Any, Dict, Tuple
 import ndr_sensors
 
 
+# The Omni-Agent is the platform's endpoint protection (EDR, anti-malware): an endpoint counts as protected when its
+# agent reported in the last week. Checks used to count an "edr_agents" collection that nothing writes.
+EDR_ACTIVE_DAYS = 7
+
+
+async def reporting_agent_count(db) -> int:
+    """Agents that reported in the last EDR_ACTIVE_DAYS days (lastSeen is an ISO string; older rows a datetime)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=EDR_ACTIVE_DAYS)
+    return await db.agents.count_documents({"$or": [{"lastSeen": {"$gte": cutoff.isoformat()}}, {"lastSeen": {"$gte": cutoff}}]})
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -360,7 +371,7 @@ async def run_check(db, ctrl: Dict[str, Any]) -> Tuple[str, str]:
 
         if check_type == "malware_protection":
             agents = await db.agents.count_documents({})
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             if agents == 0:
                 return "fail", "No agents registered"
             pct = round(edr / agents * 100) if agents else 0

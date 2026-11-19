@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
+from ._common_checks import reporting_agent_count
+
 FRAMEWORK_ID = "iso27001_2022"
 FRAMEWORK_NAME = "ISO/IEC 27001:2022"
 FRAMEWORK_VERSION = "2022"
@@ -142,7 +144,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
         # ── A.8.1: EDR deployment on endpoints ────────────────────────────────
         if check_type == "edr_deployment":
             agents = await db.agents.count_documents({})
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             if agents == 0:
                 return "fail", "No agents registered"
             pct = round(edr / agents * 100)
@@ -177,7 +179,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
 
         # ── A.8.7: Malware defense ─────────────────────────────────────────────
         if check_type == "malware_defense":
-            edr = await db.edr_agents.count_documents({})
+            edr = await reporting_agent_count(db)
             malware_events = await db.security_events.count_documents({"type": {"$regex": "malware", "$options": "i"}})
             if edr > 0:
                 return "pass", f"{edr} EDR-protected endpoints; {malware_events} malware events detected"
