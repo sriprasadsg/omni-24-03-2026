@@ -2083,6 +2083,7 @@ dependencies = [
  "chrono",
  "dirs",
  "ed25519-dalek",
+ "flate2",
  "futures-util",
  "hex",
  "hmac",

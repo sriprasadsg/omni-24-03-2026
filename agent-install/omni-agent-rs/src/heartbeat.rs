@@ -1,5 +1,7 @@
 use crate::{buffer::MessageBuffer, capabilities::CapabilityManager, config::Config};
 use serde_json::{json, Value};
+use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{OnceLock, RwLock};
 use sysinfo::{Disks, Networks, System};
 
@@ -585,6 +587,52 @@ pub fn identity_payload(cfg: &Config) -> Value {
     })
 }
 
+/// Set once the platform refused a gzip body that it then accepted uncompressed (a platform
+/// older than 2.1.15 cannot read compressed requests); later posts are sent plain.
+static GZIP_REFUSED: AtomicBool = AtomicBool::new(false);
+
+/// `payload` as gzip-compressed JSON (heartbeats shrink about tenfold); `None` if encoding fails.
+pub fn gzip_json(payload: &Value) -> Option<Vec<u8>> {
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&serde_json::to_vec(payload).ok()?).ok()?;
+    encoder.finish().ok()
+}
+
+fn authed(req: reqwest::RequestBuilder, token: &str) -> reqwest::RequestBuilder {
+    if token.is_empty() { req } else { req.bearer_auth(token) }
+}
+
+/// POSTs `payload` as JSON, gzip-compressed unless the platform has refused compression. A
+/// compressed post answered 400/415/422 is resent plain; if that is accepted, compression stays
+/// off for this run.
+async fn post_json(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    payload: &Value,
+) -> reqwest::Result<reqwest::Response> {
+    if !GZIP_REFUSED.load(Ordering::Relaxed) {
+        if let Some(body) = gzip_json(payload) {
+            let resp = authed(client.post(url), token)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .header(reqwest::header::CONTENT_ENCODING, "gzip")
+                .body(body)
+                .send()
+                .await?;
+            if !matches!(resp.status().as_u16(), 400 | 415 | 422) {
+                return Ok(resp);
+            }
+            let plain = authed(client.post(url), token).json(payload).send().await?;
+            if plain.status().is_success() {
+                log::warn!("Platform did not accept a gzip body ({}); sending uncompressed", resp.status());
+                GZIP_REFUSED.store(true, Ordering::Relaxed);
+            }
+            return Ok(plain);
+        }
+    }
+    authed(client.post(url), token).json(payload).send().await
+}
+
 /// Returns the platform's response body on success (it carries the uninstall
 /// protection data), `None` when the heartbeat was not accepted.
 pub async fn send(
@@ -602,11 +650,7 @@ pub async fn send(
         cfg.api_base_url.trim_end_matches('/'),
         cfg.agent_id
     );
-    let mut req = client.post(&url).json(&payload);
-    if !cfg.agent_token.is_empty() {
-        req = req.bearer_auth(&cfg.agent_token);
-    }
-    let result = req.send().await;
+    let result = post_json(client, &url, &cfg.agent_token, &payload).await;
 
     match result {
         Ok(resp) => {
@@ -656,11 +700,7 @@ async fn flush_buffer(
     }
     log::info!("Flushing {} buffered heartbeats", pending.len());
     for (id, payload) in pending {
-        let mut req = client.post(url).json(&payload);
-        if !cfg.agent_token.is_empty() {
-            req = req.bearer_auth(&cfg.agent_token);
-        }
-        match req.send().await {
+        match post_json(client, url, &cfg.agent_token, &payload).await {
             Ok(r) if r.status().is_success() => buffer.delete(id),
             Ok(r) => {
                 log::warn!("Buffer flush {id} rejected: {}", r.status());
@@ -671,5 +711,22 @@ async fn flush_buffer(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod gzip_tests {
+    use super::*;
+    use std::io::Read;
+
+    #[test]
+    fn a_heartbeat_compresses_to_gzip_json_that_reads_back_unchanged() {
+        let payload = json!({"hostname": "h", "meta": {"processes": vec!["svchost.exe"; 500]}});
+        let body = gzip_json(&payload).expect("gzip");
+        assert_eq!(&body[..2], &[0x1f, 0x8b], "gzip magic bytes");
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(&body[..]).read_to_string(&mut text).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), payload);
+        assert!(body.len() * 5 < serde_json::to_vec(&payload).unwrap().len(), "repetitive JSON shrinks well");
     }
 }

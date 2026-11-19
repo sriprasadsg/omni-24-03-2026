@@ -28,6 +28,8 @@ rand = "0.8"
 dirs = "5"
 sysinfo = "0.39"
 rusqlite = { version = "0.40", features = ["bundled"] }
+# Gzip request bodies for heartbeats (already in the lock file through other crates).
+flate2 = "1"
 thiserror = "1.0"
 # Phase 50 (NSCAN): verify the ed25519-signed feed bundle offline (pure Rust, no C deps).
 ed25519-dalek = { version = "2", features = ["rand_core"] }
