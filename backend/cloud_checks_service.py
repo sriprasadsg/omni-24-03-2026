@@ -42,6 +42,9 @@ CLOUD_CHECKS: List[Dict[str, Any]] = AWS_CHECKS + AZURE_CHECKS + GCP_CHECKS + K8
 RUNNABLE_PROVIDERS = ("aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas", "oci", "alibaba", "cloudflare")
 _RUNNABLE_CHECKS_COUNT = len([c for c in CLOUD_CHECKS if c["provider"] in RUNNABLE_PROVIDERS])
 
+NOT_CHECKED_DETAIL = ("Not checked: no scanner results have been imported for this account yet. "
+                      "Connect the provider's scanner, then run the checks again.")
+
 
 class CloudChecksService:
     def _db(self):
@@ -82,6 +85,7 @@ class CloudChecksService:
         significant_findings = [f for f in findings_raw if f.get("severity") in ("critical", "high", "medium")]
         failing_titles = {f.get("title", "").lower() for f in significant_findings}
         failing_ids = {f.get("checkId", "").lower() for f in significant_findings}
+        # No imported scan means nothing is known about this account: every check is SKIP, never PASS.
         has_real_findings = len(findings_raw) > 0
 
         now = datetime.now(timezone.utc).isoformat()
@@ -93,7 +97,12 @@ class CloudChecksService:
             in_findings = cid.lower() in failing_ids or any(
                 kw in title for title in failing_titles for kw in name_lower.split()[:3] if len(kw) > 3
             )
-            result = "FAIL" if in_findings else "PASS"
+            if not has_real_findings:
+                result, detail = "SKIP", NOT_CHECKED_DETAIL
+            elif in_findings:
+                result, detail = "FAIL", "Based on imported findings from native cloud scanner."
+            else:
+                result, detail = "PASS", "No matching findings found."
             doc = {
                 "id": f"ccr-{uuid.uuid4().hex}",
                 "tenantId": tenant_id,
@@ -106,8 +115,8 @@ class CloudChecksService:
                 "result": result,
                 "frameworks": check["frameworks"],
                 "remediation": check["remediation"],
-                "detail": "Based on imported findings from native cloud scanner." if in_findings else "No matching findings found.",
-                "simulated": not has_real_findings,
+                "detail": detail,
+                "simulated": False,
                 "checked_at": now,
             }
             await db.cloud_check_results.update_one(
@@ -116,16 +125,21 @@ class CloudChecksService:
                 upsert=True,
             )
             upserted += 1
-        return {"ran": upserted, "accountId": account_id, "provider": provider, "checked_at": now}
+        out = {"ran": upserted, "accountId": account_id, "provider": provider, "checked_at": now}
+        if not has_real_findings:
+            out["notChecked"] = upserted
+            out["reason"] = "no_findings"
+        return out
 
     async def get_summary(self, tenant_id: Optional[str], role: str, account_id: Optional[str] = None) -> Dict:
         results = await self.get_results(tenant_id, role, account_id=account_id)
         if not results:
             total_checks = len(CLOUD_CHECKS)
-            return {"total": total_checks, "pass": 0, "fail": 0, "bySeverity": {}, "byProvider": {}, "byService": {}, "coverage": 0}
+            return {"total": total_checks, "pass": 0, "fail": 0, "notChecked": 0, "bySeverity": {}, "byProvider": {}, "byService": {}, "coverage": 0}
         total = len(results)
         passed = sum(1 for r in results if r.get("result") == "PASS")
         failed = sum(1 for r in results if r.get("result") == "FAIL")
+        checked = passed + failed
         by_sev: Dict[str, int] = {}
         by_prov: Dict[str, Dict] = {}
         by_svc: Dict[str, int] = {}
@@ -136,7 +150,9 @@ class CloudChecksService:
             prov = r.get("provider", "unknown")
             if prov not in by_prov:
                 by_prov[prov] = {"pass": 0, "fail": 0}
-            by_prov[prov][r.get("result", "FAIL").lower()] = by_prov[prov].get(r.get("result", "FAIL").lower(), 0) + 1
+            if r.get("result") in ("PASS", "FAIL"):
+                key = r["result"].lower()
+                by_prov[prov][key] = by_prov[prov].get(key, 0) + 1
             svc = r.get("service", "unknown")
             if r.get("result") == "FAIL":
                 by_svc[svc] = by_svc.get(svc, 0) + 1
@@ -144,11 +160,12 @@ class CloudChecksService:
             "total": total,
             "pass": passed,
             "fail": failed,
-            "passPct": round(passed / max(total, 1) * 100),
+            "notChecked": total - checked,
+            "passPct": round(passed / max(checked, 1) * 100),
             "bySeverity": by_sev,
             "byProvider": by_prov,
             "byService": by_svc,
-            "coverage": round(total / max(_RUNNABLE_CHECKS_COUNT, 1) * 100),
+            "coverage": round(checked / max(_RUNNABLE_CHECKS_COUNT, 1) * 100),
         }
 
 

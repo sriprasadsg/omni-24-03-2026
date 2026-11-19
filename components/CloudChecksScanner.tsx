@@ -27,6 +27,7 @@ interface Summary {
   total: number;
   pass: number;
   fail: number;
+  notChecked?: number;
   passPct: number;
   bySeverity: Record<string, number>;
   byProvider: Record<string, { pass: number; fail: number }>;
@@ -136,7 +137,8 @@ export default function CloudChecksScanner() {
           <div className="col-span-2 md:col-span-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <p className="text-xs text-gray-500 dark:text-gray-400">Pass Rate</p>
             <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{summary.passPct}%</p>
-            <p className="text-xs text-gray-400 mt-1">{summary.pass} / {summary.total} checks</p>
+            <p className="text-xs text-gray-400 mt-1">{summary.pass} / {summary.pass + summary.fail} checked</p>
+            {!!summary.notChecked && <p className="text-xs text-yellow-600 dark:text-yellow-400">{summary.notChecked} not checked</p>}
           </div>
           {['aws', 'azure', 'gcp', 'oci', 'alibaba', 'cloudflare'].map(prov => {
             const data = summary.byProvider?.[prov];
@@ -146,8 +148,8 @@ export default function CloudChecksScanner() {
             return (
               <div key={prov} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                 <p className="text-xs text-gray-500 dark:text-gray-400"><Glyph e={PROVIDER_ICONS[prov]} /> {prov.toUpperCase()}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pct}%</p>
-                <p className="text-xs text-gray-400">{data.pass || 0} pass · {data.fail || 0} fail</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{total ? `${pct}%` : '—'}</p>
+                <p className="text-xs text-gray-400">{total ? `${data.pass || 0} pass · ${data.fail || 0} fail` : 'Not checked'}</p>
               </div>
             );
           })}
@@ -228,7 +230,7 @@ export default function CloudChecksScanner() {
                           </span>
                         )}
                       </div>
-                      {r.result === 'FAIL' && r.detail && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.detail}</p>}
+                      {(r.result === 'FAIL' || r.result === 'SKIP') && r.detail && <p title={r.detail} className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.detail}</p>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                       <span><Glyph e={PROVIDER_ICONS[r.provider]} /> {r.provider?.toUpperCase()}</span>
