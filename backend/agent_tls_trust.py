@@ -111,9 +111,10 @@ def heartbeat_reply(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"serverTrust": reply}
 
 
-def agent_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """What to store on the agent from its heartbeat (only the fields it sent)."""
-    fields: Dict[str, Any] = {}
+def agent_fields(payload: Dict[str, Any], via_tls: bool = True) -> Dict[str, Any]:
+    """What to store on the agent from its heartbeat (only the fields it sent). ``via_tls`` is false for a
+    heartbeat that reached the backend without nginx (plain HTTP on this server): no certificate applies."""
+    fields: Dict[str, Any] = {"tlsVia": "https" if via_tls else "http"}
     reported = _reported(payload)
     if reported is not None:
         fields["tlsTrust"] = reported
@@ -129,9 +130,10 @@ def agent_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     return fields
 
 
-async def record(db, agent_filter: Dict[str, Any], existing_agent: Optional[Dict[str, Any]], payload: Dict[str, Any]) -> None:
-    fields = agent_fields(payload)
-    if fields and any((existing_agent or {}).get(k) != v for k, v in fields.items()):
+async def record(db, agent_filter: Dict[str, Any], existing_agent: Optional[Dict[str, Any]], payload: Dict[str, Any],
+                 via_tls: bool = True) -> None:
+    fields = agent_fields(payload, via_tls)
+    if any((existing_agent or {}).get(k) != v for k, v in fields.items()):
         await db.agents.update_one(agent_filter, {"$set": fields})
 
 
@@ -149,6 +151,8 @@ def _seen_at(agent: Dict[str, Any]) -> Optional[datetime]:
 def agent_status(agent: Dict[str, Any], ro: Dict[str, Any]) -> Dict[str, str]:
     """Where one agent stands: ready, or what it still lacks."""
     trust, probe = agent.get("tlsTrust"), agent.get("tlsProbe") or {}
+    if agent.get("tlsVia") == "http":
+        return {"status": "ready", "detail": "Connects without TLS on the server itself; no certificate applies"}
     if trust is None:
         return {"status": "update_agent", "detail": "This agent version cannot take a certificate change; update it"}
     if not trust:
@@ -187,9 +191,11 @@ async def readiness(db, now: Optional[datetime] = None) -> Dict[str, Any]:
             continue
         st = agent_status(agent, ro)
         counts[st["status"]] = counts.get(st["status"], 0) + 1
+        if agent.get("tlsVia") == "http":
+            counts["withoutTls"] = counts.get("withoutTls", 0) + 1
         if st["status"] != "ready" and len(out["notReady"]) < 200:
             out["notReady"].append({"hostname": agent.get("hostname"), "tenantId": agent.get("tenantId"),
                                     "platform": agent.get("platform"), "version": agent.get("version"),
                                     "lastSeen": agent.get("lastSeen"), **st})
-    out["counts"] = {"active": sum(counts.values()), **counts}
+    out["counts"] = {"active": sum(v for k, v in counts.items() if k != "withoutTls"), **counts}
     return out

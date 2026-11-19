@@ -88,7 +88,8 @@ def test_reported_values_are_checked_before_they_are_stored():
     assert fields["tlsTrust"] == ["ab" * 32]
     assert fields["tlsProbe"]["ok"] is False and fields["tlsProbe"]["fingerprints"] == ["cd" * 32]
     assert len(fields["tlsProbe"]["error"]) == 300 and fields["tlsProbe"]["status"] is None
-    assert m.agent_fields({"hostname": "x"}) == {}
+    assert m.agent_fields({"hostname": "x"}) == {"tlsVia": "https"}
+    assert m.agent_fields({"tls_trust": []}, via_tls=False) == {"tlsVia": "http", "tlsTrust": []}
 
 
 class _Cursor:
@@ -127,11 +128,12 @@ def test_readiness_counts_active_agents_and_says_why_the_others_wait(rollover):
         {"hostname": "refused", "lastSeen": seen, "tlsTrust": both,
          "tlsProbe": {"fingerprints": [rollover["fp_new"]], "ok": False, "error": "certificate: not standards compliant"}},
         {"hostname": "gone", "lastSeen": (now - timedelta(days=30)).isoformat()},
+        {"hostname": "local-http", "lastSeen": seen, "tlsTrust": [], "tlsVia": "http"},
     ]
     out = asyncio.run(m.readiness(_Db(rows), now))
     assert out["phase"] == "prepared" and out["served"]["fingerprint"] == rollover["fp_old"]
-    assert out["counts"] == {"active": 6, "ready": 1, "update_agent": 1, "not_pinned": 1, "waiting": 1,
-                             "probe_pending": 1, "probe_failed": 1}
+    assert out["counts"] == {"active": 7, "ready": 2, "update_agent": 1, "not_pinned": 1, "waiting": 1,
+                             "probe_pending": 1, "probe_failed": 1, "withoutTls": 1}
     by_host = {a["hostname"]: a for a in out["notReady"]}
     assert set(by_host) == {"old-version", "unpinned", "waiting", "untested", "refused"}
     assert "not standards compliant" in by_host["refused"]["detail"]

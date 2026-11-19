@@ -568,7 +568,8 @@ async def report_heartbeat(
 
     # Certificate changes (agent_tls_trust): store what the agent trusts; the reply may carry the new list.
     try:
-        await agent_tls_trust.record(db, _hb_agent_filter, existing_agent, payload)
+        await agent_tls_trust.record(db, _hb_agent_filter, existing_agent, payload,
+                                     via_tls=request.headers.get("x-forwarded-proto", "").lower() == "https")
     except Exception as exc:
         logger.warning("Could not store the TLS trust report of %s: %s", agent_id, exc)
 
