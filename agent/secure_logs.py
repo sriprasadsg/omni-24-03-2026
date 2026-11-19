@@ -1,17 +1,22 @@
 import logging
+import logging.handlers
 import os
 from datetime import datetime
 
-class EncryptedFileHandler(logging.FileHandler):
+class EncryptedFileHandler(logging.handlers.RotatingFileHandler):
     """
-    Custom logging handler that encrypts each log line before writing to disk.
+    Custom logging handler that encrypts each log line before writing to disk. The file rolls over at max_bytes
+    (agent.log -> agent.log.1 ...), keeping backup_count old files: agent.log used to grow without bound (~1 GB).
     """
-    def __init__(self, filename, security_mgr, mode='a', encoding=None, delay=False):
+    def __init__(self, filename, security_mgr, mode='a', encoding=None, delay=False,
+                 max_bytes=50 * 1024 * 1024, backup_count=5):
         self.security_mgr = security_mgr
-        super().__init__(filename, mode, encoding, delay)
+        super().__init__(filename, mode, max_bytes, backup_count, encoding, delay)
 
     def emit(self, record):
         try:
+            if self.shouldRollover(record):
+                self.doRollover()
             msg = self.format(record)
             # Add a clear marker for encrypted lines
             encrypted_msg = self.security_mgr.encrypt_data(msg)
