@@ -505,6 +505,12 @@ async def run_startup_services() -> None:
         logger.warning("[Log connectors] pull failed to start: %s", _e)
 
     try:
+        import ndr_local  # Wave 4 (88.1): this server's own Suricata, read from its EVE log every 30 s when it runs
+        asyncio.create_task(_safe_bg_task(ndr_local.read_loop(), "ndr_local"), name="ndr_local")
+    except Exception as _e:
+        logger.warning("[Network sensor] reader failed to start: %s", _e)
+
+    try:
         from usage_tracker import start_usage_tracking_loop
         asyncio.create_task(_safe_bg_task(start_usage_tracking_loop(), "usage_tracking"))
     except Exception as _e:

@@ -36,6 +36,7 @@ TYPE_LABELS = {
     "etw_behavioral_detection": "Windows behaviour rule",
     "siem_rule": "SIEM rule",
     "paging_test": "Paging test",
+    "ids_alert": "Network IDS",
 }
 
 

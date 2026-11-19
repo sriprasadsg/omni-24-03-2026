@@ -1,0 +1,68 @@
+%YAML 1.1
+---
+# The platform server's own network sensor (backend/ndr_local.py): settings that differ from the stock suricata.yaml.
+#
+# enable_local_sensor.sh installs this as /etc/suricata/omni-local.yaml and starts Suricata passively on eth0 with
+#   suricata -D --af-packet=eth0 -c /etc/suricata/suricata.yaml --include /etc/suricata/omni-local.yaml
+# --include replaces each top-level section it names (Suricata 7.0.3), which is what switches the stock outputs off
+# and why "vars" repeats every stock group (see scripts/ndr_check/suricata-check.yaml).
+#
+# Only alert and stats events are written: no payload, packet, HTTP body, DNS, TLS or flow records. Rule metadata
+# is kept, so an alert carries the MITRE technique ET Open names for it.
+
+vars:
+  address-groups:
+    # This server's own subnet; enable_local_sensor.sh writes the one eth0 is on.
+    HOME_NET: "[10.0.0.0/24]"
+    EXTERNAL_NET: "!$HOME_NET"
+    # The rest are the stock 7.0.3 values, unchanged. Without them about 6,800 ET Open rules fail to load.
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: false
+      types:
+        - alert:
+            payload: no
+            payload-printable: no
+            packet: no
+            metadata: yes
+            http-body: no
+            http-body-printable: no
+            tagged-packets: no
+        - stats:
+            totals: yes
+            threads: no
+            deltas: no
+
+# Counters every 30 seconds: the backend samples them once a minute and calls the sensor silent after 5 minutes.
+stats:
+  enabled: yes
+  interval: 30
