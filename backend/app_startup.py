@@ -493,6 +493,12 @@ async def run_startup_services() -> None:
         logger.warning("[Intune] device sync failed to start: %s", _e)
 
     try:
+        import soc_paging  # Wave 3: resolve pages of closed alerts and page acknowledge-target breaches, every minute
+        asyncio.create_task(_safe_bg_task(soc_paging.sweep_loop(), "soc_paging"), name="soc_paging")
+    except Exception as _e:
+        logger.warning("[Paging] sweep failed to start: %s", _e)
+
+    try:
         from usage_tracker import start_usage_tracking_loop
         asyncio.create_task(_safe_bg_task(start_usage_tracking_loop(), "usage_tracking"))
     except Exception as _e:

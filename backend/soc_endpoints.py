@@ -20,6 +20,7 @@ from tenant_context import get_tenant_id
 import soc_actions
 import soc_context
 import soc_incidents
+import soc_paging
 import soc_response
 import soc_rules
 import soc_service
@@ -108,7 +109,7 @@ async def _run(coro):
     try:
         return await coro
     except (soc_actions.ActionError, soc_response.ResponseError, soc_triage.TriageError, soc_rules.RuleError,
-            soc_context.ContextError, soc_watchlist.WatchlistError) as e:
+            soc_context.ContextError, soc_watchlist.WatchlistError, soc_paging.PagingError) as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
 
@@ -389,6 +390,37 @@ async def get_sla(current_user: TokenData = Depends(get_current_user)):
 async def put_sla(body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
     out = await _run(soc_context.set_sla(get_database(), soc_scope(current_user), body, current_user.username))
     await soc_actions._audit("soc.sla.update", soc_scope(current_user), current_user, targets=out)
+    return out
+
+
+@router.get("/paging", dependencies=[Depends(SECURITY_GUARD)])
+async def get_paging(current_user: TokenData = Depends(get_current_user)):
+    """The organization's paging settings (never the key or webhook URL) and its last ten pages."""
+    return await soc_paging.get_config(get_database(), soc_scope(current_user) or "platform-admin")
+
+
+@router.put("/paging", dependencies=RULES_WRITE)
+async def put_paging(body: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+    scope = soc_scope(current_user) or "platform-admin"
+    out = await _run(soc_paging.save_config(get_database(), scope, body, current_user.username))
+    await soc_actions._audit("soc.paging.update", scope, current_user, provider=out.get("provider"), enabled=out.get("enabled"))
+    return out
+
+
+@router.delete("/paging", dependencies=RULES_WRITE)
+async def delete_paging(current_user: TokenData = Depends(get_current_user)):
+    scope = soc_scope(current_user) or "platform-admin"
+    await _run(soc_paging.remove_config(get_database(), scope))
+    await soc_actions._audit("soc.paging.remove", scope, current_user)
+    return {"configured": False}
+
+
+@router.post("/paging/test", dependencies=RULES_WRITE)
+async def test_paging(current_user: TokenData = Depends(get_current_user)):
+    """Raises a critical test alert and pages it now; closing the alert resolves the page."""
+    scope = soc_scope(current_user) or "platform-admin"
+    out = await _run(soc_paging.send_test(get_database(), scope, current_user.username))
+    await soc_actions._audit("soc.paging.test", scope, current_user, alertId=out["alertId"], paged=out.get("paged"))
     return out
 
 

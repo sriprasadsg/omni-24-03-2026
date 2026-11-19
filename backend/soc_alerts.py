@@ -35,6 +35,7 @@ TYPE_LABELS = {
     "persistence_mechanism": "Suspicious persistence",
     "etw_behavioral_detection": "Windows behaviour rule",
     "siem_rule": "SIEM rule",
+    "paging_test": "Paging test",
 }
 
 
@@ -135,6 +136,11 @@ async def record_alert(db, alert: Dict[str, Any], group: Optional[str] = None) -
             soc_triage.schedule_auto(alert)
         except Exception as e:
             logger.debug("SOC auto-triage not scheduled: %s", e)
+        try:  # the organization's on-call page, when it has paging set up (soc_paging)
+            import soc_paging
+            soc_paging.schedule_new(alert)
+        except Exception as e:
+            logger.debug("SOC paging not scheduled: %s", e)
     return alert
 
 
